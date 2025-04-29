@@ -83,25 +83,13 @@ check_requirements() {
     fi
 }
 
-# 克隆或更新代码
-setup_code() {
-    print_message "设置代码..."
-    if [ ! -d "dmc" ]; then
-        print_message "克隆代码仓库..."
-        git clone https://github.com/kidoneself/dmc.git
-        if [ $? -ne 0 ]; then
-            print_error "克隆代码失败"
-            exit 1
-        fi
-        cd dmc
-    else
-        print_message "更新代码仓库..."
-        cd dmc
-        git pull origin main
-        if [ $? -ne 0 ]; then
-            print_error "更新代码失败"
-            exit 1
-        fi
+# 拉取最新代码
+pull_latest_code() {
+    print_message "拉取最新代码..."
+    git pull origin main
+    if [ $? -ne 0 ]; then
+        print_error "拉取代码失败"
+        exit 1
     fi
 }
 
@@ -151,13 +139,27 @@ build_docker_image() {
     cd ..
 }
 
+# 获取最新构建的镜像ID
+get_latest_image_id() {
+    print_message "获取最新构建的镜像ID..."
+    # 获取最近构建的docker-manager镜像ID
+    IMAGE_ID=$(docker images docker-manager --format "{{.ID}}" | head -n 1)
+    if [ -z "$IMAGE_ID" ]; then
+        print_error "未找到docker-manager镜像"
+        exit 1
+    fi
+    print_message "找到镜像ID: $IMAGE_ID"
+}
+
 # 推送到腾讯云容器镜像服务
 push_to_tencent() {
     print_message "推送到腾讯云容器镜像服务..."
     # 腾讯云容器镜像服务信息
     TENCENT_REGISTRY="ccr.ccs.tencentyun.com"
     NAMESPACE="naspt/docker-manager"
-    IMAGE_ID="cb9ef5e0ad9d"  # 使用具体的镜像ID
+    
+    # 获取最新镜像ID
+    get_latest_image_id
     
     # 给镜像打标签
     print_message "给镜像打标签..."
@@ -175,7 +177,7 @@ push_to_tencent() {
 main() {
     check_root
     check_requirements
-    setup_code
+    pull_latest_code
     build_frontend
     build_backend
     copy_build_files
@@ -186,4 +188,4 @@ main() {
 }
 
 # 执行主函数
-main 
+main

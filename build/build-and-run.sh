@@ -35,4 +35,4 @@ docker run -d --privileged \
 
 print_message "容器已启动！"
 print_message "前端访问地址: http://localhost:8081"
-print_message "后端API地址: http://localhost:8080/api"
+print_message "后端API地址: http://localhost:8082/api"
