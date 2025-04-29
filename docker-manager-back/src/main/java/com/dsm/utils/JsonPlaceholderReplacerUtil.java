@@ -15,19 +15,15 @@ public class JsonPlaceholderReplacerUtil {
 
     /**
      * 替换 JSON 字符串中的占位符
-     * @param jsonStr 原始 JSON 字符串
+     *
+     * @param jsonStr      原始 JSON 字符串
      * @param replacements 替换映射，key 为占位符名称，value 为替换值
      * @return 替换后的 JSON 字符串
      */
     public static String replacePlaceholders(String jsonStr, Map<String, String> replacements) {
         try {
-            logger.info("开始替换占位符");
-            logger.info("原始 JSON: {}", jsonStr);
-            logger.info("替换映射: {}", replacements);
-            
             JsonNode rootNode = objectMapper.readTree(jsonStr);
             replacePlaceholdersInNode(rootNode, replacements);
-            
             String result = objectMapper.writeValueAsString(rootNode);
             logger.info("替换后的 JSON: {}", result);
             return result;
@@ -43,16 +39,16 @@ public class JsonPlaceholderReplacerUtil {
             ObjectNode objectNode = (ObjectNode) node;
             // 创建一个新的 ObjectNode 来存储替换后的键值对
             ObjectNode newNode = objectMapper.createObjectNode();
-            
+
             objectNode.fields().forEachRemaining(entry -> {
                 String key = entry.getKey();
                 JsonNode value = entry.getValue();
-                
+
                 // 处理键中的占位符
                 if (key.contains("{{")) {
                     key = replacePlaceholdersInText(key, replacements);
                 }
-                
+
                 // 处理值中的占位符
                 if (value.isTextual()) {
                     String text = value.asText();
@@ -69,7 +65,7 @@ public class JsonPlaceholderReplacerUtil {
                     newNode.set(key, value);
                 }
             });
-            
+
             // 用新的节点替换原节点
             if (node instanceof ObjectNode) {
                 ((ObjectNode) node).removeAll();

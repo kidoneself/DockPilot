@@ -296,7 +296,7 @@ public class DockerService {
             ProcessBuilder processBuilder = new ProcessBuilder(command);
             // 如果代理配置不为空就使用代理
             String proxyUrl = appConfig.getProxyUrl();
-            if (!proxyUrl.isBlank()) {
+            if (proxyUrl != null && !proxyUrl.isBlank()) {
                 processBuilder.environment().put("HTTP_PROXY", proxyUrl);
                 processBuilder.environment().put("HTTPS_PROXY", proxyUrl);
             }
@@ -361,7 +361,7 @@ public class DockerService {
             // 如果代理配置不为空就使用代理
             // 如果代理配置不为空就使用代理
             String proxyUrl = appConfig.getProxyUrl();
-            if (!proxyUrl.isBlank()) {
+            if (proxyUrl != null && !proxyUrl.isBlank()) {
                 processBuilder.environment().put("HTTP_PROXY", proxyUrl);
                 processBuilder.environment().put("HTTPS_PROXY", proxyUrl);
             }
@@ -601,14 +601,14 @@ public class DockerService {
             // 设置代理（如果启用）
             // 如果代理配置不为空就使用代理
             String proxyUrl = appConfig.getProxyUrl();
-            if (!proxyUrl.isBlank()) {
+            if (proxyUrl != null && !proxyUrl.isBlank()) {
                 processBuilder.redirectErrorStream(true);
                 processBuilder.environment().put("HTTP_PROXY", proxyUrl);
                 processBuilder.environment().put("HTTPS_PROXY", proxyUrl);
             }
             processBuilder.redirectErrorStream(true);
             // 打印完整命令行
-            LogUtil.logSysInfo("执行命令: " + String.join(" ", command) + ",是否使用代理 " + !proxyUrl.isBlank());
+            LogUtil.logSysInfo("执行命令: " + String.join(" ", command) + ",是否使用代理 " + (proxyUrl != null && !proxyUrl.isBlank()));
             Process process = processBuilder.start();
             // 读取输出
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {

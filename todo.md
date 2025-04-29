@@ -30,4 +30,10 @@
 - 使用 `- [ ]` 表示未完成的任务
 - 使用 `- [x]` 表示已完成的任务
 - 可以随时添加新的任务
-- 完成的任务可以移动到"已完成"或"已完善"部分 
+- 完成的任务可以移动到"已完成"或"已完善"部分
+
+## 2024-03-24
+[x] 修复WebSocket连接问题：在检查镜像时可能出现的 "Cannot read properties of undefined (reading 'send')" 错误
+   - 修复了 docker.ts 中方法导出方式导致的 this 上下文丢失问题
+   - 使用箭头函数包装 checkImages 和 pullImage 方法以保持 this 上下文
+   - 确保了 WebSocket 方法调用时的正确上下文 
