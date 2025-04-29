@@ -1,0 +1,77 @@
+# IDE
+.idea/
+.vscode/
+.cursor/
+*.iml
+
+# Build
+build/dist/
+build/docker-manager-back-*.jar
+build/data.db
+
+# Database
+*.db
+*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+test-report.html
+
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build files
+es/
+lib/
+dist/
+typings/
+_site
+package
+tmp*
+temp*
+coverage
+*.zip
+.history
+.stylelintcache
+
+# Lock files
+yarn.lock
+pnpm-lock.yaml
+
+# 前端项目打包文件
+docker-manager-front/dist/
+docker-manager-front/es/
+docker-manager-front/lib/
+docker-manager-front/typings/
+docker-manager-front/.vite/
+docker-manager-front/.cache/
+docker-manager-front/.temp/
+
+# 后端项目打包文件
+docker-manager-back/target/
+docker-manager-back/*.jar
+docker-manager-back/.mvn/
+docker-manager-back/mvnw
+docker-manager-back/mvnw.cmd

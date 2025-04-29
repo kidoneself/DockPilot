@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dsm.mapper.ImageStatusMapper">
+
+    <!-- 结果映射 -->
+    <resultMap id="BaseResultMap" type="com.dsm.pojo.entity.ImageStatus">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="tag" property="tag"/>
+        <result column="local_create_time" property="localCreateTime"/>
+        <result column="remote_create_time" property="remoteCreateTime"/>
+        <result column="need_update" property="needUpdate"/>
+        <result column="last_checked" property="lastChecked"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 公共列 -->
+    <sql id="Base_Column_List">
+        id
+        , name, tag, local_create_time, remote_create_time, need_update, last_checked, created_at, updated_at
+    </sql>
+
+    <!-- 查询所有镜像状态 -->
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM image_status
+    </select>
+
+    <!-- 根据ID查询镜像状态 -->
+    <select id="selectById" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM image_status
+        WHERE id = #{id}
+    </select>
+
+    <!-- 根据镜像名称和标签查询状态 -->
+    <select id="selectByNameAndTag" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM image_status
+        WHERE name = #{name} AND tag = #{tag}
+    </select>
+
+    <!-- 插入镜像状态记录 -->
+    <insert id="insert" parameterType="com.dsm.pojo.entity.ImageStatus" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO image_status (name, tag, local_create_time, remote_create_time, need_update, last_checked)
+        VALUES (#{name}, #{tag}, #{localCreateTime}, #{remoteCreateTime}, #{needUpdate}, #{lastChecked})
+    </insert>
+
+    <!-- 更新镜像状态记录 -->
+    <update id="update" parameterType="com.dsm.pojo.entity.ImageStatus">
+        UPDATE image_status
+        <set>
+            <if test="localCreateTime != null">local_create_time = #{localCreateTime},</if>
+            <if test="remoteCreateTime != null">remote_create_time = #{remoteCreateTime},</if>
+            <if test="needUpdate != null">need_update = #{needUpdate},</if>
+            <if test="lastChecked != null">last_checked = #{lastChecked},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 更新镜像的远程创建时间和更新状态 -->
+    <update id="updateRemoteCreateTime">
+        UPDATE image_status
+        SET remote_create_time = #{remoteCreateTime},
+            need_update        = #{needUpdate},
+            last_checked       = #{lastChecked}
+        WHERE id = #{id}
+    </update>
+
+    <!-- 更新本地创建时间 -->
+    <update id="updateLocalCreateTime">
+        UPDATE image_status
+        SET local_create_time = #{localCreateTime},
+            need_update       = false
+        WHERE id = #{id}
+    </update>
+
+    <!-- 根据ID删除镜像状态记录 -->
+    <delete id="deleteById" parameterType="java.lang.Long">
+        DELETE
+        FROM image_status
+        WHERE id = #{id}
+    </delete>
+
+    <!-- 根据镜像名称和标签删除状态记录 -->
+    <delete id="deleteByNameAndTag">
+        DELETE
+        FROM image_status
+        WHERE name = #{name}
+          AND tag = #{tag}
+    </delete>
+</mapper> 

@@ -1,0 +1,30 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: docker-manager-back
+  datasource:
+    url: jdbc:sqlite:docker-manager.db
+    driver-class-name: org.sqlite.JDBC
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.dsm.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+docker:
+  host: unix:///var/run/docker.sock
+  connection-timeout: 30000
+  response-timeout: 45000
+  max-connections: 100
+
+
+## 文件下载配置
+#file:
+#  download:
+#    path:
+#      dev: /Users/lizhiqiang/coding-my/docker/docker-manager-back/src/main/resources/app
+#      prod: /app/template

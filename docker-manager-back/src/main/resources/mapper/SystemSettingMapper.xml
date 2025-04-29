@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.dsm.mapper.SystemSettingMapper">
+
+    <select id="getSettingValue" resultType="string">
+        SELECT setting_value
+        FROM system_settings
+        WHERE setting_key = #{key}
+    </select>
+
+    <insert id="setSettingValue">
+        INSERT INTO system_settings(setting_key, setting_value)
+        VALUES (#{key}, #{value}) ON CONFLICT(setting_key) DO
+        UPDATE SET setting_value = #{value}
+    </insert>
+
+    <select id="getAllSettings" resultType="com.dsm.pojo.entity.SystemSetting">
+        SELECT setting_key AS key, setting_value AS value
+        FROM system_settings
+    </select>
+
+</mapper>

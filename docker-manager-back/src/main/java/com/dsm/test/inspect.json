@@ -1,0 +1,277 @@
+[
+  {
+    "Id": "a464dc1494527f7252f0fb1a0a7422b781bde6e37a03e67847503c3f2dfe2f99",
+    "Created": "2025-04-21T00:36:28.733572445Z",
+    "Path": "/init",
+    "Args": [],
+    "State": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 3576576,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2025-04-21T00:36:30.946200477Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "Image": "sha256:7b68e0d8447d470e38f3fb474f022502c5ce4333931ea8f345a50421562b065d",
+    "ResolvConfPath": "/volume1/@docker/containers/a464dc1494527f7252f0fb1a0a7422b781bde6e37a03e67847503c3f2dfe2f99/resolv.conf",
+    "HostnamePath": "/volume1/@docker/containers/a464dc1494527f7252f0fb1a0a7422b781bde6e37a03e67847503c3f2dfe2f99/hostname",
+    "HostsPath": "/volume1/@docker/containers/a464dc1494527f7252f0fb1a0a7422b781bde6e37a03e67847503c3f2dfe2f99/hosts",
+    "LogPath": "/volume1/@docker/containers/a464dc1494527f7252f0fb1a0a7422b781bde6e37a03e67847503c3f2dfe2f99/a464dc1494527f7252f0fb1a0a7422b781bde6e37a03e67847503c3f2dfe2f99-json.log",
+    "Name": "/naspt-qb",
+    "RestartCount": 0,
+    "Driver": "overlay2",
+    "Platform": "linux",
+    "MountLabel": "",
+    "ProcessLabel": "",
+    "AppArmorProfile": "docker-default",
+    "ExecIDs": null,
+    "HostConfig": {
+      "Binds": [
+        "/volume1/media:/media",
+        "/volume1/docker/naspt-qb/config:/config"
+      ],
+      "ContainerIDFile": "",
+      "LogConfig": {
+        "Type": "json-file",
+        "Config": {}
+      },
+      "NetworkMode": "bridge",
+      "PortBindings": {
+        "9000/tcp": [
+          {
+            "HostIp": "",
+            "HostPort": "9000"
+          }
+        ]
+      },
+      "RestartPolicy": {
+        "Name": "always",
+        "MaximumRetryCount": 0
+      },
+      "AutoRemove": false,
+      "VolumeDriver": "",
+      "VolumesFrom": null,
+      "ConsoleSize": [
+        64,
+        168
+      ],
+      "CapAdd": null,
+      "CapDrop": null,
+      "CgroupnsMode": "private",
+      "Dns": [],
+      "DnsOptions": [],
+      "DnsSearch": [],
+      "ExtraHosts": null,
+      "GroupAdd": null,
+      "IpcMode": "private",
+      "Cgroup": "",
+      "Links": null,
+      "OomScoreAdj": 0,
+      "PidMode": "",
+      "Privileged": false,
+      "PublishAllPorts": false,
+      "ReadonlyRootfs": false,
+      "SecurityOpt": null,
+      "UTSMode": "",
+      "UsernsMode": "",
+      "ShmSize": 67108864,
+      "Runtime": "runc",
+      "Isolation": "",
+      "CpuShares": 0,
+      "Memory": 0,
+      "NanoCpus": 0,
+      "CgroupParent": "",
+      "BlkioWeight": 0,
+      "BlkioWeightDevice": [],
+      "BlkioDeviceReadBps": [],
+      "BlkioDeviceWriteBps": [],
+      "BlkioDeviceReadIOps": [],
+      "BlkioDeviceWriteIOps": [],
+      "CpuPeriod": 0,
+      "CpuQuota": 0,
+      "CpuRealtimePeriod": 0,
+      "CpuRealtimeRuntime": 0,
+      "CpusetCpus": "",
+      "CpusetMems": "",
+      "Devices": [],
+      "DeviceCgroupRules": null,
+      "DeviceRequests": null,
+      "MemoryReservation": 0,
+      "MemorySwap": 0,
+      "MemorySwappiness": null,
+      "OomKillDisable": null,
+      "PidsLimit": null,
+      "Ulimits": [],
+      "CpuCount": 0,
+      "CpuPercent": 0,
+      "IOMaximumIOps": 0,
+      "IOMaximumBandwidth": 0,
+      "MaskedPaths": [
+        "/proc/asound",
+        "/proc/acpi",
+        "/proc/kcore",
+        "/proc/keys",
+        "/proc/latency_stats",
+        "/proc/timer_list",
+        "/proc/timer_stats",
+        "/proc/sched_debug",
+        "/proc/scsi",
+        "/sys/firmware",
+        "/sys/devices/virtual/powercap"
+      ],
+      "ReadonlyPaths": [
+        "/proc/bus",
+        "/proc/fs",
+        "/proc/irq",
+        "/proc/sys",
+        "/proc/sysrq-trigger"
+      ]
+    },
+    "GraphDriver": {
+      "Data": {
+        "LowerDir": "/volume1/@docker/overlay2/3e9fa6159cf4c850b47a69b00f0292322fdfdefc81386d8edcc1ea2a8bb0c74a-init/diff:/volume1/@docker/overlay2/6b5b8de8f85fbdece9004ce6c41e77d19ba3f0ec24944043e7f471c29aee6e6f/diff:/volume1/@docker/overlay2/7179858e4c6527fb311c2e6aaeb1eb02014ef88f35e4e7bd1becd8b2f932c3b5/diff:/volume1/@docker/overlay2/761280e8d5b871e4e30b918e5900cbf7346b8d4c1ab00ebfc7d3d9747d7a2ac6/diff:/volume1/@docker/overlay2/457833f558959a9a34544b553f9fe0f95bcc5a96e0c665e3de780324934252c6/diff:/volume1/@docker/overlay2/6dbc949ba44829f715c0fd5f582c4aaeb50c94a1c11f38f474561a7cc3f505fd/diff:/volume1/@docker/overlay2/17d7e4885f817769740ef303b2c0ab342d8628ddb16ff858d9aa224da332f140/diff:/volume1/@docker/overlay2/d96a4d929a8b0480bed0e06cf36df4a07284bd36e233dd4b077849d4e050d5da/diff:/volume1/@docker/overlay2/3d64c08800496cdf13023fd308e09968c8107f468476611f89959db75d2f54e3/diff",
+        "MergedDir": "/volume1/@docker/overlay2/3e9fa6159cf4c850b47a69b00f0292322fdfdefc81386d8edcc1ea2a8bb0c74a/merged",
+        "UpperDir": "/volume1/@docker/overlay2/3e9fa6159cf4c850b47a69b00f0292322fdfdefc81386d8edcc1ea2a8bb0c74a/diff",
+        "WorkDir": "/volume1/@docker/overlay2/3e9fa6159cf4c850b47a69b00f0292322fdfdefc81386d8edcc1ea2a8bb0c74a/work"
+      },
+      "Name": "overlay2"
+    },
+    "Mounts": [
+      {
+        "Type": "bind",
+        "Source": "/volume1/media",
+        "Destination": "/media",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "/volume1/docker/naspt-qb/config",
+        "Destination": "/config",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+      }
+    ],
+    "Config": {
+      "Hostname": "a464dc149452",
+      "Domainname": "",
+      "User": "",
+      "AttachStdin": false,
+      "AttachStdout": false,
+      "AttachStderr": false,
+      "ExposedPorts": {
+        "6881/tcp": {},
+        "6881/udp": {},
+        "8080/tcp": {},
+        "9000/tcp": {}
+      },
+      "Tty": false,
+      "OpenStdin": false,
+      "StdinOnce": false,
+      "Env": [
+        "UMASK=022",
+        "TZ=Asia/Shanghai",
+        "SavePatch=/media/downloads",
+        "TempPatch=/media/downloads",
+        "WEBUI_PORT=9000",
+        "PUID=0",
+        "PGID=0",
+        "PATH=/lsiopy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "PS1=$(whoami)@$(hostname):$(pwd)\\$ ",
+        "HOME=/config",
+        "TERM=xterm",
+        "S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0",
+        "S6_VERBOSITY=1",
+        "S6_STAGE2_HOOK=/docker-mods",
+        "VIRTUAL_ENV=/lsiopy",
+        "LSIO_FIRST_PARTY=true",
+        "XDG_CONFIG_HOME=/config",
+        "XDG_DATA_HOME=/config"
+      ],
+      "Cmd": null,
+      "Image": "ccr.ccs.tencentyun.com/naspt/qbittorrent:4.6.4",
+      "Volumes": {
+        "/config": {}
+      },
+      "WorkingDir": "/",
+      "Entrypoint": [
+        "/init"
+      ],
+      "OnBuild": null,
+      "Labels": {
+        "build_version": "Linuxserver.io version:- 4.6.4-r1-ls332 Build-date:- 2024-05-26T13:47:44+00:00",
+        "maintainer": "thespad",
+        "org.opencontainers.image.authors": "linuxserver.io",
+        "org.opencontainers.image.created": "2024-05-26T13:47:44+00:00",
+        "org.opencontainers.image.description": "The [Qbittorrent](https://www.qbittorrent.org/) project aims to provide an open-source software alternative to µTorrent. qBittorrent is based on the Qt toolkit and libtorrent-rasterbar library.",
+        "org.opencontainers.image.documentation": "https://docs.linuxserver.io/images/docker-qbittorrent",
+        "org.opencontainers.image.licenses": "GPL-3.0-only",
+        "org.opencontainers.image.ref.name": "40bba54f1f375b2b5cd7acd328bb818522f6436e",
+        "org.opencontainers.image.revision": "40bba54f1f375b2b5cd7acd328bb818522f6436e",
+        "org.opencontainers.image.source": "https://github.com/linuxserver/docker-qbittorrent",
+        "org.opencontainers.image.title": "Qbittorrent",
+        "org.opencontainers.image.url": "https://github.com/linuxserver/docker-qbittorrent/packages",
+        "org.opencontainers.image.vendor": "linuxserver.io",
+        "org.opencontainers.image.version": "4.6.4-r1-ls332"
+      }
+    },
+    "NetworkSettings": {
+      "Bridge": "",
+      "SandboxID": "59d73cef07b754b2edacd3eacba2b94b1387a49793c4214620f5db507fd49275",
+      "SandboxKey": "/var/run/docker/netns/59d73cef07b7",
+      "Ports": {
+        "6881/tcp": null,
+        "6881/udp": null,
+        "8080/tcp": null,
+        "9000/tcp": [
+          {
+            "HostIp": "0.0.0.0",
+            "HostPort": "9000"
+          },
+          {
+            "HostIp": "::",
+            "HostPort": "9000"
+          }
+        ]
+      },
+      "HairpinMode": false,
+      "LinkLocalIPv6Address": "",
+      "LinkLocalIPv6PrefixLen": 0,
+      "SecondaryIPAddresses": null,
+      "SecondaryIPv6Addresses": null,
+      "EndpointID": "27a5bffe27bd13250fbd12d752ad4f95e7e91430eac35383988671afd81dbe16",
+      "Gateway": "172.17.0.1",
+      "GlobalIPv6Address": "",
+      "GlobalIPv6PrefixLen": 0,
+      "IPAddress": "172.17.0.5",
+      "IPPrefixLen": 16,
+      "IPv6Gateway": "",
+      "MacAddress": "02:42:ac:11:00:05",
+      "Networks": {
+        "bridge": {
+          "IPAMConfig": null,
+          "Links": null,
+          "Aliases": null,
+          "MacAddress": "02:42:ac:11:00:05",
+          "NetworkID": "09488a00f7c6947d11be927d54f92ad6025e5437331b99d72ff89e89068d30bd",
+          "EndpointID": "27a5bffe27bd13250fbd12d752ad4f95e7e91430eac35383988671afd81dbe16",
+          "Gateway": "172.17.0.1",
+          "IPAddress": "172.17.0.5",
+          "IPPrefixLen": 16,
+          "IPv6Gateway": "",
+          "GlobalIPv6Address": "",
+          "GlobalIPv6PrefixLen": 0,
+          "DriverOpts": null,
+          "DNSNames": null
+        }
+      }
+    }
+  }
+]

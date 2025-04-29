@@ -1,0 +1,103 @@
+{
+  "services": [
+    {
+      "id": "moviepilot",
+      "name": "MoviePilot",
+      "template": {
+        "Image": "jxxghp/moviepilot-v2:latest",
+        "Env": [
+          "MOVIEPILOT_AUTO_UPDATE=true",
+          "ICC2022_UID=24730",
+          "SUPERUSER=admin",
+          "API_TOKEN=nasptnasptnasptnasptnaspt",
+          "AUTO_UPDATE_RESOURCE=true",
+          "LEAVES_UID=10971",
+          "LEAVES_PASSKEY=e0405a9d0de9e3b112ef78ac3d9c7975",
+          "TZ=Asia/Shanghai",
+          "AUTH_SITE=icc2022,leaves",
+          "ICC2022_PASSKEY=49c421073514d4d981a0cbc4174f4b23"
+        ],
+        "ExposedPorts": {
+          "3000/tcp": {}
+        },
+        "HostConfig": {
+          "PortBindings": {
+            "3000/tcp": "{{MP_PORT}}"
+          },
+          "Binds": [
+            "{{DOCKER_PATH}}/naspt-mpv2/core:/moviepilot/.cache/ms-playwright",
+            "{{DOCKER_PATH}}/naspt-mpv2/config:/config",
+            "{{MEDIA_PATH}}:/media"
+          ],
+          "RestartPolicy": "always",
+          "Privileged": true,
+          "NetworkMode": "bridge"
+        }
+      }
+    },
+    {
+      "id": "Qbittorrent",
+      "name": "Qbittorrent",
+      "template": {
+        "Image": "ccr.ccs.tencentyun.com/naspt/qbittorrent:4.6.4",
+        "Env": [
+          "UMASK=022",
+          "TZ=Asia/Shanghai",
+          "SavePatch=/media/downloads",
+          "TempPatch=/media/downloads",
+          "WEBUI_PORT=9000",
+          "PUID=0",
+          "PGID=0",
+          "PATH=/lsiopy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "PS1=$(whoami)@$(hostname):$(pwd)\\$ ",
+          "HOME=/config",
+          "TERM=xterm",
+          "S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0",
+          "S6_VERBOSITY=1",
+          "S6_STAGE2_HOOK=/docker-mods",
+          "VIRTUAL_ENV=/lsiopy",
+          "LSIO_FIRST_PARTY=true",
+          "XDG_CONFIG_HOME=/config",
+          "XDG_DATA_HOME=/config"
+        ],
+        "ExposedPorts": {
+          "9000/tcp": "{}"
+        },
+        "HostConfig": {
+          "PortBindings": {
+            "9000/tcp": "{{QB_PORT}}"
+          },
+          "Binds": [
+            "{{MEDIA_PATH}}:/media",
+            "{{DOCKER_PATH}}/naspt-qb/config:/config"
+          ],
+          "Privileged": false,
+          "RestartPolicy": "always",
+          "NetworkMode": "bridge"
+        }
+      }
+    }
+  ],
+  "parameters": [
+    {
+      "key": "MP_PORT",
+      "name": "MoviePilot端口",
+      "value": "3000"
+    },
+    {
+      "key": "DOCKER_PATH",
+      "name": "Docker配置路径",
+      "value": "/Users/lizhiqiang/coding-my"
+    },
+    {
+      "key": "MEDIA_PATH",
+      "name": "媒体文件路径",
+      "value": "/Users/lizhiqiang/coding-my/media"
+    },
+    {
+      "key": "QB_PORT",
+      "name": "Qbittorrent端口",
+      "value": "9000"
+    }
+  ]
+}
