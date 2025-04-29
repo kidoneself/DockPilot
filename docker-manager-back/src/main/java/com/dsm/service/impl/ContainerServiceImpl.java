@@ -112,7 +112,7 @@ public class ContainerServiceImpl implements ContainerService {
             LogUtil.logSysError("更新容器失败: " + e.getMessage());
             if (newContainerId != null) {
                 try {
-                    removeContainer(newContainerId);
+//                    removeContainer(newContainerId);
                     LogUtil.logSysInfo("失败的新容器已删除: " + newContainerId);
                 } catch (Exception ex) {
                     LogUtil.logSysError("删除失败的新容器时出错: " + ex.getMessage());
