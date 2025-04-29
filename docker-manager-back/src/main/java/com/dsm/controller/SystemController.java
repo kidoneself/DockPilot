@@ -27,13 +27,7 @@ public class SystemController {
     @Operation(summary = "设置系统配置", description = "设置系统配置项")
     @PostMapping("/settings")
     public ApiResponse<Void> setSetting(@RequestBody SystemSetting setting) {
-        String oldValue = systemSettingService.get(setting.getKey());
         systemSettingService.set(setting.getKey(), setting.getValue());
-        if (oldValue != null) {
-            LogUtil.logSysInfo("更新系统配置: " + setting.getKey() + " 从 " + oldValue + " 更新为 " + setting.getValue());
-        } else {
-            LogUtil.logSysInfo("设置系统配置: " + setting.getKey() + " = " + setting.getValue());
-        }
         return ApiResponse.success(null);
     }
 

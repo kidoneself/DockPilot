@@ -83,13 +83,25 @@ check_requirements() {
     fi
 }
 
-# 拉取最新代码
-pull_latest_code() {
-    print_message "拉取最新代码..."
-    git pull origin main
-    if [ $? -ne 0 ]; then
-        print_error "拉取代码失败"
-        exit 1
+# 克隆或更新代码
+setup_code() {
+    print_message "设置代码..."
+    if [ ! -d "dmc" ]; then
+        print_message "克隆代码仓库..."
+        git clone https://github.com/kidoneself/dmc.git
+        if [ $? -ne 0 ]; then
+            print_error "克隆代码失败"
+            exit 1
+        fi
+        cd dmc
+    else
+        print_message "更新代码仓库..."
+        cd dmc
+        git pull origin main
+        if [ $? -ne 0 ]; then
+            print_error "更新代码失败"
+            exit 1
+        fi
     fi
 }
 
@@ -121,11 +133,11 @@ build_backend() {
 # 复制构建文件到build目录
 copy_build_files() {
     print_message "复制构建文件到build目录..."
-    rm -rf build/*
-    mkdir -p build
+    rm -rf build/dist
+    rm -rf build/*.jar
     
     # 复制前端构建文件
-    cp -r docker-manager-front/dist/* build/
+    cp -r docker-manager-front/dist build/
     
     # 复制后端jar文件
     cp docker-manager-back/target/*.jar build/
@@ -177,7 +189,7 @@ push_to_tencent() {
 main() {
     check_root
     check_requirements
-    pull_latest_code
+    setup_code
     build_frontend
     build_backend
     copy_build_files

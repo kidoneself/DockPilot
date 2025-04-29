@@ -82,42 +82,47 @@ public class ContainerServiceImpl implements ContainerService {
     public void updateContainer(String containerId, ContainerCreateRequest request) {
         ContainerStaticInfoDTO originalConfig = null;
         String newContainerId = null;
-        
+        String backupContainerName = null;
+
         try {
             // 1. 停止原容器
             stopContainer(containerId);
 
-            // 2. 备份原容器配置
+            // 2. 获取原容器配置
             originalConfig = getContainerConfig(containerId);
-            dockerService.renameContainer(containerId, originalConfig.getContainerName() + "_backup");
 
-            // 3. 创建新容器
+            // 3. 生成唯一的备份容器名称
+            backupContainerName = generateBackupName(originalConfig.getContainerName());
+            dockerService.renameContainer(containerId, backupContainerName);
+
+            // 4. 创建新容器
             newContainerId = createContainer(request);
+            startContainer(newContainerId);
 
-            // 4. 验证新容器状态
+            // 5. 验证新容器状态
             if (!isContainerRunning(newContainerId)) {
-                throw new BusinessException("创建新容器失败");
+                throw new BusinessException("新容器未正常启动");
             }
 
-            // 5. 删除原容器
+            // 6. 删除原容器
             removeContainer(containerId);
             LogUtil.logSysInfo("原容器已删除: " + containerId);
 
         } catch (Exception e) {
             LogUtil.logSysError("更新容器失败: " + e.getMessage());
-            // 如果新容器创建成功但启动失败，删除新容器
             if (newContainerId != null) {
                 try {
                     removeContainer(newContainerId);
+                    LogUtil.logSysInfo("失败的新容器已删除: " + newContainerId);
                 } catch (Exception ex) {
                     LogUtil.logSysError("删除失败的新容器时出错: " + ex.getMessage());
                 }
             }
             throw new RuntimeException("更新容器失败: " + e.getMessage());
         } finally {
-            // 确保原容器状态恢复
-            if (originalConfig != null) {
-                restoreOriginalContainer(containerId, originalConfig);
+            // 恢复原容器状态（如果已重命名）
+            if (originalConfig != null && backupContainerName != null) {
+                restoreOriginalContainerByName(backupContainerName, originalConfig.getContainerName());
             }
         }
     }
@@ -155,29 +160,54 @@ public class ContainerServiceImpl implements ContainerService {
     }
 
 
+    /**
+     * 验证容器是否运行中
+     */
     public boolean isContainerRunning(String containerId) {
         Container container = findContainerByIdOrName(containerId);
-        return container != null && "running".equals(container.getState());
+        return container != null && "running".equalsIgnoreCase(container.getState());
     }
 
     /**
-     * 恢复原容器状态
-     * @param containerId 原容器ID
-     * @param originalConfig 原容器配置
+     * 生成不重复的容器备份名
      */
-    private void restoreOriginalContainer(String containerId, ContainerStaticInfoDTO originalConfig) {
+    private String generateBackupName(String baseName) {
+        String backupName = baseName + "_backup";
+        int i = 1;
+        while (containerExists(backupName)) {
+            backupName = baseName + "_backup_" + (i++);
+        }
+        return backupName;
+    }
+
+    /**
+     * 恢复原容器
+     */
+    private void restoreOriginalContainerByName(String backupName, String originalName) {
         try {
-            // 检查原容器是否存在且被重命名
-            Container container = findContainerByIdOrName(containerId);
-            if (container != null && container.getNames()[0].endsWith("_backup")) {
-                // 恢复原容器名称
-                dockerService.renameContainer(containerId, originalConfig.getContainerName());
-                // 启动原容器
-                startContainer(containerId);
-                LogUtil.logSysInfo("原容器状态已恢复: " + containerId);
+            Container container = findContainerByIdOrName(backupName);
+            if (container != null) {
+                dockerService.renameContainer(container.getId(), originalName);
+                startContainer(container.getId());
+                LogUtil.logSysInfo("已恢复原容器: " + originalName);
             }
         } catch (Exception e) {
-            LogUtil.logSysError("恢复原容器状态失败: " + e.getMessage());
+            LogUtil.logSysError("恢复原容器失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 判断指定名称的容器是否存在
+     * @param containerName 容器名称
+     * @return 存在返回 true，不存在返回 false
+     */
+    private boolean containerExists(String containerName) {
+        try {
+            Container container = findContainerByIdOrName(containerName);
+            return container != null;
+        } catch (Exception e) {
+            LogUtil.logSysError("检查容器存在失败: " + e.getMessage());
+            return false;
         }
     }
 }

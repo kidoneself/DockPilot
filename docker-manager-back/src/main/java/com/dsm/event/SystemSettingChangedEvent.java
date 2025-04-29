@@ -1,5 +1,12 @@
 package com.dsm.event;
 
+import lombok.Getter;
+
+/**
+ * 系统参数热更新
+ */
+
+@Getter
 public class SystemSettingChangedEvent {
     private final String key;
     private final String oldValue;
@@ -11,15 +18,4 @@ public class SystemSettingChangedEvent {
         this.newValue = newValue;
     }
 
-    public String getKey() {
-        return key;
-    }
-
-    public String getOldValue() {
-        return oldValue;
-    }
-
-    public String getNewValue() {
-        return newValue;
-    }
-} 
+}
