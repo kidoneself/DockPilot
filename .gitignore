@@ -36,11 +36,11 @@ __pycache__/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
-
-# Environment
-.env
-.env.local
-.env.*.local
+#
+## Environment
+#.env
+#.env.local
+#.env.*.local
 
 # Build files
 es/
