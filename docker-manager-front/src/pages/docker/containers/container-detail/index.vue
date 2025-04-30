@@ -12,28 +12,32 @@
         </div>
       </div>
       <div class="action-buttons">
-      <t-space>
-          <t-button theme="primary" @click="handleStart" :disabled="containerDetail?.status === 'running'">
+        <t-space>
+          <t-button theme="primary" @click="handleStartConfirm" :disabled="containerDetail?.status === 'running' || isOperating" :loading="isOperating">
             <template #icon><t-icon name="play-circle" /></template>
             启动
           </t-button>
-          <t-button theme="warning" @click="handleStop" :disabled="containerDetail?.status !== 'running'">
+          <t-button theme="warning" @click="handleStopConfirm" :disabled="containerDetail?.status !== 'running' || isOperating" :loading="isOperating">
             <template #icon><t-icon name="stop-circle" /></template>
             停止
           </t-button>
-          <t-button theme="default" @click="handleRestart" :disabled="containerDetail?.status !== 'running'">
+          <t-button theme="default" @click="handleRestartConfirm" :disabled="containerDetail?.status !== 'running' || isOperating" :loading="isOperating">
             <template #icon><t-icon name="refresh" /></template>
             重启
           </t-button>
-          <t-button theme="danger" @click="handleDelete">
+          <t-button theme="danger" @click="handleDeleteConfirm" :disabled="containerDetail?.status === 'running' || isOperating" :loading="isOperating">
             <template #icon><t-icon name="delete" /></template>
             删除
           </t-button>
-          <t-button theme="default" @click="handleEdit">
+          <t-button theme="default" @click="handleEdit" :disabled="isOperating">
             <template #icon><t-icon name="edit" /></template>
             编辑
           </t-button>
-      </t-space>
+          <t-button v-if="containerDetail?.needUpdate" theme="warning" @click="handleUpdateConfirm" :disabled="isOperating" :loading="isOperating">
+            <template #icon><t-icon name="cloud-download" /></template>
+            更新
+          </t-button>
+        </t-space>
       </div>
     </div>
 
@@ -46,6 +50,10 @@
             <div class="card-header">
               <t-icon name="info-circle" size="20px" />
               <span>基础信息</span>
+              <t-tag v-if="containerDetail?.needUpdate" theme="warning" variant="light" class="update-tag">
+                <template #icon><t-icon name="info-circle-filled" /></template>
+                需要更新
+              </t-tag>
             </div>
           </template>
           <div class="info-list">
@@ -94,11 +102,11 @@
                 <div class="card-header">
                   <t-icon name="chart" size="20px" />
                   <span>资源监控</span>
-                  <t-tag :theme="resourceStats?.running ? 'success' : 'danger'" class="status-tag">
-                    {{ resourceStats?.running ? '运行中' : '已停止' }}
+                  <t-tag :theme="containerDetail?.status === 'running' ? 'success' : 'danger'" class="status-tag">
+                    {{ containerDetail?.status === 'running' ? '运行中' : '已停止' }}
                   </t-tag>
                 </div>
-          </template>
+              </template>
               <div class="monitor-content">
                 <div v-if="resourceStats" class="monitor-container">
                   <div class="stats-grid">
@@ -123,13 +131,27 @@
       </div>
                       <div class="stats-info">
                         <div class="stats-label">内存使用</div>
-                        <div class="stats-value">{{ formatBytes(resourceStats.memoryUsage) }} / {{ formatBytes(resourceStats.memoryLimit) }}</div>
+                        <div class="stats-value">
+                          <template v-if="containerDetail?.status === 'running'">
+                            {{ formatBytes(resourceStats?.memoryUsage || 0) }} / {{ formatBytes(resourceStats?.memoryLimit || 0) }}
+                          </template>
+                          <template v-else>
+                            <t-tag theme="warning" variant="light">容器已停止</t-tag>
+                          </template>
+                        </div>
                         <t-progress
-                          :percentage="Number(formatPercent((resourceStats.memoryUsage / resourceStats.memoryLimit) * 100))"
+                          v-if="containerDetail?.status === 'running'"
+                          :percentage="Number(formatPercent((resourceStats?.memoryUsage || 0) / (resourceStats?.memoryLimit || 1) * 100))"
                           color="#108ee9"
                           track-color="#e8e8e8"
                         />
-            </div>
+                        <t-progress
+                          v-else
+                          :percentage="0"
+                          color="#e8e8e8"
+                          track-color="#e8e8e8"
+                        />
+                      </div>
                     </div>
 
                     <div class="stats-card">
@@ -345,6 +367,22 @@
         </t-tabs>
       </div>
     </div>
+
+    <!-- 操作确认对话框 -->
+    <t-dialog
+      v-model:visible="confirmDialogVisible"
+      :header="confirmDialogTitle"
+      :body="confirmDialogContent"
+      @confirm="handleConfirmOperation"
+      @close="handleCancelOperation"
+    >
+      <template #footer>
+        <t-space>
+          <t-button theme="default" @click="handleCancelOperation">取消</t-button>
+          <t-button theme="primary" @click="handleConfirmOperation" :loading="isConfirmLoading">确认</t-button>
+        </t-space>
+      </template>
+    </t-dialog>
   </div>
 </template>
 
@@ -358,7 +396,7 @@ export default {
 import { computed, onMounted, ref, watch, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next';
-import { getContainerDetail, getContainerLogs, getContainerStats, ContainerDetail, startContainer, stopContainer, restartContainer, deleteContainer } from '@/api/container';
+import { getContainerDetail, getContainerLogs, getContainerStats, ContainerDetail, startContainer, stopContainer, restartContainer, deleteContainer, updateContainer } from '@/api/container';
 import { IMAGE_OPTIONS, TYPE_OPTIONS, NETWORK_OPTIONS, RESTART_POLICY_OPTIONS, FORM_RULES } from '@/constants/container';
 import type { ContainerForm, CreateContainerParams } from '@/types/container.d.ts';
 import { mapFormDataToRequest, mapContainerDetailToForm } from '@/utils/container';
@@ -379,15 +417,22 @@ const logTimer = ref<number | null>(null);
 const resourceStats = ref<any>(null);
 const statsTimer = ref<number | null>(null);
 
+// 操作相关状态
+const isOperating = ref(false);
+const confirmDialogVisible = ref(false);
+const confirmDialogTitle = ref('');
+const confirmDialogContent = ref('');
+const isConfirmLoading = ref(false);
+const currentOperation = ref<'start' | 'stop' | 'restart' | 'delete' | 'update' | null>(null);
+
 // 获取容器状态主题
 const getStatusTheme = (state: string) => {
   switch (state) {
     case 'running':
       return 'success';
     case 'stopped':
-      return 'danger';
     case 'exited':
-      return 'warning';
+      return 'danger';
     default:
       return 'default';
   }
@@ -399,9 +444,8 @@ const getStatusText = (state: string) => {
     case 'running':
       return '运行中';
     case 'stopped':
-      return '已停止';
     case 'exited':
-      return '已退出';
+      return '已停止';
     default:
       return '未知';
   }
@@ -453,16 +497,12 @@ const portColumns = [
 // 端口映射数据
 const portMappings = computed(() => {
   if (!containerDetail.value?.ports) return [];
-  return containerDetail.value.ports.map((port: string) => {
-    const [containerPort, hostPort] = port.split(':');
-    const [portNumber, protocol] = containerPort.split('/');
-    return {
-      key: port,
-      containerPort: portNumber,
-      hostPort,
-      protocol: protocol || 'tcp'
-    };
-  });
+  return containerDetail.value.ports.map((port, index) => ({
+    key: `${index}`,
+    containerPort: port.containerPort.toString(),
+    hostPort: port.hostPort.toString(),
+    protocol: port.protocol
+  }));
 });
 
 // 环境变量表格列
@@ -473,15 +513,12 @@ const envColumns = [
 
 // 环境变量数据
 const environmentVariables = computed(() => {
-  if (!containerDetail.value?.envs) return [];
-  return containerDetail.value.envs.map((env: string) => {
-    const [key, value] = env.split('=');
-    return {
-      id: env,
-      key,
-      value
-    };
-  });
+  if (!containerDetail.value?.environment) return [];
+  return containerDetail.value.environment.map((env, index) => ({
+    id: index,
+    key: env.key,
+    value: env.value
+  }));
 });
 
 // 解析日志行
@@ -527,68 +564,104 @@ const fetchContainerDetail = async () => {
   }
 };
 
-// 容器操作
-const handleStart = async () => {
-  try {
-    await startContainer(route.query.id as string);
-    MessagePlugin.success('启动容器成功');
-    await fetchContainerDetail();
-  } catch (error) {
-    MessagePlugin.error('启动容器失败');
-  }
+// 处理启动确认
+const handleStartConfirm = () => {
+  currentOperation.value = 'start';
+  confirmDialogTitle.value = '启动容器';
+  confirmDialogContent.value = `确认要启动容器 "${containerDetail.value?.containerName}" 吗？`;
+  confirmDialogVisible.value = true;
 };
 
-const handleStop = async () => {
-  try {
-    await stopContainer(route.query.id as string);
-    MessagePlugin.success('停止容器成功');
-    await fetchContainerDetail();
-  } catch (error) {
-    MessagePlugin.error('停止容器失败');
-  }
+// 处理停止确认
+const handleStopConfirm = () => {
+  currentOperation.value = 'stop';
+  confirmDialogTitle.value = '停止容器';
+  confirmDialogContent.value = `确认要停止容器 "${containerDetail.value?.containerName}" 吗？`;
+  confirmDialogVisible.value = true;
 };
 
-const handleRestart = async () => {
-  try {
-    await restartContainer(route.query.id as string);
-    MessagePlugin.success('重启容器成功');
-    await fetchContainerDetail();
-  } catch (error) {
-    MessagePlugin.error('重启容器失败');
-  }
+// 处理重启确认
+const handleRestartConfirm = () => {
+  currentOperation.value = 'restart';
+  confirmDialogTitle.value = '重启容器';
+  confirmDialogContent.value = `确认要重启容器 "${containerDetail.value?.containerName}" 吗？`;
+  confirmDialogVisible.value = true;
 };
 
-const handleDelete = () => {
-  const dialog = DialogPlugin.confirm({
-    header: '确认删除',
-    body: '确定要删除该容器吗？此操作不可恢复。',
-    confirmBtn: {
-      theme: 'danger',
-      content: '删除',
-    },
-    cancelBtn: {
-      theme: 'default',
-      content: '取消',
-    },
-    onConfirm: async () => {
-      try {
-        await deleteContainer(route.query.id as string);
-        MessagePlugin.success('删除容器成功');
-        dialog.hide();
-        router.push('/docker/containers');
-      } catch (error) {
-        MessagePlugin.error('删除容器失败');
-      }
-    },
-  });
+// 处理删除确认
+const handleDeleteConfirm = () => {
+  currentOperation.value = 'delete';
+  confirmDialogTitle.value = '删除容器';
+  confirmDialogContent.value = `确认要删除容器 "${containerDetail.value?.containerName}" 吗？此操作不可恢复！`;
+  confirmDialogVisible.value = true;
 };
 
+// 处理更新确认
+const handleUpdateConfirm = () => {
+  currentOperation.value = 'update';
+  confirmDialogTitle.value = '更新容器';
+  confirmDialogContent.value = `确认要更新容器 "${containerDetail.value?.containerName}" 吗？`;
+  confirmDialogVisible.value = true;
+};
+
+// 处理编辑
 const handleEdit = () => {
   // 停止所有轮询
   stopStatsPolling();
   stopLogPolling();
   // 跳转到编辑页面
-  router.push(`/docker/containers/edit?id=${route.query.id}`);
+  router.push(`/docker/containers/edit?id=${containerDetail.value?.containerId}`);
+};
+
+// 处理确认操作
+const handleConfirmOperation = async () => {
+  if (!containerDetail.value || !currentOperation.value) return;
+  
+  isConfirmLoading.value = true;
+  isOperating.value = true;
+  try {
+    const containerId = containerDetail.value.containerId;
+    switch (currentOperation.value) {
+      case 'start':
+        await startContainer(containerId);
+        MessagePlugin.success('启动成功');
+        break;
+      case 'stop':
+        await stopContainer(containerId);
+        MessagePlugin.success('停止成功');
+        break;
+      case 'restart':
+        await restartContainer(containerId);
+        MessagePlugin.success('重启成功');
+        break;
+      case 'delete':
+        await deleteContainer(containerId);
+        MessagePlugin.success('删除成功');
+        router.push('/docker/containers');
+        return;
+      case 'update':
+        await updateContainer(containerId, {
+          image: containerDetail.value.imageName,
+          tag: 'latest'
+        });
+        MessagePlugin.success('更新成功');
+        break;
+    }
+    await fetchContainerDetail();
+  } catch (error) {
+    MessagePlugin.error('操作失败');
+  } finally {
+    isConfirmLoading.value = false;
+    isOperating.value = false;
+    confirmDialogVisible.value = false;
+    currentOperation.value = null;
+  }
+};
+
+// 处理取消操作
+const handleCancelOperation = () => {
+  confirmDialogVisible.value = false;
+  currentOperation.value = null;
 };
 
 // 获取日志
@@ -733,12 +806,13 @@ const networkColumns = [
 // 网络设置数据
 const networkSettings = computed(() => {
   if (!containerDetail.value?.networkSettings) return [];
-  return [{
-    id: 'default',
-    network: containerDetail.value.networkMode || 'default',
-    ipAddress: containerDetail.value.networkSettings.IPAddress || '-',
-    gateway: containerDetail.value.networkSettings.Gateway || '-'
-  }];
+  return [
+    {
+      network: containerDetail.value.networkSettings.NetworkMode,
+      ipAddress: containerDetail.value.networkSettings.IPAddress,
+      gateway: containerDetail.value.networkSettings.Gateway
+    }
+  ];
 });
 
 const containerInfo = computed(() => [
@@ -1214,5 +1288,21 @@ const INITIAL_DATA: ContainerForm = {
   justify-content: center;
   height: 200px;
   color: var(--td-text-color-secondary);
+}
+
+/* 更新标签样式 */
+.update-tag {
+  margin-left: 8px;
+}
+
+/* 操作按钮样式 */
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* 按钮组样式 */
+:deep(.t-button) {
+  min-width: 88px;
 }
 </style>

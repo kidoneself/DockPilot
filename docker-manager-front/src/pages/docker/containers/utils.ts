@@ -68,16 +68,23 @@ export const getContainerInitial = (name: string | undefined): string => {
   return cleanName.charAt(0).toUpperCase();
 };
 
-// 通用操作处理函数
+/**
+ * 处理容器操作
+ * @param operation 操作函数
+ * @param containerId 容器ID
+ * @param operatingSet 操作状态集合
+ */
 export const handleContainerOperation = async (
-  operation: () => Promise<void>,
-  successMsg: string,
-  errorMsg: string
-): Promise<void> => {
+  operation: () => Promise<any>,
+  containerId: string,
+  operatingSet: Set<string>
+) => {
   try {
+    operatingSet.add(containerId);
     await operation();
-    MessagePlugin.success(successMsg);
   } catch (error) {
-    MessagePlugin.error(errorMsg);
+    throw error;
+  } finally {
+    operatingSet.delete(containerId);
   }
 }; 

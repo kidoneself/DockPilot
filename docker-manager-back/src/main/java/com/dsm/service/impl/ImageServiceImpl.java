@@ -151,8 +151,8 @@ public class ImageServiceImpl implements ImageService {
                 }
             });
 
-            // 同步本地镜像信息到数据库
-            Map<String, Object> syncResult = syncLocalImageToDb(imageName, tag);
+            // 同步本地镜像信息到数据库，
+            syncLocalImageToDb(imageName, tag);
 
             result.put("success", true);
             result.put("message", "镜像更新成功");
@@ -233,13 +233,14 @@ public class ImageServiceImpl implements ImageService {
 
         try {
             // 获取本地镜像创建时间
+            //如果是更新镜像到此步骤，则这里获取镜像本的的时间一定是最新的
             String localCreateTime = getLocalImageCreateTime(imageName, tag);
             if (localCreateTime == null || localCreateTime.isEmpty()) {
                 result.put("success", false);
                 result.put("message", "未找到本地镜像");
                 return result;
             }
-
+            //更新镜像:这里一定是数据库有数据的，并且是需要更新的
             // 检查数据库是否已有记录
             ImageStatus existingRecord = imageStatusMapper.selectByNameAndTag(imageName, tag);
 

@@ -35,6 +35,7 @@ export interface Container {
     destination: string;
     readOnly: boolean;
   }[];
+  needUpdate: boolean;
   [key: string]: any;
 }
 
@@ -49,23 +50,30 @@ export interface ContainerDetail {
   restartCount: number;
   restartPolicyName: string;
   restartPolicyMaxRetry: number;
-  command: string;
-  workingDir: string;
-  entrypoints: string[];
-  labels: Record<string, string>;
-  envs: string[];
-  volumes: string[];
-  ports: string[];
-  exposedPorts: string[];
-  devices: string[];
+  privileged: boolean;
   networkMode: string;
   ipAddress: string;
-  state: string;
-  startedAt: string;
-  privileged: boolean;
-  capAdd: string[];
-  capDrop: string[];
-  networkSettings: {
+  ports: Array<{
+    containerPort: number;
+    hostPort: number;
+    protocol: string;
+  }>;
+  volumes: Array<{
+    containerPath: string;
+    hostPath: string;
+    mode: string;
+  }>;
+  environment: Array<{
+    key: string;
+    value: string;
+  }>;
+  command: string;
+  entrypoints: string[];
+  labels: Record<string, string>;
+  needUpdate?: boolean;
+  envs?: string[];
+  code?: number;
+  networkSettings?: {
     IPAddress: string;
     Gateway: string;
     NetworkMode: string;
@@ -78,7 +86,6 @@ export interface ContainerDetail {
     networkTx: number;
     running: boolean;
   };
-  code?: number;
   data?: any;
 }
 

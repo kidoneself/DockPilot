@@ -42,7 +42,13 @@ public class ContainerServiceImpl implements ContainerService {
         // 获取 Docker 容器列表
         List<Container> containers = dockerService.listContainers();
         // 转换成 ContainerDTO 列表
-        return containers.stream().map(ContainerDTO::convertToDTO).collect(Collectors.toList());
+        return containers.stream().map(container -> {
+            ContainerDTO dto = ContainerDTO.convertToDTO(container);
+            // 检查是否需要更新
+            String latestImageId = dockerService.getLatestImageId(container.getImage());
+            dto.setNeedUpdate(!latestImageId.equals(container.getImageId()));
+            return dto;
+        }).collect(Collectors.toList());
     }
 
 
@@ -97,7 +103,6 @@ public class ContainerServiceImpl implements ContainerService {
 
             // 4. 创建新容器
             newContainerId = createContainer(request);
-            startContainer(newContainerId);
 
             // 5. 验证新容器状态
             if (!isContainerRunning(newContainerId)) {
@@ -112,7 +117,7 @@ public class ContainerServiceImpl implements ContainerService {
             LogUtil.logSysError("更新容器失败: " + e.getMessage());
             if (newContainerId != null) {
                 try {
-//                    removeContainer(newContainerId);
+                    removeContainer(newContainerId);
                     LogUtil.logSysInfo("失败的新容器已删除: " + newContainerId);
                 } catch (Exception ex) {
                     LogUtil.logSysError("删除失败的新容器时出错: " + ex.getMessage());

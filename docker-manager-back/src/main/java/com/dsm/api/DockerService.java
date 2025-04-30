@@ -20,6 +20,7 @@ import java.io.BufferedWriter;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -675,6 +676,23 @@ public class DockerService {
 
     public String startContainerWithCmd(CreateContainerCmd containerCmd) {
         return dockerClientWrapper.startContainerWithCmd(containerCmd);
+    }
+
+    /**
+     * 获取指定镜像的最新ID
+     *
+     * @param imageName 镜像名称
+     * @return 最新镜像ID
+     */
+    public String getLatestImageId(String imageName) {
+        List<Image> images = listImages();
+        return images.stream()
+                .filter(image -> image.getRepoTags() != null && 
+                        Arrays.stream(image.getRepoTags())
+                                .anyMatch(tag -> tag.startsWith(imageName)))
+                .max((img1, img2) -> Long.compare(img1.getCreated(), img2.getCreated()))
+                .map(Image::getId)
+                .orElse(null);
     }
 }
 
