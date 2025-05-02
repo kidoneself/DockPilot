@@ -1,40 +1,92 @@
-import { WebSocketClient } from './WebSocketClient';
+import { ref } from 'vue';
+import { WebSocketClient } from '@/api/websocket/WebSocketClient';
 import type { 
   WebSocketMessage, 
   PullImageParams, 
   PullImageProgress, 
   DockerWebSocketCallbacks,
-  DockerImage
+  DockerImage,
+  WebSocketMessageType
 } from './types';
+import { useNotificationStore } from '@/store/modules/notification';
 
 export class DockerWebSocketService {
   private wsClient: WebSocketClient | null = null;
   private readonly wsUrl: string;
   private messageHandlers: Map<string, ((message: WebSocketMessage) => void)[]> = new Map();
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectTimeout = 3000;
+  private heartbeatInterval: number | null = null;
+  private readonly heartbeatIntervalTime = 30000; // 30秒发送一次心跳
 
   constructor() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     this.wsUrl = `${wsProtocol}//${window.location.host}/ws/docker`;
+    this.initHeartbeat();
+  }
+
+  private initHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+    this.heartbeatInterval = window.setInterval(() => {
+      if (this.wsClient && this.wsClient.isConnected()) {
+        this.sendMessage({
+          type: 'HEARTBEAT',
+          taskId: '',
+          data: { timestamp: Date.now() }
+        });
+      }
+    }, this.heartbeatIntervalTime);
   }
 
   public async connect(): Promise<void> {
-    if (!this.wsClient) {
-      this.wsClient = new WebSocketClient({
-        url: this.wsUrl,
-        onMessage: (message: WebSocketMessage) => {
-          console.log('收到WebSocket消息:', message);
-          const handlers = this.messageHandlers.get(message.type) || [];
-          handlers.forEach(handler => handler(message));
-        },
-        onError: (error) => {
-          console.error('WebSocket错误:', error);
-        },
-        onClose: () => {
-          console.warn('WebSocket连接已关闭');
-        }
-      });
-      await this.wsClient.connect();
+    if (this.wsClient && this.wsClient.isConnected()) {
+      return;
     }
+
+    return new Promise<void>(async (resolve, reject) => {
+      try {
+        this.wsClient = new WebSocketClient({
+          url: this.wsUrl,
+          onMessage: (message: WebSocketMessage) => {
+            console.log('收到WebSocket消息:', message);
+            
+            // 处理心跳响应
+            if (message.type === 'HEARTBEAT_RESPONSE') {
+              return;
+            }
+            
+            // 处理测试通知消息
+            if (message.type === 'TEST_NOTIFY_RESPONSE') {
+              console.log('处理测试通知响应:', message);
+              const notificationStore = useNotificationStore();
+              notificationStore.handleWebSocketNotification(message.data);
+            }
+            
+            // 处理其他消息
+            const handlers = this.messageHandlers.get(message.type) || [];
+            handlers.forEach(handler => handler(message));
+          },
+          onError: (error: Error) => {
+            console.error('WebSocket错误:', error);
+            this.handleReconnect();
+          },
+          onClose: () => {
+            console.warn('WebSocket连接已关闭');
+            this.handleReconnect();
+          }
+        });
+        await this.wsClient.connect();
+        this.reconnectAttempts = 0;
+        this.initHeartbeat();
+        resolve();
+      } catch (error: unknown) {
+        console.error('创建 WebSocket 连接时出错:', error);
+        reject(error);
+      }
+    });
   }
 
   public on(type: string, handler: (message: WebSocketMessage) => void): void {
@@ -100,7 +152,7 @@ export class DockerWebSocketService {
               console.warn('未知的消息类型:', message.type);
           }
         },
-        onError: (error) => {
+        onError: (error: Error) => {
           callbacks.onError?.(error instanceof Error ? error.message : 'WebSocket错误');
         },
         onClose: () => {
@@ -119,7 +171,7 @@ export class DockerWebSocketService {
       };
 
       this.wsClient.send(pullRequest);
-    } catch (error) {
+    } catch (error: unknown) {
       callbacks.onError?.(error instanceof Error ? error.message : '拉取镜像失败');
       throw error;
     }
@@ -167,7 +219,7 @@ export class DockerWebSocketService {
               console.warn('未知的消息类型:', message.type);
           }
         },
-        onError: (error) => {
+        onError: (error: Error) => {
           console.error('WebSocket错误:', error);
         },
         onClose: () => {
@@ -186,7 +238,7 @@ export class DockerWebSocketService {
       };
 
       this.wsClient.send(checkUpdatesRequest);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('检查镜像更新失败:', error);
       throw error;
     }
@@ -195,6 +247,26 @@ export class DockerWebSocketService {
   public disconnect(): void {
     this.wsClient?.disconnect();
     this.wsClient = null;
+  }
+
+  private handleReconnect() {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.reconnectAttempts++;
+      console.log(`尝试重新连接 (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+      setTimeout(() => {
+        this.connect();
+      }, this.reconnectTimeout);
+    } else {
+      console.error('WebSocket 重连失败，已达到最大重试次数');
+    }
+  }
+
+  private sendMessage(message: WebSocketMessage) {
+    if (this.wsClient && this.wsClient.isConnected()) {
+      this.wsClient.send(message);
+    } else {
+      console.error('WebSocket 未连接，无法发送消息');
+    }
   }
 }
 

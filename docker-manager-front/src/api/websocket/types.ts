@@ -15,7 +15,11 @@ export type WebSocketMessageType =
   | 'UPDATE_IMAGE'
   | 'INSTALL_START'
   | 'INSTALL_LOG'
-  | 'INSTALL_START_RESULT';
+  | 'INSTALL_START_RESULT'
+  | 'TEST_NOTIFY'
+  | 'TEST_NOTIFY_RESPONSE'
+  | 'HEARTBEAT'
+  | 'HEARTBEAT_RESPONSE';
 
 // WebSocket消息接口
 export interface WebSocketMessage {
@@ -28,7 +32,7 @@ export interface WebSocketMessage {
 export interface WebSocketOptions {
   url: string;
   onMessage?: (message: WebSocketMessage) => void;
-  onError?: (error: any) => void;
+  onError?: (error: Error) => void;
   onClose?: (event: CloseEvent) => void;
   maxReconnectAttempts?: number;
   reconnectInterval?: number;

@@ -26,9 +26,10 @@ const defaultRouterList: Array<RouteRecordRaw> = [
 export const homepageRouterList: Array<RouteRecordRaw> = mapModuleRouterList(homepageModules);
 export const fixedRouterList: Array<RouteRecordRaw> = mapModuleRouterList(fixedModules);
 
-// 导入日志管理路由
+// 导入日志管理路由和测试路由
 import logRoutes from './modules/log';
-export const allRoutes = [...homepageRouterList, ...fixedRouterList, ...logRoutes, ...defaultRouterList];
+import testRoutes from './modules/test';
+export const allRoutes = [...homepageRouterList, ...fixedRouterList, ...[logRoutes], ...[testRoutes], ...defaultRouterList];
 
 // 固定路由模块转换为路由
 export function mapModuleRouterList(modules: Record<string, unknown>): Array<RouteRecordRaw> {

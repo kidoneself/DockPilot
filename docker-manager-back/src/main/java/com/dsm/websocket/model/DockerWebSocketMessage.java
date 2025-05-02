@@ -27,6 +27,10 @@ public class DockerWebSocketMessage {
      * - INSTALL_START: 开始安装
      * - INSTALL_PROGRESS: 安装进度
      * - INSTALL_LOG: 安装日志
+     * 
+     * 测试功能类型：
+     * - TEST_NOTIFY: 测试消息
+     * - TEST_NOTIFY_RESPONSE: 测试消息响应
      */
     @Schema(description = "消息类型", example = "PULL_IMAGE")
     private String type;

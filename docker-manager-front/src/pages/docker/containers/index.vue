@@ -111,38 +111,6 @@
       </t-table>
     </t-card>
 
-    <!-- 日志查看对话框 -->
-    <t-dialog
-      v-model:visible="logsDialogVisible"
-      :header="'容器日志 - ' + currentLogsContainer?.names?.[0]?.replace('/', '')"
-      :footer="false"
-      width="800px"
-      class="logs-dialog"
-      :close-on-overlay-click="false"
-      @close="handleCloseLogs"
-    >
-      <div class="logs-content">
-        <!-- 日志工具栏 -->
-        <div class="logs-toolbar">
-          <t-space>
-            <t-switch #label v-model="logsFollow">实时跟踪</t-switch>
-          </t-space>
-          <t-button theme="primary" @click="refreshLogs" :loading="isLogsLoading">
-            <template #icon>
-              <t-icon name="refresh" />
-            </template>
-            刷新
-          </t-button>
-        </div>
-        <!-- 日志内容显示区域 -->
-        <div class="log-content" ref="logsTextRef">
-          <div v-for="(log, index) in parsedLogs" :key="index" class="log-item">
-            <span class="log-message" v-html="log.content"></span>
-          </div>
-        </div>
-      </div>
-    </t-dialog>
-
     <!-- 操作确认对话框 -->
     <t-dialog
       v-model:visible="confirmDialogVisible"
@@ -171,7 +139,6 @@ import { useRouter } from 'vue-router';
 // 导入容器相关的 API 和类型
 import {
   Container,
-  deleteContainer,
   getContainerList,
   getContainerLogs,
   restartContainer,
@@ -206,18 +173,6 @@ const operatingContainers = ref<ContainerOperationState>({
 });
 const showInitial = ref<Set<string>>(new Set()); // 显示首字母的容器ID集合
 const isLoading = ref(false); // 列表加载状态
-
-// 日志相关状态
-const logsDialogVisible = ref(false); // 日志对话框显示状态
-const currentLogsContainer = ref<Container | null>(null); // 当前查看日志的容器
-const logsContent = ref(''); // 日志内容
-const logsFollow = ref(true); // 是否实时跟踪，默认开启
-const logsTextRef = ref<HTMLElement | null>(null); // 日志文本区域引用
-const logsPollingTimer = ref<number | null>(null); // 轮询定时器
-const isLogsLoading = ref(false); // 是否正在请求日志
-
-// 解析日志内容
-const parsedLogs = ref<Array<{ content: string; type: string }>>([]);
 
 const confirmDialogVisible = ref(false);
 const confirmDialogTitle = ref('');
@@ -308,168 +263,39 @@ const isContainerOperating = (containerId: string) => {
 };
 
 /**
- * 解析 ANSI 颜色代码
- * @param text 日志文本
+ * 获取容器名称的首字母
+ * @param name 容器名称
+ * @returns 首字母
  */
-const parseAnsiColors = (text: string) => {
-  const lines = text.split('\n');
-  parsedLogs.value = lines.map((line) => {
-    // 移除时间戳
-    const timeMatch = line.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3,9}Z\s*/);
-    let content = timeMatch ? line.slice(timeMatch[0].length) : line;
-
-    // 解析 ANSI 颜色代码
-    const ansiRegex = /\x1b\[([0-9;]+)m/g;
-    let match;
-    let lastIndex = 0;
-    let formattedContent = '';
-    let currentColor = '';
-
-    while ((match = ansiRegex.exec(content)) !== null) {
-      // 添加颜色代码前的文本
-      formattedContent += content.slice(lastIndex, match.index);
-
-      // 解析颜色代码
-      const codes = match[0].slice(2, -1).split(';');
-      const color = codes.reduce((acc, code) => {
-        const colorMap: Record<string, string> = {
-          '30': 'black',
-          '31': 'red',
-          '32': 'green',
-          '33': 'yellow',
-          '34': 'blue',
-          '35': 'magenta',
-          '36': 'cyan',
-          '37': 'white',
-          '90': 'gray',
-          '91': 'light-red',
-          '92': 'light-green',
-          '93': 'light-yellow',
-          '94': 'light-blue',
-          '95': 'light-magenta',
-          '96': 'light-cyan',
-          '97': 'light-white',
-        };
-        return colorMap[code] || acc;
-      }, '');
-
-      if (color) {
-        currentColor = color;
-        formattedContent += `<span class="ansi-color-${color}">`;
-      } else if (codes[0] === '0') {
-        if (currentColor) {
-          formattedContent += '</span>';
-          currentColor = '';
-        }
-      }
-
-      lastIndex = match.index + match[0].length;
-    }
-
-    // 添加剩余的文本
-    formattedContent += content.slice(lastIndex);
-    if (currentColor) {
-      formattedContent += '</span>';
-    }
-
-    // 解析日志类型
-    let type = 'info';
-    if (content.includes('error') || content.includes('Error')) {
-      type = 'error';
-    } else if (content.includes('warning') || content.includes('Warning')) {
-      type = 'warning';
-    } else if (content.includes('success') || content.includes('Success')) {
-      type = 'success';
-    }
-
-    return {
-      content: formattedContent,
-      type,
-    };
-  });
+const getContainerInitial = (name: string) => {
+  if (!name) return '?';
+  return name.charAt(0).toUpperCase();
 };
 
 /**
- * 开始轮询日志
+ * 获取容器状态对应的颜色
+ * @param state 容器状态
+ * @returns 颜色值
  */
-const startLogsPolling = () => {
-  if (logsPollingTimer.value) {
-    clearInterval(logsPollingTimer.value);
-  }
-  if (logsFollow.value) {
-    logsPollingTimer.value = window.setInterval(refreshLogs, 2000);
+const getStatusColor = (state: ContainerState) => {
+  switch (state) {
+    case 'running':
+      return 'var(--td-success-color)';
+    case 'exited':
+      return 'var(--td-error-color)';
+    case 'created':
+      return 'var(--td-warning-color)';
+    default:
+      return 'var(--td-text-color-disabled)';
   }
 };
 
 /**
- * 停止轮询日志
+ * 处理图片加载错误
+ * @param containerId 容器ID
  */
-const stopLogsPolling = () => {
-  if (logsPollingTimer.value) {
-    clearInterval(logsPollingTimer.value);
-    logsPollingTimer.value = null;
-  }
-};
-
-/**
- * 关闭日志对话框
- */
-const handleCloseLogs = () => {
-  stopLogsPolling();
-  logsFollow.value = false;
-  isLogsLoading.value = false;
-  currentLogsContainer.value = null;
-  logsContent.value = '';
-};
-
-/**
- * 刷新日志内容
- */
-const refreshLogs = async () => {
-  if (!currentLogsContainer.value) return;
-
-  try {
-    isLogsLoading.value = true;
-    const response = await getContainerLogs(currentLogsContainer.value.id, {
-      tail: 100,
-      follow: false,
-      timestamps: true,
-    });
-    parseAnsiColors(response.data);
-
-    nextTick(() => {
-      const logsElement = logsTextRef.value;
-      if (logsElement) {
-        logsElement.scrollTop = logsElement.scrollHeight;
-      }
-    });
-  } catch (error) {
-    MessagePlugin.error('获取容器日志失败');
-  } finally {
-    isLogsLoading.value = false;
-  }
-};
-
-/**
- * 显示容器日志
- * @param container 容器对象
- */
-const handleShowLogs = async (container: Container) => {
-  currentLogsContainer.value = container;
-  logsDialogVisible.value = true;
-  await refreshLogs();
-  startLogsPolling(); // 自动开始轮询
-};
-
-/**
- * 显示容器详情
- * @param container 容器对象
- */
-const handleShowDetails = (container: Container) => {
-  router.push({
-    path: '/docker/containers/detail',
-    query: { id: container.id },
-  });
+const handleImageError = (containerId: string) => {
+  showInitial.value.add(containerId);
 };
 
 /**
@@ -563,86 +389,20 @@ const handleCancelOperation = () => {
 };
 
 /**
- * 获取容器名称的首字母
- * @param name 容器名称
- * @returns 首字母
+ * 显示容器详情
+ * @param container 容器对象
  */
-const getContainerInitial = (name: string) => {
-  if (!name) return '?';
-  return name.charAt(0).toUpperCase();
+const handleShowDetails = (container: Container) => {
+  router.push({
+    path: '/docker/containers/detail',
+    query: { id: container.id },
+  });
 };
-
-/**
- * 获取容器状态对应的颜色
- * @param state 容器状态
- * @returns 颜色值
- */
-const getStatusColor = (state: ContainerState) => {
-  switch (state) {
-    case 'running':
-      return 'var(--td-success-color)';
-    case 'exited':
-      return 'var(--td-error-color)';
-    case 'created':
-      return 'var(--td-warning-color)';
-    default:
-      return 'var(--td-text-color-disabled)';
-  }
-};
-
-/**
- * 处理图片加载错误
- * @param containerId 容器ID
- */
-const handleImageError = (containerId: string) => {
-  showInitial.value.add(containerId);
-};
-
-// 监听日志跟踪状态变化
-watch(logsFollow, (newValue) => {
-  if (newValue) {
-    startLogsPolling();
-  } else {
-    stopLogsPolling();
-  }
-});
-
-// 监听对话框关闭
-watch(logsDialogVisible, (newVal) => {
-  if (!newVal) {
-    handleCloseLogs();
-  }
-});
 
 // 组件挂载时获取容器列表
 onMounted(() => {
   fetchContainers();
 });
-
-/**
- * 格式化日期
- * @param timestamp 时间戳
- * @returns 格式化后的日期字符串
- */
-const formatDate = (timestamp: number) => {
-  return new Date(timestamp * 1000).toLocaleString();
-};
-
-/**
- * 格式化文件大小
- * @param size 文件大小（字节）
- * @returns 格式化后的大小字符串
- */
-const formatSize = (size: number) => {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = size;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex++;
-  }
-  return `${value.toFixed(2)} ${units[unitIndex]}`;
-};
 </script>
 
 <style scoped>
