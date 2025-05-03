@@ -1,86 +1,49 @@
 package com.dsm.websocket.dispatcher;
 
+import com.dsm.websocket.handler.ContainerDetailMessageHandler;
+import com.dsm.websocket.handler.ContainerListMessageHandler;
+import com.dsm.websocket.handler.MessageHandler;
 import com.dsm.websocket.model.DockerWebSocketMessage;
-import com.dsm.websocket.sender.DockerWebSocketMessageSender;
-import com.dsm.websocket.service.DockerImageService;
-import com.dsm.websocket.service.DockerInstallService;
-import com.dsm.websocket.service.DockerValidationService;
-import com.dsm.websocket.service.DockerTestService;
+import com.dsm.websocket.message.MessageType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
 
+/**
+ * Docker WebSocket 消息分发器
+ */
 @Slf4j
 @Component
 public class DockerMessageDispatcher {
 
-    @Autowired
-    private DockerImageService imageService;
+    private final Map<MessageType, MessageHandler> handlers = new ConcurrentHashMap<>();
 
     @Autowired
-    private DockerInstallService installService;
-
-    @Autowired
-    private DockerValidationService validationService;
-
-    @Autowired
-    private DockerWebSocketMessageSender messageSender;
-
-    @Autowired
-    private DockerTestService testService;
-
-    public void dispatch(WebSocketSession session, DockerWebSocketMessage message) {
-        try {
-            switch (message.getType()) {
-                case "PULL_IMAGE"://拉取镜像
-                    imageService.handlePullImage(session, message);
-                    break;
-                case "INSTALL_CHECK_IMAGES"://商店安装校验镜像是否存在
-                    imageService.handleInstallCheckImages(session, message);
-                    break;
-                case "INSTALL_PULL_IMAGE"://弃用
-                    imageService.handleInstallPullImage(session, message);
-                    break;
-                case "INSTALL_VALIDATE"://商店安装校验参数是否合理
-                    validationService.handleInstallValidate(session, message);
-                    break;
-                case "INSTALL_START"://应用商店的开始安装
-                    installService.handleInstallStart(session, message);
-                    break;
-                case "UPDATE_IMAGE"://更新镜像
-                    imageService.handleUpdateImage(session, message);
-                    break;
-                case "CHECK_IMAGE_UPDATES"://检查镜像更新
-                    imageService.handleCheckImageUpdates(session, message);
-                    break;
-                case "TEST_NOTIFY"://测试消息
-                    testService.handleTestNotify(session, message);
-                    break;
-                case "HEARTBEAT"://心跳消息
-                    handleHeartbeat(session, message);
-                    break;
-                default:
-                    log.warn("未知的消息类型: {}", message.getType());
-            }
-        } catch (Exception e) {
-            log.error("处理消息时发生错误", e);
-            messageSender.sendErrorMessage(session, "处理消息时发生错误: " + e.getMessage());
+    public DockerMessageDispatcher(List<MessageHandler> messageHandlers) {
+        // 注册所有消息处理器
+        for (MessageHandler handler : messageHandlers) {
+            handlers.put(handler.getType(), handler);
         }
     }
 
-    private void handleHeartbeat(WebSocketSession session, DockerWebSocketMessage message) {
-        try {
-            DockerWebSocketMessage response = new DockerWebSocketMessage(
-                "HEARTBEAT_RESPONSE",
-                "",
-                Map.of("timestamp", System.currentTimeMillis())
-            );
-            messageSender.sendMessage(session, response);
-        } catch (Exception e) {
-            log.error("处理心跳消息时出错", e);
+    /**
+     * 分发消息到对应的处理器
+     *
+     * @param session WebSocket 会话
+     * @param message 消息内容
+     */
+    public void dispatch(WebSocketSession session, DockerWebSocketMessage message) {
+        MessageHandler handler = handlers.get(MessageType.valueOf(message.getType()));
+        if (handler != null) {
+            handler.handle(session, message);
+        } else {
+            log.warn("未找到消息类型 {} 的处理器", message.getType());
         }
     }
 } 

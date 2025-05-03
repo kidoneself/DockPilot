@@ -65,8 +65,8 @@ public class ContainerController {
     @PostMapping("/update/{id}")
     public ApiResponse<String> updateContainer(@PathVariable String id, @RequestBody JsonContainerRequest json) {
         ContainerCreateRequest request = JsonContainerRequestToContainerCreateRequestConverter.convert(json);
-        containerService.updateContainer(id, request);
-        return ApiResponse.success("更新容器成功");
+        String newContainerId = containerService.updateContainer(id, request);
+        return ApiResponse.success(newContainerId);
     }
 
 

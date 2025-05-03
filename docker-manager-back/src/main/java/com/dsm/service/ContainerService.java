@@ -63,8 +63,9 @@ public interface ContainerService {
      *
      * @param containerId 原容器ID
      * @param request     新的容器配置请求
+     * @return 新容器的ID
      */
-    void updateContainer(String containerId, ContainerCreateRequest request);
+    String updateContainer(String containerId, ContainerCreateRequest request);
 
 
     void restartContainer(String id);

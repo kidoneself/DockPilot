@@ -85,7 +85,7 @@ public class ContainerServiceImpl implements ContainerService {
     }
 
     @Override
-    public void updateContainer(String containerId, ContainerCreateRequest request) {
+    public String updateContainer(String containerId, ContainerCreateRequest request) {
         ContainerStaticInfoDTO originalConfig = null;
         String newContainerId = null;
         String backupContainerName = null;
@@ -112,6 +112,9 @@ public class ContainerServiceImpl implements ContainerService {
             // 6. 删除原容器
             removeContainer(containerId);
             LogUtil.logSysInfo("原容器已删除: " + containerId);
+
+            // 7. 返回新容器ID
+            return newContainerId;
 
         } catch (Exception e) {
             LogUtil.logSysError("更新容器失败: " + e.getMessage());
