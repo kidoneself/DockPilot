@@ -45,8 +45,12 @@ public class ContainerServiceImpl implements ContainerService {
         return containers.stream().map(container -> {
             ContainerDTO dto = ContainerDTO.convertToDTO(container);
             // 检查是否需要更新
-            String latestImageId = dockerService.getLatestImageId(container.getImage());
-            dto.setNeedUpdate(!latestImageId.equals(container.getImageId()));
+            if (container != null && container.getImage() != null) {
+                String latestImageId = dockerService.getLatestImageId(container.getImage());
+                dto.setNeedUpdate(latestImageId != null && !latestImageId.equals(container.getImageId()));
+            } else {
+                dto.setNeedUpdate(false);
+            }
             return dto;
         }).collect(Collectors.toList());
     }
