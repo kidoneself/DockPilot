@@ -19,6 +19,7 @@ export class DockerWebSocketService {
   private reconnectTimeout = 3000;
   private heartbeatInterval: number | null = null;
   private readonly heartbeatIntervalTime = 30000; // 30秒发送一次心跳
+  private messageHandlerMap: Map<string, (message: WebSocketMessage) => void> = new Map();
 
   constructor() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -53,21 +54,7 @@ export class DockerWebSocketService {
           onMessage: (message: WebSocketMessage) => {
             console.log('收到WebSocket消息:', message);
             
-            // 处理心跳响应
-            if (message.type === 'HEARTBEAT_RESPONSE') {
-              return;
-            }
-            
-            // 处理测试通知消息
-            if (message.type === 'TEST_NOTIFY_RESPONSE') {
-              console.log('处理测试通知响应:', message);
-              const notificationStore = useNotificationStore();
-              notificationStore.handleWebSocketNotification(message.data);
-            }
-            
-            // 处理其他消息
-            const handlers = this.messageHandlers.get(message.type) || [];
-            handlers.forEach(handler => handler(message));
+            this.handleMessage(message);
           },
           onError: (error: Error) => {
             console.error('WebSocket错误:', error);
@@ -106,7 +93,7 @@ export class DockerWebSocketService {
     }
   }
 
-  public async send(message: WebSocketMessage): Promise<void> {
+  public async sendMessage(message: WebSocketMessage): Promise<void> {
     if (!this.wsClient) {
       await this.connect();
     }
@@ -114,7 +101,7 @@ export class DockerWebSocketService {
   }
 
   public async checkImages(images: { name: string; tag: string }[]): Promise<void> {
-    await this.send({
+    await this.sendMessage({
       type: 'INSTALL_CHECK_IMAGES',
       taskId: '',
       data: { images }
@@ -122,7 +109,7 @@ export class DockerWebSocketService {
   }
 
   public async validateParams(params: any): Promise<void> {
-    await this.send({
+    await this.sendMessage({
       type: 'INSTALL_VALIDATE',
       taskId: '',
       data: { params }
@@ -261,11 +248,48 @@ export class DockerWebSocketService {
     }
   }
 
-  private sendMessage(message: WebSocketMessage) {
-    if (this.wsClient && this.wsClient.isConnected()) {
-      this.wsClient.send(message);
-    } else {
-      console.error('WebSocket 未连接，无法发送消息');
+  public addMessageHandler(messageId: string, handler: (message: WebSocketMessage) => void): void {
+    this.messageHandlerMap.set(messageId, handler);
+  }
+
+  public removeMessageHandler(messageId: string): void {
+    this.messageHandlerMap.delete(messageId);
+  }
+
+  private handleMessage(message: WebSocketMessage): void {
+    // 处理心跳响应
+    if (message.type === 'HEARTBEAT_RESPONSE') {
+      return;
+    }
+
+    // 处理测试通知消息
+    if (message.type === 'TEST_NOTIFY_RESPONSE') {
+      console.log('处理测试通知响应:', message);
+      const notificationStore = useNotificationStore();
+      if (message.data) {
+        notificationStore.handleWebSocketNotification({
+          id: message.data.id || String(Date.now()),
+          content: message.data.content || message.data.message || '测试消息',
+          type: message.data.type || '系统通知',
+          status: true,
+          collected: false,
+          date: message.data.date || new Date().toLocaleString(),
+          quality: message.data.quality || 'high'
+        });
+      }
+      return;
+    }
+
+    // 处理其他消息
+    const handlers = this.messageHandlers.get(message.type) || [];
+    handlers.forEach(handler => handler(message));
+
+    // 处理特定消息ID的处理器
+    if (message.taskId && this.messageHandlerMap.has(message.taskId)) {
+      const handler = this.messageHandlerMap.get(message.taskId);
+      if (handler) {
+        handler(message);
+      }
     }
   }
 }

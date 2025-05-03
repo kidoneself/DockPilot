@@ -16,27 +16,32 @@ export interface Container {
   image: string;
   imageId: string;
   command: string;
+  created: number;
   state: string;
   status: string;
-  ports: Port[];
-  created: number;
+  ports: {
+    IP: string;
+    PrivatePort: number;
+    PublicPort: number;
+    Type: string;
+  }[];
   labels: Record<string, string>;
-  sizeRw: number;
-  sizeRootFs: number;
-  hostConfig: {
-    networkMode: string;
-    restartPolicy: string;
-  };
   networkSettings: {
-    ipAddress: string;
+    networks: Record<string, {
+      IPAddress: string;
+      Gateway: string;
+      NetworkID: string;
+    }>;
   };
   mounts: {
-    source: string;
-    destination: string;
-    readOnly: boolean;
+    Type: string;
+    Source: string;
+    Destination: string;
+    Mode: string;
+    RW: boolean;
+    Propagation: string;
   }[];
-  needUpdate: boolean;
-  [key: string]: any;
+  needUpdate?: boolean;
 }
 
 export interface ContainerDetail {
@@ -90,69 +95,53 @@ export interface ContainerDetail {
 }
 
 export interface ContainerListResponse {
-  code: number;
   data: Container[];
-  message: string;
 }
 
-export interface ImageListResponse {
-  code: number;
-  data: Array<{
-    id: string;
-    statusId: number;
-    name: string;
-    tag: string;
-    size: number;
-    created: Date;
-    localCreateTime: string;
-    remoteCreateTime: string;
-    needUpdate: boolean;
-    lastChecked: Date;
-  }>;
-  message: string;
+export interface ImageInfo {
+  id: string;
+  statusId: number;
+  name: string;
+  tag: string;
+  size: number;
+  created: Date;
+  localCreateTime: string;
+  remoteCreateTime: string;
+  needUpdate: boolean;
+  lastChecked: Date;
 }
 
-export interface NetworkListResponse {
-  code: number;
-  data: Array<{
-    Name: string;
-    nameStr: string;
-    Id: string;
-    Created: string;
-    Scope: string;
-    Driver: string;
-    EnableIPv6: boolean;
-    IPAM: {
-      Driver: string;
-      Options: any;
-      Config: Array<{
-        Subnet: string;
-        Gateway: string;
-      }>;
-    };
-    Internal: boolean;
-    Attachable: boolean;
-    Ingress: boolean;
-    ConfigFrom: any;
-    ConfigOnly: boolean;
-    Containers: any;
-    Options: any;
-    Labels: any;
+export type ImageListResponse = ImageInfo[];
+
+export interface NetworkInfo {
+  id: string;
+  name: string;
+  nameStr: string;
+  driver: string;
+  scope: string;
+  enableIPv6: boolean;
+  internal: boolean;
+  attachable: boolean;
+  ingress: boolean;
+  configOnly: boolean;
+  ipamDriver: string;
+  ipamConfig: Array<{
+    subnet?: string;
+    gateway?: string;
   }>;
-  message: string;
+  labels: Record<string, string>;
+  options: Record<string, string>;
 }
+
+export type NetworkListResponse = NetworkInfo[];
 
 export interface ContainerStatsResponse {
-  code: number;
-  message: string;
-  data: {
-    cpuPercent: number;
-    memoryUsage: number;
-    memoryLimit: number;
-    networkRx: number;
-    networkTx: number;
-    running: boolean;
-  };
+  cpuPercent: number;
+  memoryUsage: number;
+  memoryLimit: number;
+  networkRx: number;
+  networkTx: number;
+  running: boolean;
 }
 
 export interface ContainerLogsParams {

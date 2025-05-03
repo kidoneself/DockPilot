@@ -96,17 +96,21 @@
       >
         <!-- 网络模式：选择容器的网络模式 -->
         <t-form-item label="网络模式" name="networkMode">
-          <t-tooltip content="默认使用桥接模式，可以自定义端口映射" trigger="focus">
+          <t-tooltip content="选择容器的网络模式" trigger="focus">
             <t-select
               v-model="formData.networkMode"
+              :options="networkOptions"
               :style="{ width: '480px' }"
               class="demo-select-base"
               clearable
               @change="handleNetworkModeChange"
             >
-              <t-option v-for="(item, index) in networkOptions" :key="index" :label="item.label" :value="item.value">
-                {{ item.label }}
-              </t-option>
+              <template #option="{ option }">
+                {{ option.label }}
+              </template>
+              <template #value="{ value }">
+                {{ networkOptions.find(n => n.value === value)?.label || value }}
+              </template>
             </t-select>
           </t-tooltip>
         </t-form-item>
@@ -311,7 +315,8 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
 // 导入API和工具函数
-import { createContainer, getImageDetail, getImageList, getNetworkList } from '@/api/container';
+import { createContainer, getImageDetail, getImageList } from '@/api/websocket/container';
+import { getNetworkList } from '@/api/websocket/container';
 import router from '@/router';
 
 // 导入常量和类型定义
@@ -380,19 +385,10 @@ const fetchImageList = async () => {
   loading.value = true;
   try {
     const res = await getImageList();
-    console.log('获取镜像列表响应:', res);
-    if (res.code === 0) {
-      imageOptions.value = res.data.map((img) => {
-        const imageName = img.name || '未命名镜像';
-        const imageTag = img.tag || 'latest';
-        return {
-          label: `${imageName}:${imageTag}`,
-          value: `${imageName}:${imageTag}`,
-        };
-      });
-    } else {
-      MessagePlugin.error(res.message);
-    }
+    imageOptions.value = res.map((img: any) => ({
+      label: `${img.name}:${img.tag}`,
+      value: `${img.name}:${img.tag}`
+    }));
   } catch (error) {
     console.error('获取镜像列表失败:', error);
     MessagePlugin.error('获取镜像列表失败');
@@ -405,17 +401,23 @@ const fetchImageList = async () => {
 const fetchNetworkList = async () => {
   try {
     const res = await getNetworkList();
-    if (res.code === 0) {
-      networkOptions.value = res.data.map((network) => {
-        const gateway = network.IPAM?.Config?.[0]?.Gateway || '';
-        return {
-          label: network.nameStr || '未知网络',
-          value: network.Name || '未知网络',
-          gateway,
-        };
+    console.log('获取到的网络列表:', res);
+    
+    // 处理网络列表数据
+    networkOptions.value = res.map((network) => ({
+      label: network.nameStr || network.name || '未知网络',
+      value: network.name || '未知网络',
+      gateway: network.ipamConfig?.[0]?.gateway || ''
+    }));
+
+    // 设置默认网络模式为桥接模式
+    const bridgeNetwork = networkOptions.value.find(n => n.value === 'bridge');
+    if (bridgeNetwork) {
+      formData.value.networkMode = bridgeNetwork.value;
+      handleNetworkModeChange(bridgeNetwork.value, {
+        selectedOptions: [bridgeNetwork],
+        trigger: 'default'
       });
-    } else {
-      MessagePlugin.error(res.message);
     }
   } catch (error) {
     console.error('获取网络列表错误:', error);
@@ -441,7 +443,6 @@ const handleImageChange = async (
     loading.value = true;
     const imageName = value as string;
     const res = await getImageDetail(imageName);
-    if (res.code === 0) {
       const detail = res.data;
       formData.value = { ...INITIAL_DATA };
 
@@ -497,33 +498,6 @@ const handleImageChange = async (
             return { key, value };
           });
         }
-
-        // 设置工作目录
-        if (config.workingDir) {
-          formData.value.workingDir = config.workingDir;
-        }
-
-        // 设置用户
-        if (config.user) {
-          formData.value.user = config.user;
-        }
-
-        // 设置健康检查
-        if (config.healthcheck) {
-          formData.value.healthcheck = {
-            test: config.healthcheck.test || [],
-            interval: config.healthcheck.interval || '30s',
-            timeout: config.healthcheck.timeout || '10s',
-            retries: config.healthcheck.retries || 3,
-            startPeriod: config.healthcheck.startPeriod || '0s',
-          };
-        }
-
-        // 显示镜像信息提示
-        MessagePlugin.success(`已加载镜像 ${imageName} 的配置信息`);
-      }
-    } else {
-      MessagePlugin.error(res.message || '获取镜像详情失败');
     }
   } catch (error) {
     console.error('获取镜像详情失败:', error);
@@ -534,47 +508,35 @@ const handleImageChange = async (
 };
 
 // 处理网络模式变化
-const handleNetworkModeChange = async (
+const handleNetworkModeChange = (
   value: SelectValue<SelectOption>,
   context: {
     option?: SelectOption;
     selectedOptions: SelectOption[];
     trigger: SelectValueChangeTrigger;
     e?: KeyboardEvent | MouseEvent;
-  },
+  }
 ) => {
   const mode = value as string;
+  console.log('网络模式变化:', mode);
+  
+  // 重置网络相关配置
   formData.value.ipAddress = '';
   formData.value.gateway = '';
 
+  // 根据网络模式设置相关配置
   if (mode === 'bridge') {
     disablePortMappings.value = false;
     showNetworkConfig.value = false;
-    // 如果之前保存了端口映射，则恢复
-    if (tempPortMappings.value.length > 0) {
-      formData.value.portMappings = [...tempPortMappings.value];
-      tempPortMappings.value = [];
-    }
   } else if (mode === 'host' || mode === 'none') {
-    // 保存当前的端口映射配置
-    if (formData.value.portMappings.length > 0) {
-      tempPortMappings.value = formData.value.portMappings.map(port => ({
-        ...port,
-        ip: port.ip ?? ''
-      }));
-    }
     disablePortMappings.value = true;
     showNetworkConfig.value = false;
     formData.value.portMappings = [];
   } else {
     disablePortMappings.value = false;
     showNetworkConfig.value = true;
-    // 如果之前保存了端口映射，则恢复
-    if (tempPortMappings.value.length > 0) {
-      formData.value.portMappings = [...tempPortMappings.value];
-      tempPortMappings.value = [];
-    }
-    const selectedNetwork = networkOptions.value.find((n) => n.value === mode);
+    // 设置网关
+    const selectedNetwork = networkOptions.value.find(n => n.value === mode);
     if (selectedNetwork?.gateway) {
       formData.value.gateway = selectedNetwork.gateway;
     }
@@ -623,26 +585,24 @@ const removeEnv = (index: number) => {
   formData.value.environmentVariables.splice(index, 1);
 };
 
-// 创建容器
-const handleCreateContainer = async () => {
+// 处理创建容器
+const handleCreateContainer = async (context: SubmitContext) => {
+  if (context.validateResult === true) {
   try {
     creating.value = true;
     const request = mapFormDataToRequest(formData.value);
+      console.log('创建容器请求:', request);
     const res = await createContainer(request);
-    if (res.code === 0) {
-      MessagePlugin.success('创建容器成功');
-      containerId.value = res.data; // 保存容器ID
-      activeForm.value = 6; // 显示成功页面
-      setTimeout(() => {
-        router.push(`/docker/containers/detail?id=${containerId.value}`);
-      }, 2000);
-    } else {
-      MessagePlugin.error(res.message || '创建容器失败');
-    }
+      console.log('创建容器响应:', res);
+      containerId.value = res.data;
+      activeForm.value = 6;
+      MessagePlugin.success('容器创建成功');
   } catch (error) {
-    MessagePlugin.error('创建容器失败');
+      console.error('创建容器失败:', error);
+      MessagePlugin.error(String(error instanceof Error ? error.message : '创建容器失败'));
   } finally {
     creating.value = false;
+    }
   }
 };
 
@@ -650,7 +610,7 @@ const handleCreateContainer = async () => {
 const onSubmit = (result: SubmitContext, val: number) => {
   if (result.validateResult === true) {
     if (val === 6) {
-      handleCreateContainer();
+      handleCreateContainer(result);
     } else {
       // 如果是从基础配置进入网络配置，且网络模式未设置，则使用默认值
       if (val === 1 && !formData.value.networkMode) {

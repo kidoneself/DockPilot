@@ -248,19 +248,14 @@ import { dockerWebSocketAPI } from '@/api/docker';
 import type { PullImageProgress } from '@/api/docker';
 import { IMAGE_TABLE_COLUMNS } from '@/constants/tableColumns';
 import { formatDate } from '@/utils/format';
-
-import {
-  batchUpdateImages,
-  cancelImagePull,
-  checkImageUpdates,
-  deleteImage,
-  getImageList,
-  updateImage,
-} from '@/api/container';
+import { getImageList, getImageDetail, deleteImage, updateImage, batchUpdateImages, cancelImagePull, checkImageUpdates } from '@/api/websocket/container';
 
 // ==================== 1. 响应式数据定义 ====================
 const images = ref([]);
 const loading = ref(false);
+const router = useRouter();
+const deleteConfirmVisible = ref(false);
+const currentDeleteImage = ref<any>(null);
 
 // ==================== 2. 表格列配置 ====================
 const columns = IMAGE_TABLE_COLUMNS;
@@ -285,10 +280,9 @@ const formatSize = (size: number): string => {
 const fetchImages = async () => {
   loading.value = true;
   try {
-    const response = await getImageList();
-    if (response.code === 0) {
-      console.log('API response:', response.data);
-      images.value = response.data.map((img) => {
+    const res = await getImageList();
+    if (res.code === 0 && Array.isArray(res.data)) {
+      images.value = res.data.map((img) => {
         const imageId = img.id || '';
         if (!imageId) {
           console.warn('镜像ID为空:', img);
@@ -304,60 +298,287 @@ const fetchImages = async () => {
         };
       });
     } else {
-      MessagePlugin.error(response.message || '获取镜像列表失败');
+      console.error('获取镜像列表失败:', res.message);
+      MessagePlugin.error(res.message || '获取镜像列表失败');
     }
   } catch (error) {
     console.error('获取镜像列表失败:', error);
-    MessagePlugin.error('获取镜像列表失败');
+    MessagePlugin.error(error instanceof Error ? error.message : '获取镜像列表失败');
   } finally {
     loading.value = false;
   }
 };
 
 // ==================== 5. 事件处理函数 ====================
-const handleDelete = (row: any) => {
-  if (!row.Id) {
-    MessagePlugin.error('无法获取镜像ID，删除操作失败');
-    return;
+const handleDelete = async (image: any) => {
+  try {
+    await deleteImage(image.Id);
+    MessagePlugin.success('删除成功');
+    fetchImages();
+  } catch (error) {
+    console.error('删除镜像失败:', error);
+    MessagePlugin.error(error instanceof Error ? error.message : '删除镜像失败');
   }
-  currentDeleteImage.value = row;
-  deleteConfirmVisible.value = true;
 };
 
-const confirmDelete = async () => {
-  if (!currentDeleteImage.value) {
-    console.error('当前删除镜像对象为空');
-    return;
-  }
-
+const handleUpdate = async (image: any) => {
   try {
-    const result = await deleteImage(currentDeleteImage.value.Id);
-    if (result.code === 0) {
-      MessagePlugin.success('镜像删除成功');
+    await updateImage({
+      image: image.RepoTags[0].split(':')[0],
+      tag: image.RepoTags[0].split(':')[1]
+    });
+    MessagePlugin.success('更新成功');
+    fetchImages();
+  } catch (error) {
+    console.error('更新镜像失败:', error);
+    MessagePlugin.error(error instanceof Error ? error.message : '更新镜像失败');
+  }
+};
+
+const handleCheckUpdates = async () => {
+  try {
+    const res = await checkImageUpdates();
+    if (res.code === 0) {
+      MessagePlugin.success(res.message || '检查更新成功');
       fetchImages();
     } else {
-      MessagePlugin.error(result.message || '镜像删除失败');
+      MessagePlugin.error(res.message || '检查更新失败');
     }
   } catch (error) {
-    console.error('删除镜像出错:', error);
-    MessagePlugin.error('镜像删除失败');
-  } finally {
-    deleteConfirmVisible.value = false;
-    currentDeleteImage.value = null;
+    console.error('检查更新失败:', error);
+    MessagePlugin.error(error instanceof Error ? error.message : '检查更新失败');
+  }
+};
+
+const handleBatchUpdate = async () => {
+  try {
+    await batchUpdateImages({ useProxy: false });
+    MessagePlugin.success('批量更新成功');
+    fetchImages();
+  } catch (error) {
+    console.error('批量更新失败:', error);
+    MessagePlugin.error('批量更新失败');
+  }
+};
+
+const handleCancelPull = async (e: MouseEvent) => {
+  const taskId = (e.currentTarget as HTMLElement).dataset.taskId;
+  if (!taskId) {
+    MessagePlugin.error('任务ID不存在');
+    return;
+  }
+  try {
+    await cancelImagePull(taskId);
+    MessagePlugin.success('取消拉取成功');
+    fetchImages();
+  } catch (error) {
+    console.error('取消拉取失败:', error);
+    MessagePlugin.error('取消拉取失败');
   }
 };
 
 // ==================== 6. 生命周期钩子 ====================
 onMounted(() => {
   fetchImages();
-  const cleanupInterval = setInterval(cleanupOldTasks, 60 * 60 * 1000);
-  
-  onUnmounted(() => {
-    clearInterval(cleanupInterval);
-  });
 });
 
-// ==================== 7. 拉取镜像相关状态 ====================
+// ==================== 7. 其他功能 ====================
+const handleRun = (row: any) => {
+  router.push({
+    path: '/docker/create',
+    query: {
+      image: row.name,
+      tag: row.tag
+    }
+  });
+};
+
+// 计算各层的进度百分比
+const getLayerProgress = (layer: any) => {
+  if (!layer || !layer.progress) return 0;
+
+  const progressText = layer.progress;
+  // 从形如 "[=====>    ] 65.32MB/120.13MB" 的字符串中提取进度
+  const progressMatch = progressText.match(/\[(=+>?\s*)\]\s*([\d.]+)MB\/([\d.]+)MB/);
+
+  if (progressMatch) {
+    const current = parseFloat(progressMatch[2]);
+    const total = parseFloat(progressMatch[3]);
+    if (!isNaN(current) && !isNaN(total) && total > 0) {
+      return Math.floor((current / total) * 100);
+    }
+  }
+
+  // 根据等号数量估算进度
+  const barMatch = progressText.match(/\[(=+>?)\s*\]/);
+  if (barMatch) {
+    const bar = barMatch[1];
+    const barLength = bar.length;
+    const totalLength = 10; // 假设总长度为10
+    return Math.floor((barLength / totalLength) * 100);
+  }
+
+  return 0;
+};
+
+// 修改格式化层级进度的函数，去掉百分比数字
+const formatLayerProgress = (progressText: string) => {
+  if (!progressText) return '';
+
+  // 从形如 "[=====>    ] 65.32MB/120.13MB" 的字符串中提取数值部分
+  const mbMatch = progressText.match(/([\d.]+)MB\/([\d.]+)MB/);
+  if (mbMatch) {
+    const current = parseFloat(mbMatch[1]);
+    const total = parseFloat(mbMatch[2]);
+    if (!isNaN(current) && !isNaN(total) && total > 0) {
+      return `${current.toFixed(2)}MB/${total.toFixed(2)}MB`;
+    }
+    return `${mbMatch[0]}`;
+  }
+
+  // 如果没有MB格式，则去除进度条部分
+  const cleanedText = progressText.replace(/\[=*>*\s*\]\s*/, '').trim();
+  return cleanedText || progressText;
+};
+
+// 判断层是否已完成
+const isLayerCompleted = (layer: any) => {
+  if (!layer || !layer.status) return false;
+
+  const status = layer.status.toLowerCase();
+  return (
+    status.includes('完成') ||
+    status.includes('complete') ||
+    status.includes('已下载') ||
+    status.includes('downloaded') ||
+    status.includes('已提取') ||
+    status.includes('extracted')
+  );
+};
+
+// 显示拉取任务详情
+const showPullTaskDetails = (task: any) => {
+  currentTaskDetails.value = { ...task };
+  pullTaskDetailsVisible.value = true;
+};
+
+// 取消指定任务
+const handleCancelPullTask = async (task: any) => {
+  try {
+    console.log('取消拉取任务:', task.taskId);
+    const result = await cancelImagePull(task.taskId);
+
+    if (result.code === 0) {
+      // 更新任务状态
+      const taskIndex = activePullTasks.value.findIndex((t) => t.taskId === task.taskId);
+      if (taskIndex >= 0) {
+        const updatedTask = { ...activePullTasks.value[taskIndex] };
+        updatedTask.status = 'canceled';
+        updatedTask.message = '用户取消了拉取';
+        activePullTasks.value.splice(taskIndex, 1, updatedTask);
+      }
+
+      // 如果当前正在显示该任务的详情，也需要断开连接
+      if (pullTaskId.value === task.taskId) {
+        dockerWebSocketAPI.disconnect();
+      }
+
+      MessagePlugin.warning('已取消拉取镜像');
+    } else {
+      MessagePlugin.error(result.message || '取消拉取失败');
+    }
+  } catch (error) {
+    console.error('取消拉取失败:', error);
+    MessagePlugin.error('取消拉取失败');
+  }
+};
+
+// 清理过期任务（如24小时前的成功或失败任务）
+const cleanupOldTasks = () => {
+  const currentTime = Date.now();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+
+  activePullTasks.value = activePullTasks.value.filter((task) => {
+    // 保留所有活动任务
+    if (task.status === 'pending' || task.status === 'running') {
+      return true;
+    }
+
+    // 保留24小时内的已完成或失败任务
+    if (task.startTime && currentTime - task.startTime < oneDayMs) {
+      return true;
+    }
+
+    return false;
+  });
+};
+
+// 添加 handlePull 方法
+const handlePull = () => {
+  pullImageDialogVisible.value = true;
+  isPulling.value = false;
+  pullProgress.value = 0;
+  pullStatus.value = 'active';
+  pullMessage.value = '';
+  pullLayers.value = [];
+  pullTaskId.value = '';
+};
+
+// 修改拉取镜像确认函数
+const onPullImageConfirm = async () => {
+  try {
+    await pullImageForm.value?.validate();
+    isPulling.value = true;
+    pullProgress.value = 0;
+    pullStatus.value = 'active';
+    currentStage.value = '等待开始';
+    logLines.value = [];
+    completed.value = false;
+
+    await dockerWebSocketAPI.pullImage(
+      {
+        imageName: `${pullImageFormData.value.image}:${pullImageFormData.value.tag}`,
+      },
+      {
+        onStart: (taskId) => {
+          pullTaskId.value = taskId;
+          logLines.value.push('开始拉取镜像...');
+        },
+        onProgress: (progress) => {
+          updatePullProgress(progress);
+        },
+        onComplete: () => {
+          pullStatus.value = 'success';
+          logLines.value.push('镜像拉取完成');
+          completed.value = true;
+          MessagePlugin.success('镜像拉取成功');
+          setTimeout(() => {
+            isPulling.value = false;
+            pullImageDialogVisible.value = false;
+            fetchImages();
+          }, 1500);
+        },
+        onError: (error) => {
+          pullStatus.value = 'error';
+          logLines.value.push(`拉取失败: ${error}`);
+          completed.value = true;
+          MessagePlugin.error(`拉取镜像失败: ${error}`);
+          setTimeout(() => {
+            isPulling.value = false;
+            pullImageDialogVisible.value = false;
+          }, 3000);
+        }
+      }
+    );
+  } catch (error) {
+    console.error('拉取镜像出错:', error);
+    MessagePlugin.error(error instanceof Error ? error.message : '镜像拉取失败');
+    isPulling.value = false;
+    pullImageDialogVisible.value = false;
+  }
+};
+
+// ==================== 8. 拉取镜像相关状态 ====================
 const pullImageDialogVisible = ref(false);
 const pullImageForm = ref<any>(null);
 const pullImageFormData = ref({
@@ -495,20 +716,18 @@ const closePullDialog = () => {
   completed.value = false;
 };
 
-// 修改取消拉取函数
-const handleCancelPull = async () => {
-  if (!pullTaskId.value) {
-    closePullDialog();
-    return;
-  }
-
+// 确认删除镜像
+const confirmDelete = async () => {
+  if (!currentDeleteImage.value) return;
   try {
-    await dockerWebSocketAPI.cancelPull(pullTaskId.value);
-    MessagePlugin.warning('已取消拉取镜像');
-    closePullDialog();
+    await deleteImage(currentDeleteImage.value.Id);
+    MessagePlugin.success('删除成功');
+    deleteConfirmVisible.value = false;
+    currentDeleteImage.value = null;
+    fetchImages();
   } catch (error) {
-    console.error('取消拉取失败:', error);
-    MessagePlugin.error(error instanceof Error ? error.message : '取消拉取失败');
+    console.error('删除镜像失败:', error);
+    MessagePlugin.error('删除镜像失败');
   }
 };
 
@@ -516,341 +735,6 @@ const handleCancelPull = async () => {
 onUnmounted(() => {
   dockerWebSocketAPI.disconnect();
 });
-
-// 修改创建容器处理函数
-const router = useRouter();
-const handleRun = (row: any) => {
-  router.push({
-    path: '/docker/create',
-    query: {
-      image: row.name,
-      tag: row.tag
-    }
-  });
-};
-
-const deleteConfirmVisible = ref(false);
-const currentDeleteImage = ref<any>(null);
-
-// 计算各层的进度百分比
-const getLayerProgress = (layer: any) => {
-  if (!layer || !layer.progress) return 0;
-
-  const progressText = layer.progress;
-  // 从形如 "[=====>    ] 65.32MB/120.13MB" 的字符串中提取进度
-  const progressMatch = progressText.match(/\[(=+>?\s*)\]\s*([\d.]+)MB\/([\d.]+)MB/);
-
-  if (progressMatch) {
-    const current = parseFloat(progressMatch[2]);
-    const total = parseFloat(progressMatch[3]);
-    if (!isNaN(current) && !isNaN(total) && total > 0) {
-      return Math.floor((current / total) * 100);
-    }
-  }
-
-  // 根据等号数量估算进度
-  const barMatch = progressText.match(/\[(=+>?)\s*\]/);
-  if (barMatch) {
-    const bar = barMatch[1];
-    const barLength = bar.length;
-    const totalLength = 10; // 假设总长度为10
-    return Math.floor((barLength / totalLength) * 100);
-  }
-
-  return 0;
-};
-
-// 修改格式化层级进度的函数，去掉百分比数字
-const formatLayerProgress = (progressText: string) => {
-  if (!progressText) return '';
-
-  // 从形如 "[=====>    ] 65.32MB/120.13MB" 的字符串中提取数值部分
-  const mbMatch = progressText.match(/([\d.]+)MB\/([\d.]+)MB/);
-  if (mbMatch) {
-    const current = parseFloat(mbMatch[1]);
-    const total = parseFloat(mbMatch[2]);
-    if (!isNaN(current) && !isNaN(total) && total > 0) {
-      return `${current.toFixed(2)}MB/${total.toFixed(2)}MB`;
-    }
-    return `${mbMatch[0]}`;
-  }
-
-  // 如果没有MB格式，则去除进度条部分
-  const cleanedText = progressText.replace(/\[=*>*\s*\]\s*/, '').trim();
-  return cleanedText || progressText;
-};
-
-// 判断层是否已完成
-const isLayerCompleted = (layer: any) => {
-  if (!layer || !layer.status) return false;
-
-  const status = layer.status.toLowerCase();
-  return (
-    status.includes('完成') ||
-    status.includes('complete') ||
-    status.includes('已下载') ||
-    status.includes('downloaded') ||
-    status.includes('已提取') ||
-    status.includes('extracted')
-  );
-};
-
-// 显示拉取任务详情
-const showPullTaskDetails = (task: any) => {
-  currentTaskDetails.value = { ...task };
-  pullTaskDetailsVisible.value = true;
-};
-
-// 取消指定任务
-const handleCancelPullTask = async (task: any) => {
-  try {
-    console.log('取消拉取任务:', task.taskId);
-    const result = await cancelImagePull(task.taskId);
-
-    if (result.code === 0) {
-      // 更新任务状态
-      const taskIndex = activePullTasks.value.findIndex((t) => t.taskId === task.taskId);
-      if (taskIndex >= 0) {
-        const updatedTask = { ...activePullTasks.value[taskIndex] };
-        updatedTask.status = 'canceled';
-        updatedTask.message = '用户取消了拉取';
-        activePullTasks.value.splice(taskIndex, 1, updatedTask);
-      }
-
-      // 如果当前正在显示该任务的详情，也需要断开连接
-      if (pullTaskId.value === task.taskId) {
-        dockerWebSocketAPI.disconnect();
-      }
-
-      MessagePlugin.warning('已取消拉取镜像');
-    } else {
-      MessagePlugin.error(result.message || '取消拉取失败');
-    }
-  } catch (error) {
-    console.error('取消拉取失败:', error);
-    MessagePlugin.error('取消拉取失败');
-  }
-};
-
-// 清理过期任务（如24小时前的成功或失败任务）
-const cleanupOldTasks = () => {
-  const currentTime = Date.now();
-  const oneDayMs = 24 * 60 * 60 * 1000;
-
-  activePullTasks.value = activePullTasks.value.filter((task) => {
-    // 保留所有活动任务
-    if (task.status === 'pending' || task.status === 'running') {
-      return true;
-    }
-
-    // 保留24小时内的已完成或失败任务
-    if (task.startTime && currentTime - task.startTime < oneDayMs) {
-      return true;
-    }
-
-    return false;
-  });
-};
-
-
-// 添加 handlePull 方法
-const handlePull = () => {
-  pullImageDialogVisible.value = true;
-  isPulling.value = false;
-  pullProgress.value = 0;
-  pullStatus.value = 'active';
-  pullMessage.value = '';
-  pullLayers.value = [];
-  pullTaskId.value = '';
-};
-
-// 处理单个镜像更新
-const handleUpdate = async (row: any) => {
-  try {
-    // 添加到拉取任务列表中
-    const newTask = {
-      taskId: '', // 任务ID由后端生成
-      image: row.name,
-      tag: row.tag,
-      progress: 0,
-      status: 'pending',
-      message: '准备更新镜像...',
-      layers: [] as any[],
-      startTime: Date.now(),
-    };
-    activePullTasks.value = [newTask, ...activePullTasks.value];
-
-    // 发送WebSocket消息
-    await dockerWebSocketAPI.pullImage({
-      imageName: `${row.name}:${row.tag}`
-    }, {
-      onStart: (taskId) => {
-        newTask.taskId = taskId;
-      },
-      onProgress: (progress: PullImageProgress) => {
-        newTask.progress = progress.progress;
-        newTask.message = progress.status;
-        if (progress.layers) {
-          newTask.layers = progress.layers;
-        }
-      },
-      onComplete: () => {
-        newTask.status = 'success';
-        newTask.progress = 100;
-        newTask.message = '镜像更新完成';
-        fetchImages();
-      },
-      onError: (error) => {
-        newTask.status = 'error';
-        newTask.message = error;
-      }
-    });
-
-    MessagePlugin.success('镜像更新请求已提交');
-  } catch (error) {
-    console.error('更新镜像失败:', error);
-    MessagePlugin.error('更新镜像失败');
-  }
-};
-
-// 检查镜像更新
-const handleCheckUpdates = async () => {
-  try {
-    loading.value = true;
-    
-    // 发送WebSocket消息
-    await dockerWebSocketAPI.checkImageUpdates(images.value.map(img => ({
-      name: img.name,
-      tag: img.tag
-    })));
-
-    MessagePlugin.info('开始检查镜像更新...');
-  } catch (error) {
-    console.error('检查镜像更新失败:', error);
-    MessagePlugin.error('检查镜像更新失败');
-  } finally {
-    loading.value = false;
-  }
-};
-
-// 添加WebSocket消息处理
-const handleWebSocketMessage = (message: any) => {
-  if (!message) return;
-
-  switch (message.type) {
-    case 'UPDATE_START':
-      // 更新任务状态为运行中
-      updateTaskStatus(message.taskId, 'running', '开始更新镜像...');
-      break;
-    case 'UPDATE_PROGRESS':
-      // 更新任务进度
-      updateTaskProgress(message.taskId, message.data.progress, message.data.status);
-      break;
-    case 'UPDATE_COMPLETE':
-      // 更新任务完成
-      updateTaskStatus(message.taskId, 'success', '镜像更新完成');
-      fetchImages(); // 刷新镜像列表
-      break;
-    case 'CHECK_UPDATES_START':
-      MessagePlugin.info('开始检查镜像更新...');
-      break;
-    case 'CHECK_UPDATES_COMPLETE':
-      // 更新镜像列表中的更新状态
-      if (message.data) {
-        images.value = images.value.map(img => {
-          const imageKey = `${img.name}:${img.tag}`;
-          const updateInfo = message.data[imageKey];
-          if (updateInfo) {
-            return {
-              ...img,
-              needUpdate: updateInfo.hasUpdate,
-              lastChecked: new Date().toISOString()
-            };
-          }
-          return img;
-        });
-      }
-      MessagePlugin.success('镜像更新检查完成');
-      break;
-  }
-};
-
-// 更新任务状态
-const updateTaskStatus = (taskId: string, status: string, message: string) => {
-  const taskIndex = activePullTasks.value.findIndex(t => t.taskId === taskId);
-  if (taskIndex >= 0) {
-    const task = activePullTasks.value[taskIndex];
-    task.status = status;
-    task.message = message;
-    if (status === 'success' || status === 'error') {
-      task.progress = 100;
-    }
-  }
-};
-
-// 更新任务进度
-const updateTaskProgress = (taskId: string, progress: number, status: string) => {
-  const taskIndex = activePullTasks.value.findIndex(t => t.taskId === taskId);
-  if (taskIndex >= 0) {
-    const task = activePullTasks.value[taskIndex];
-    task.progress = progress;
-    task.message = status;
-  }
-};
-
-// 修改拉取镜像确认函数
-const onPullImageConfirm = async () => {
-  try {
-    await pullImageForm.value?.validate();
-    isPulling.value = true;
-    pullProgress.value = 0;
-    pullStatus.value = 'active';
-    currentStage.value = '等待开始';
-    logLines.value = [];
-    completed.value = false;
-
-    await dockerWebSocketAPI.pullImage(
-      {
-        imageName: `${pullImageFormData.value.image}:${pullImageFormData.value.tag}`,
-      },
-      {
-        onStart: (taskId) => {
-          pullTaskId.value = taskId;
-          logLines.value.push('开始拉取镜像...');
-        },
-        onProgress: (progress) => {
-          updatePullProgress(progress);
-        },
-        onComplete: () => {
-          pullStatus.value = 'success';
-          logLines.value.push('镜像拉取完成');
-          completed.value = true;
-          MessagePlugin.success('镜像拉取成功');
-          setTimeout(() => {
-            isPulling.value = false;
-            pullImageDialogVisible.value = false;
-            fetchImages();
-          }, 1500);
-        },
-        onError: (error) => {
-          pullStatus.value = 'error';
-          logLines.value.push(`拉取失败: ${error}`);
-          completed.value = true;
-          MessagePlugin.error(`拉取镜像失败: ${error}`);
-          setTimeout(() => {
-            isPulling.value = false;
-            pullImageDialogVisible.value = false;
-          }, 3000);
-        }
-      }
-    );
-  } catch (error) {
-    console.error('拉取镜像出错:', error);
-    MessagePlugin.error(error instanceof Error ? error.message : '镜像拉取失败');
-    isPulling.value = false;
-    pullImageDialogVisible.value = false;
-  }
-};
 </script>
 
 <style scoped>
@@ -1067,3 +951,4 @@ const onPullImageConfirm = async () => {
   text-align: center;
 }
 </style>
+

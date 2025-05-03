@@ -103,18 +103,15 @@
       >
         <!-- 网络模式：选择容器的网络模式 -->
         <t-form-item label="网络模式" name="networkMode">
-          <t-tooltip content="默认使用桥接模式，可以自定义端口映射" trigger="focus">
+          <t-tooltip content="选择容器的网络模式" trigger="focus">
             <t-select
               v-model="formData.networkMode"
+              :options="networkOptions"
               :style="{ width: '480px' }"
               class="demo-select-base"
               clearable
               @change="handleNetworkModeChange"
-            >
-              <t-option v-for="(item, index) in networkOptions" :key="index" :label="item.label" :value="item.value">
-                {{ item.label }}
-              </t-option>
-            </t-select>
+            />
           </t-tooltip>
         </t-form-item>
         <!-- 容器内IP：设置容器的IP地址（仅在自定义网络模式下可用） -->
@@ -318,12 +315,12 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
 // 导入API和工具函数
-import { createContainer, getImageDetail, getImageList, getNetworkList, getContainerDetail, updateContainer } from '@/api/container';
+import { getNetworkList, getContainerDetail, updateContainer } from '@/api/websocket/container';
 import router from '@/router';
 
 // 导入常量和类型定义
-import { IMAGE_OPTIONS, TYPE_OPTIONS, NETWORK_OPTIONS, RESTART_POLICY_OPTIONS, FORM_RULES } from '@/constants/container';
-import type { ContainerForm, CreateContainerParams } from '@/types/container.d.ts';
+import { RESTART_POLICY_OPTIONS, FORM_RULES } from '@/constants/container';
+import type { ContainerForm } from '@/types/container.d.ts';
 import { mapFormDataToRequest, mapContainerDetailToForm } from '@/utils/container';
 
 // 权限选项配置
@@ -367,7 +364,6 @@ const formData = ref<ContainerForm>({
 });
 const activeForm = ref(0); // 当前步骤
 const loading = ref(false); // 加载状态
-const imageOptions = ref<{ label: string; value: string }[]>([]); // 镜像选项
 const networkOptions = ref<{ label: string; value: string; gateway?: string }[]>([]); // 网络选项
 const creating = ref(false); // 创建状态
 
@@ -378,51 +374,22 @@ const tempPortMappings = ref<Array<{ hostPort: string; containerPort: string; pr
 
 // 路由相关
 const route = useRoute();
-const hasImageParams = computed(() => !!route.query.image && !!route.query.tag); // 是否有镜像参数
 const containerId = ref<string>(''); // 容器ID
 
-// 获取镜像列表
-const fetchImageList = async () => {
-  loading.value = true;
-  try {
-    const res = await getImageList();
-    console.log('获取镜像列表响应:', res);
-    if (res.code === 0) {
-      imageOptions.value = res.data.map((img) => {
-        const imageName = img.name || '未命名镜像';
-        const imageTag = img.tag || 'latest';
-        return {
-          label: `${imageName}:${imageTag}`,
-          value: `${imageName}:${imageTag}`,
-        };
-      });
-    } else {
-      MessagePlugin.error(String(res.message));
-    }
-  } catch (error) {
-    console.error('获取镜像列表失败:', error);
-    MessagePlugin.error('获取镜像列表失败');
-  } finally {
-    loading.value = false;
-  }
-};
+// 添加缺失的属性
+const imageOptions = ref<{ label: string; value: string }[]>([]);
+const hasImageParams = computed(() => false);
 
 // 获取网络列表
 const fetchNetworkList = async () => {
   try {
     const res = await getNetworkList();
-    if (res.code === 0) {
-      networkOptions.value = res.data.map((network) => {
-        const gateway = network.IPAM?.Config?.[0]?.Gateway || '';
-        return {
-          label: network.nameStr || '未知网络',
-          value: network.Name || '未知网络',
-          gateway,
-        };
-      });
-    } else {
-      MessagePlugin.error(String(res.message));
-    }
+    // 处理网络列表数据
+    networkOptions.value = res.map((network) => ({
+      label: network.nameStr || network.name || '未知网络',
+      value: network.name || '未知网络',
+      gateway: network.ipamConfig?.[0]?.gateway || ''
+    }));
   } catch (error) {
     console.error('获取网络列表错误:', error);
     MessagePlugin.error('获取网络列表失败');
@@ -434,183 +401,54 @@ const fetchContainerDetail = async (id: string) => {
     console.log('开始获取容器详情，ID:', id);
     const res = await getContainerDetail(id);
     console.log('获取容器详情响应:', res);
-    if (res.code === 0) {
-      console.log('获取容器详情数据:', res.data);
-      if (!res.data) {
-        MessagePlugin.error('容器详情数据为空');
-        return;
-      }
-      const mappedData = mapContainerDetailToForm(res.data);
-      console.log('转换后的表单数据:', mappedData);
-      formData.value = mappedData;
-      console.log('设置后的表单数据:', formData.value);
-    } else {
-      MessagePlugin.error('获取容器详情失败');
+    
+    // WebSocket 返回的数据直接就是容器详情对象
+    if (!res) {
+      MessagePlugin.error('容器详情数据为空');
+      return;
     }
+    
+    const mappedData = mapContainerDetailToForm(res);
+    console.log('转换后的表单数据:', mappedData);
+    formData.value = mappedData;
+    console.log('设置后的表单数据:', formData.value);
+
+    // 获取网络列表，网络模式的设置会在fetchNetworkList中处理
+    await fetchNetworkList();
   } catch (error) {
     console.error('获取容器详情错误:', error);
     MessagePlugin.error(String(error instanceof Error ? error.message : '未知错误'));
   }
 };
 
-// 处理镜像选择变化
-const handleImageChange = async (
-  value: SelectValue<SelectOption>,
-  context: {
-    option?: SelectOption;
-    selectedOptions: SelectOption[];
-    trigger: SelectValueChangeTrigger;
-    e?: KeyboardEvent | MouseEvent;
-  },
-) => {
-  // 编辑模式下不允许修改镜像
-  if (route.query.id) {
-    MessagePlugin.warning('编辑模式下不允许修改镜像');
-    return;
-  }
-
-  if (!value) {
-    formData.value = { ...formData.value };
-    return;
-  }
-  try {
-    loading.value = true;
-    const imageName = value as string;
-    const res = await getImageDetail(imageName);
-    if (res.code === 0) {
-      const detail = res.data;
-      formData.value = { ...formData.value };
-
-      // 分割镜像名称和标签
-      const [image, tag = 'latest'] = imageName.split(':');
-      formData.value.image = image;
-      formData.value.tag = tag;
-
-      // 生成随机容器名称
-      const randomNum = Math.floor(Math.random() * 90) + 10;
-      formData.value.name = `${image.replace(/[^a-zA-Z0-9]/g, '-')}-${randomNum}`;
-      formData.value.restartPolicy = 'always';
-
-      if (detail) {
-        const { config } = detail;
-
-        // 设置入口点
-        if (config.entrypoint) {
-          formData.value.entrypoint = config.entrypoint;
-        }
-
-        // 设置默认命令
-        if (config.cmd) {
-          formData.value.cmd = config.cmd;
-        }
-
-        // 设置暴露端口
-        if (config.exposedPorts) {
-          formData.value.portMappings = Object.keys(config.exposedPorts).map((port) => {
-            const [portNumber, protocol] = port.split('/');
-            return {
-              hostPort: portNumber,
-              containerPort: portNumber,
-              protocol: protocol || 'tcp',
-              ip: '',
-            };
-          });
-        }
-
-        // 设置数据卷
-        if (config.volumes) {
-          formData.value.volumeMappings = Object.keys(config.volumes).map((volume) => ({
-            hostPath: '',
-            containerPath: volume,
-            readOnly: false,
-          }));
-        }
-
-        // 设置环境变量
-        if (config.env) {
-          formData.value.environmentVariables = config.env.map((env: string) => {
-            const [key, value] = env.split('=');
-            return { key, value };
-          });
-        }
-
-        // 设置工作目录
-        if (config.workingDir) {
-          formData.value.workingDir = config.workingDir;
-        }
-
-        // 设置用户
-        if (config.user) {
-          formData.value.user = config.user;
-        }
-
-        // 设置健康检查
-        if (config.healthcheck) {
-          formData.value.healthcheck = {
-            test: config.healthcheck.test || [],
-            interval: config.healthcheck.interval || '30s',
-            timeout: config.healthcheck.timeout || '10s',
-            retries: config.healthcheck.retries || 3,
-            startPeriod: config.healthcheck.startPeriod || '0s',
-          };
-        }
-
-        // 显示镜像信息提示
-        MessagePlugin.success(`已加载镜像 ${imageName} 的配置信息`);
-      }
-    } else {
-      MessagePlugin.error(String(res.message));
-    }
-  } catch (error) {
-    console.error('获取镜像详情失败:', error);
-    MessagePlugin.error('获取镜像详情失败');
-  } finally {
-    loading.value = false;
-  }
-};
-
 // 处理网络模式变化
-const handleNetworkModeChange = async (
+const handleNetworkModeChange = (
   value: SelectValue<SelectOption>,
   context: {
     option?: SelectOption;
     selectedOptions: SelectOption[];
     trigger: SelectValueChangeTrigger;
     e?: KeyboardEvent | MouseEvent;
-  },
+  }
 ) => {
   const mode = value as string;
+  // 重置网络相关配置
   formData.value.ipAddress = '';
   formData.value.gateway = '';
 
+  // 根据网络模式设置相关配置
   if (mode === 'bridge') {
     disablePortMappings.value = false;
     showNetworkConfig.value = false;
-    // 如果之前保存了端口映射，则恢复
-    if (tempPortMappings.value.length > 0) {
-      formData.value.portMappings = [...tempPortMappings.value];
-      tempPortMappings.value = [];
-    }
   } else if (mode === 'host' || mode === 'none') {
-    // 保存当前的端口映射配置
-    if (formData.value.portMappings.length > 0) {
-      tempPortMappings.value = formData.value.portMappings.map(port => ({
-        ...port,
-        ip: port.ip ?? ''
-      }));
-    }
     disablePortMappings.value = true;
     showNetworkConfig.value = false;
     formData.value.portMappings = [];
   } else {
     disablePortMappings.value = false;
     showNetworkConfig.value = true;
-    // 如果之前保存了端口映射，则恢复
-    if (tempPortMappings.value.length > 0) {
-      formData.value.portMappings = [...tempPortMappings.value];
-      tempPortMappings.value = [];
-    }
-    const selectedNetwork = networkOptions.value.find((n) => n.value === mode);
+    // 设置网关
+    const selectedNetwork = networkOptions.value.find(n => n.value === mode);
     if (selectedNetwork?.gateway) {
       formData.value.gateway = selectedNetwork.gateway;
     }
@@ -664,19 +502,16 @@ const handleUpdateContainer = async () => {
   try {
     creating.value = true;
     const request = mapFormDataToRequest(formData.value);
-    const res = await updateContainer(route.query.id as string, request);
-    if (res.code !== 0) {
-      MessagePlugin.error('更新容器失败');
-      return;
-    }
+    const newContainerId = await updateContainer(route.query.id as string, request);
+    await fetchContainerDetail(newContainerId);
     MessagePlugin.success('更新容器成功');
-    containerId.value = route.query.id as string;
+    containerId.value = newContainerId;
     activeForm.value = 6;
-    setTimeout(() => {
-      router.push(`/docker/containers/detail?id=${containerId.value}`);
-    }, 2000);
+    // 立即跳转到新容器的详情页
+    router.push(`/docker/containers/detail?id=${newContainerId}`);
   } catch (error) {
-    MessagePlugin.error('更新容器失败');
+    console.error('更新容器失败:', error);
+    MessagePlugin.error(String(error instanceof Error ? error.message : '更新容器失败'));
   } finally {
     creating.value = false;
   }
@@ -688,10 +523,7 @@ const onSubmit = (result: SubmitContext, val: number) => {
     if (val === 6) {
       handleUpdateContainer();
     } else {
-      // 如果是从基础配置进入网络配置，且网络模式未设置，则使用默认值
-      if (val === 1 && !formData.value.networkMode) {
-        formData.value.networkMode = 'bridge';
-      }
+      // 移除默认设置bridge的逻辑，使用容器详情中的网络模式
       activeForm.value = val;
     }
   }
@@ -736,6 +568,20 @@ const currentImageDisplay = computed(() => {
   if (!formData.value.image) return '';
   return formData.value.tag ? `${formData.value.image}:${formData.value.tag}` : formData.value.image;
 });
+
+// 添加handleImageChange函数
+const handleImageChange = async (
+  value: SelectValue<SelectOption>,
+  context: {
+    option?: SelectOption;
+    selectedOptions: SelectOption[];
+    trigger: SelectValueChangeTrigger;
+    e?: KeyboardEvent | MouseEvent;
+  },
+) => {
+  // 编辑页面不需要处理镜像变化
+  console.log('镜像选择变化:', value);
+};
 </script>
 
 <style lang="less" scoped>

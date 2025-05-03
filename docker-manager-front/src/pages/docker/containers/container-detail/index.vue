@@ -218,11 +218,11 @@
                   <div class="cmd-info">
                     <div class="cmd-item">
                       <div class="cmd-label">Entrypoint</div>
-                      <div class="cmd-value">{{ (containerDetail?.entrypoints || []).join(' ') || '-' }}</div>
+                      <div class="cmd-value">{{ cmdInfo.entrypoint }}</div>
                     </div>
                     <div class="cmd-item">
                       <div class="cmd-label">Command</div>
-                      <div class="cmd-value">{{ containerDetail?.command || '-' }}</div>
+                      <div class="cmd-value">{{ cmdInfo.command }}</div>
                     </div>
                   </div>
                 </t-collapse-panel>
@@ -396,7 +396,8 @@ export default {
 import { computed, onMounted, ref, watch, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next';
-import { getContainerDetail, getContainerLogs, getContainerStats, ContainerDetail, startContainer, stopContainer, restartContainer, deleteContainer, updateContainer } from '@/api/container';
+import { getContainerDetail, getContainerLogs, getContainerStats, startContainer, stopContainer, restartContainer, deleteContainer, updateContainer } from '@/api/websocket/container';
+import type { ContainerDetail } from '@/types/api/container';
 import { IMAGE_OPTIONS, TYPE_OPTIONS, NETWORK_OPTIONS, RESTART_POLICY_OPTIONS, FORM_RULES } from '@/constants/container';
 import type { ContainerForm, CreateContainerParams } from '@/types/container.d.ts';
 import { mapFormDataToRequest, mapContainerDetailToForm } from '@/utils/container';
@@ -478,11 +479,11 @@ const volumeColumns = [
 
 // 存储配置数据
 const volumeMappings = computed(() => {
-  if (!containerDetail.value?.volumes) return [];
-  return containerDetail.value.volumes.map((volume: any) => ({
-    id: `${volume.hostPath}:${volume.containerPath}`,
-    hostPath: volume.hostPath,
-    containerPath: volume.containerPath,
+  if (!containerDetail.value?.volumes || !Array.isArray(containerDetail.value.volumes)) return [];
+  return containerDetail.value.volumes.map((volume: { hostPath: string; containerPath: string; readOnly: boolean }, index: number) => ({
+    id: `${index}`,
+    hostPath: volume.hostPath || '-',
+    containerPath: volume.containerPath || '-',
     readOnly: volume.readOnly ? '只读' : '读写'
   }));
 });
@@ -496,13 +497,17 @@ const portColumns = [
 
 // 端口映射数据
 const portMappings = computed(() => {
-  if (!containerDetail.value?.ports) return [];
-  return containerDetail.value.ports.map((port, index) => ({
-    key: `${index}`,
-    containerPort: port.containerPort.toString(),
-    hostPort: port.hostPort.toString(),
-    protocol: port.protocol
-  }));
+  if (!containerDetail.value?.ports || !Array.isArray(containerDetail.value.ports)) return [];
+  return containerDetail.value.ports.map((portStr: string, index: number) => {
+    const [containerPort, hostPort] = portStr.split(':');
+    const [port, protocol] = containerPort.split('/');
+    return {
+      key: `${index}`,
+      containerPort: port || '-',
+      hostPort: hostPort || '-',
+      protocol: protocol || 'tcp'
+    };
+  });
 });
 
 // 环境变量表格列
@@ -513,13 +518,24 @@ const envColumns = [
 
 // 环境变量数据
 const environmentVariables = computed(() => {
-  if (!containerDetail.value?.environment) return [];
-  return containerDetail.value.environment.map((env, index) => ({
-    id: index,
-    key: env.key,
-    value: env.value
-  }));
+  if (!containerDetail.value?.envs || !Array.isArray(containerDetail.value.envs)) return [];
+  return containerDetail.value.envs.map((envStr: string, index: number) => {
+    const [key, value] = envStr.split('=');
+    return {
+      id: index,
+      key: key || '-',
+      value: value || '-'
+    };
+  });
 });
+
+// 命令/Entrypoint 数据
+const cmdInfo = computed(() => ({
+  entrypoint: Array.isArray(containerDetail.value?.entrypoints) 
+    ? containerDetail.value.entrypoints.join(' ') 
+    : '-',
+  command: containerDetail.value?.command || '-'
+}));
 
 // 解析日志行
 const parseLogLine = (line: string) => {
@@ -550,12 +566,8 @@ const fetchContainerDetail = async () => {
     loading.value = true;
     const res = await getContainerDetail(route.query.id as string);
     console.log('获取到的容器详情响应:', res);
-    if (res.code === 0) {
-      containerDetail.value = res.data;
-      console.log('设置后的容器详情:', containerDetail.value);
-    } else {
-      MessagePlugin.error('获取容器详情失败');
-    }
+    containerDetail.value = res;
+    console.log('设置后的容器详情:', containerDetail.value);
   } catch (error) {
     console.error('获取容器详情失败:', error);
     MessagePlugin.error('获取容器详情失败');
@@ -649,6 +661,7 @@ const handleConfirmOperation = async () => {
     }
     await fetchContainerDetail();
   } catch (error) {
+    console.error('操作失败:', error);
     MessagePlugin.error('操作失败');
   } finally {
     isConfirmLoading.value = false;
@@ -721,9 +734,8 @@ watch(() => route.query.id, (newId) => {
 const fetchResourceStats = async () => {
   try {
     const res = await getContainerStats(route.query.id as string);
-    if (res.code === 0) {
-      resourceStats.value = res.data;
-    }
+    console.log('获取到的资源使用情况:', res);
+    resourceStats.value = res;
   } catch (error) {
     console.error('获取资源使用情况失败:', error);
   }

@@ -1,4 +1,11 @@
 import { request } from '@/utils/request';
+import {
+  getContainerList,
+  startContainer,
+  stopContainer,
+  restartContainer,
+  getContainerDetail
+} from './websocket/container';
 import type {
   Container,
   ContainerDetail,
@@ -23,6 +30,15 @@ export type {
   CreateContainerParams
 };
 
+// 导出 WebSocket 实现的容器操作
+export {
+  getContainerList,
+  startContainer,
+  stopContainer,
+  restartContainer,
+  getContainerDetail
+};
+
 /**
  * API 函数
  */
@@ -30,17 +46,6 @@ export type {
 /**
  * 容器相关 API
  */
-
-/**
- * 获取容器列表
- * @returns 容器列表
- */
-export const getContainerList = async (): Promise<Container[]> => {
-  const response = await request.get<ContainerListResponse>({
-    url: '/containers',
-  });
-  return response.data || [];
-};
 
 /**
  * 创建容器
@@ -51,39 +56,6 @@ export const createContainer = async (data: CreateContainerParams): Promise<any>
   return request.post({
     url: '/containers',
     data,
-  });
-};
-
-/**
- * 启动容器
- * @param id 容器ID
- * @returns 启动结果
- */
-export const startContainer = async (id: string): Promise<any> => {
-  return request.post({
-    url: `/containers/start/${id}`,
-  });
-};
-
-/**
- * 停止容器
- * @param id 容器ID
- * @returns 停止结果
- */
-export const stopContainer = async (id: string): Promise<any> => {
-  return request.post({
-    url: `/containers/stop/${id}`,
-  });
-};
-
-/**
- * 重启容器
- * @param id 容器ID
- * @returns 重启结果
- */
-export const restartContainer = async (id: string): Promise<any> => {
-  return request.post({
-    url: `/containers/restart/${id}`,
   });
 };
 
@@ -111,17 +83,6 @@ export const getContainerLogs = async (
 export const deleteContainer = async (id: string): Promise<any> => {
   return request.delete({
     url: `/containers/${id}`,
-  });
-};
-
-/**
- * 获取容器详情
- * @param id 容器ID
- * @returns 容器详情
- */
-export const getContainerDetail = async (id: string): Promise<ContainerDetail> => {
-  return request.get<ContainerDetail>({
-    url: `/containers/${id}/config`,
   });
 };
 

@@ -39,7 +39,7 @@ const notificationStore = useNotificationStore();
 const sendTestMessage = async () => {
   try {
     loading.value = true;
-    await dockerWebSocketService.send({
+    await dockerWebSocketService.sendMessage({
       type: 'TEST_NOTIFY',
       taskId: String(Date.now()),
       data: {

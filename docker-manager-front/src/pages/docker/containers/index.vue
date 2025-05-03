@@ -138,13 +138,15 @@ import { nextTick, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 // 导入容器相关的 API 和类型
 import {
-  Container,
   getContainerList,
-  getContainerLogs,
   restartContainer,
   startContainer,
   stopContainer,
-} from '@/api/container';
+  getContainerDetail,
+  deleteContainer,
+  updateContainer,
+} from '@/api/websocket/container';
+import type { Container } from '@/types/api/container.d.ts';
 // 导入容器 logo 获取函数
 import { getContainerLogo } from '@/constants/container-logos';
 // 导入容器状态相关的工具函数
@@ -160,6 +162,7 @@ import {
 import type { PrimaryTableCol } from 'tdesign-vue-next';
 import { h } from 'vue';
 import { Tooltip, Icon } from 'tdesign-vue-next';
+import { getContainerList as getWebSocketContainerList } from '@/api/websocket/container';
 
 // 获取路由实例
 const router = useRouter();
@@ -302,15 +305,13 @@ const handleImageError = (containerId: string) => {
  * 获取容器列表
  */
 const fetchContainers = async () => {
+  isLoading.value = true;
   try {
-    isLoading.value = true;
-    const response = await getContainerList();
-    containers.value = response.map((container: Container) => ({
-      ...container,
-      names: container.names?.map((name: string) => name.replace('/', '')) || [],
-    }));
+    const res = await getContainerList();
+    containers.value = res || [];
   } catch (error) {
-    await MessagePlugin.error('获取容器列表失败');
+    console.error('获取容器列表失败:', error);
+    MessagePlugin.error('获取容器列表失败');
   } finally {
     isLoading.value = false;
   }
@@ -397,6 +398,28 @@ const handleShowDetails = (container: Container) => {
     path: '/docker/containers/detail',
     query: { id: container.id },
   });
+};
+
+const handleDelete = async (containerId: string) => {
+  try {
+    await deleteContainer(containerId);
+    MessagePlugin.success('删除成功');
+    fetchContainers();
+  } catch (error) {
+    console.error('删除容器失败:', error);
+    MessagePlugin.error('删除容器失败');
+  }
+};
+
+const handleUpdate = async (container: any) => {
+  try {
+    await updateContainer(container);
+    MessagePlugin.success('更新成功');
+    fetchContainers();
+  } catch (error) {
+    console.error('更新容器失败:', error);
+    MessagePlugin.error('更新容器失败');
+  }
 };
 
 // 组件挂载时获取容器列表
