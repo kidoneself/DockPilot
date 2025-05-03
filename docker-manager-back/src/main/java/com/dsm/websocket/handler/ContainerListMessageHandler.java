@@ -8,11 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.TextMessage;
-import com.alibaba.fastjson.JSON;
 
 import java.util.List;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -20,7 +17,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class ContainerListMessageHandler implements MessageHandler {
+public class ContainerListMessageHandler extends BaseMessageHandler {
 
     @Autowired
     private ContainerService containerService;
@@ -33,41 +30,16 @@ public class ContainerListMessageHandler implements MessageHandler {
     @Override
     public void handle(WebSocketSession session, Object message) {
         try {
+            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+            
             // 获取容器列表
             List<ContainerDTO> containers = containerService.listContainers();
             
-            // 创建响应消息
-            DockerWebSocketMessage response = new DockerWebSocketMessage(
-                MessageType.CONTAINER_LIST.name(),
-                "",
-                containers
-            );
-            
-            // 发送消息
-            session.sendMessage(new TextMessage(JSON.toJSONString(response)));
+            // 发送响应
+            sendResponse(session, MessageType.CONTAINER_LIST, wsMessage.getTaskId(), containers);
         } catch (Exception e) {
             log.error("处理容器列表消息时发生错误", e);
-            // 发送错误消息
-            sendErrorMessage(session, "获取容器列表失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 发送错误消息
-     *
-     * @param session WebSocket 会话
-     * @param errorMessage 错误信息
-     */
-    private void sendErrorMessage(WebSocketSession session, String errorMessage) {
-        try {
-            DockerWebSocketMessage errorResponse = new DockerWebSocketMessage(
-                MessageType.ERROR.name(),
-                "",
-                Map.of("message", errorMessage)
-            );
-            session.sendMessage(new TextMessage(JSON.toJSONString(errorResponse)));
-        } catch (Exception e) {
-            log.error("发送错误消息失败", e);
+            sendErrorMessage(session, "获取容器列表失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
         }
     }
 } 

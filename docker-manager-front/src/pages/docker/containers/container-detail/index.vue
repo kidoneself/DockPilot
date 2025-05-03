@@ -502,7 +502,7 @@ const portMappings = computed(() => {
     const [containerPort, hostPort] = portStr.split(':');
     const [port, protocol] = containerPort.split('/');
     return {
-      key: `${index}`,
+    key: `${index}`,
       containerPort: port || '-',
       hostPort: hostPort || '-',
       protocol: protocol || 'tcp'
@@ -522,7 +522,7 @@ const environmentVariables = computed(() => {
   return containerDetail.value.envs.map((envStr: string, index: number) => {
     const [key, value] = envStr.split('=');
     return {
-      id: index,
+    id: index,
       key: key || '-',
       value: value || '-'
     };
@@ -535,7 +535,7 @@ const cmdInfo = computed(() => ({
     ? containerDetail.value.entrypoints.join(' ') 
     : '-',
   command: containerDetail.value?.command || '-'
-}));
+  }));
 
 // 解析日志行
 const parseLogLine = (line: string) => {
@@ -567,7 +567,7 @@ const fetchContainerDetail = async () => {
     const res = await getContainerDetail(route.query.id as string);
     console.log('获取到的容器详情响应:', res);
     containerDetail.value = res;
-    console.log('设置后的容器详情:', containerDetail.value);
+      console.log('设置后的容器详情:', containerDetail.value);
   } catch (error) {
     console.error('获取容器详情失败:', error);
     MessagePlugin.error('获取容器详情失败');

@@ -366,7 +366,7 @@ const INITIAL_DATA: ContainerForm = {
 const formData = ref(INITIAL_DATA);
 const activeForm = ref(0); // 当前步骤
 const loading = ref(false); // 加载状态
-const imageOptions = ref<{ label: string; value: string }[]>([]); // 镜像选项
+const imageOptions = ref<{ label: string; value: string; size: number }[]>([]); // 镜像选项
 const networkOptions = ref<{ label: string; value: string; gateway?: string }[]>([]); // 网络选项
 const creating = ref(false); // 创建状态
 
@@ -382,18 +382,19 @@ const containerId = ref<string>(''); // 容器ID
 
 // 获取镜像列表
 const fetchImageList = async () => {
-  loading.value = true;
   try {
     const res = await getImageList();
-    imageOptions.value = res.map((img: any) => ({
+    console.log('获取到的镜像列表:', res);
+    
+    // 处理镜像列表数据
+    imageOptions.value = res.map((img) => ({
       label: `${img.name}:${img.tag}`,
-      value: `${img.name}:${img.tag}`
+      value: `${img.name}:${img.tag}`,
+      size: img.size || 0
     }));
   } catch (error) {
     console.error('获取镜像列表失败:', error);
-    MessagePlugin.error('获取镜像列表失败');
-  } finally {
-    loading.value = false;
+    MessagePlugin.error(error instanceof Error ? error.message : '获取镜像列表失败');
   }
 };
 
@@ -528,13 +529,38 @@ const handleNetworkModeChange = (
   if (mode === 'bridge') {
     disablePortMappings.value = false;
     showNetworkConfig.value = false;
+    // 恢复之前保存的端口映射
+    if (tempPortMappings.value.length > 0) {
+      formData.value.portMappings = tempPortMappings.value.map(port => ({
+        hostPort: port.hostPort,
+        containerPort: port.containerPort,
+        protocol: port.protocol,
+        ip: port.ip || ''
+      }));
+    }
   } else if (mode === 'host' || mode === 'none') {
+    // 保存当前的端口映射
+      tempPortMappings.value = formData.value.portMappings.map(port => ({
+      hostPort: port.hostPort,
+      containerPort: port.containerPort,
+      protocol: port.protocol,
+      ip: port.ip || ''
+      }));
     disablePortMappings.value = true;
     showNetworkConfig.value = false;
     formData.value.portMappings = [];
   } else {
     disablePortMappings.value = false;
     showNetworkConfig.value = true;
+    // 恢复之前保存的端口映射
+    if (tempPortMappings.value.length > 0) {
+      formData.value.portMappings = tempPortMappings.value.map(port => ({
+        hostPort: port.hostPort,
+        containerPort: port.containerPort,
+        protocol: port.protocol,
+        ip: port.ip || ''
+      }));
+    }
     // 设置网关
     const selectedNetwork = networkOptions.value.find(n => n.value === mode);
     if (selectedNetwork?.gateway) {
@@ -597,11 +623,11 @@ const handleCreateContainer = async (context: SubmitContext) => {
       containerId.value = res.data;
       activeForm.value = 6;
       MessagePlugin.success('容器创建成功');
-  } catch (error) {
+    } catch (error) {
       console.error('创建容器失败:', error);
       MessagePlugin.error(String(error instanceof Error ? error.message : '创建容器失败'));
-  } finally {
-    creating.value = false;
+    } finally {
+      creating.value = false;
     }
   }
 };

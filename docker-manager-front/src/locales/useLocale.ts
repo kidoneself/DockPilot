@@ -4,9 +4,6 @@ export function useLocale() {
     changeLocale: () => {
       // 空实现
     },
-    getComponentsLocale: () => {
-      // 返回空对象
-      return {};
-    }
+    getComponentsLocale: {}
   };
 }

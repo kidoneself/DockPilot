@@ -1,12 +1,11 @@
 import { RouteRecordRaw } from 'vue-router';
-import { BrowseIcon } from 'tdesign-icons-vue-next';
 import Layout from '@/layouts/index.vue';
 
 const test: RouteRecordRaw = {
   path: '/test',
   name: 'test',
   component: Layout,
-  meta: { title: '测试', icon: BrowseIcon },
+  meta: { title: '测试', icon: 'browse', hidden: true },
   children: [
     {
       path: 'websocket',

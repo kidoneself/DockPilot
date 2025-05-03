@@ -413,8 +413,9 @@ const handleInstall = async () => {
 
   try {
     // 发送安装请求
-    dockerWebSocketService.send({
+    dockerWebSocketService.sendMessage({
       type: 'INSTALL_START',
+      taskId: '',
       data: {
         appId: route.params.id,
         params: formData.value

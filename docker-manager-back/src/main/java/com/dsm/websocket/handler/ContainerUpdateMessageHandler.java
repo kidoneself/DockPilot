@@ -10,10 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.TextMessage;
 import com.alibaba.fastjson.JSON;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -21,7 +19,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class ContainerUpdateMessageHandler implements MessageHandler {
+public class ContainerUpdateMessageHandler extends BaseMessageHandler {
 
     @Autowired
     private ContainerService containerService;
@@ -37,63 +35,23 @@ public class ContainerUpdateMessageHandler implements MessageHandler {
             DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
             Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
             String containerId = (String) data.get("containerId");
-            Map<String, Object> requestData = (Map<String, Object>) data.get("data");
+            JsonContainerRequest json = JSON.parseObject(JSON.toJSONString(data), JsonContainerRequest.class);
+            ContainerCreateRequest request = JsonContainerRequestToContainerCreateRequestConverter.convert(json);
 
-            boolean success = false;
-            String errorMessage = null;
-            String newContainerId = null;
-
-            try {
-                // 直接将 Map 转换为 JsonContainerRequest
-                JsonContainerRequest jsonRequest = JSON.parseObject(JSON.toJSONString(data), JsonContainerRequest.class);
-                // 使用转换器将 JsonContainerRequest 转换为 ContainerCreateRequest
-                ContainerCreateRequest request = JsonContainerRequestToContainerCreateRequestConverter.convert(jsonRequest);
-                // 更新容器并获取新的容器 ID
-                newContainerId = containerService.updateContainer(containerId, request);
-                success = true;
-            } catch (Exception e) {
-                log.error("更新容器失败", e);
-                errorMessage = e.getMessage();
-            }
+            // 更新容器
+            containerService.updateContainer(containerId, request);
 
             // 发送操作结果
-            Map<String, Object> result = new HashMap<>();
-            result.put("success", success);
-            if (errorMessage != null) {
-                result.put("message", errorMessage);
-            }
-            if (newContainerId != null) {
-                result.put("newContainerId", newContainerId);
-            }
-
-            DockerWebSocketMessage response = new DockerWebSocketMessage(
-                MessageType.CONTAINER_OPERATION_RESULT.name(),
-                "",
-                result
+            sendOperationResult(
+                session,
+                wsMessage.getTaskId(),
+                true,
+                containerId,
+                "容器更新成功"
             );
-            session.sendMessage(new TextMessage(JSON.toJSONString(response)));
         } catch (Exception e) {
             log.error("处理容器更新消息时发生错误", e);
-            sendErrorMessage(session, "处理容器更新失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 发送错误消息
-     *
-     * @param session WebSocket 会话
-     * @param errorMessage 错误信息
-     */
-    private void sendErrorMessage(WebSocketSession session, String errorMessage) {
-        try {
-            DockerWebSocketMessage errorResponse = new DockerWebSocketMessage(
-                MessageType.ERROR.name(),
-                "",
-                Map.of("message", errorMessage)
-            );
-            session.sendMessage(new TextMessage(JSON.toJSONString(errorResponse)));
-        } catch (Exception e) {
-            log.error("发送错误消息失败", e);
+            sendErrorMessage(session, "更新容器失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
         }
     }
 } 

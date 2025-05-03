@@ -107,9 +107,6 @@ public class DockerImageService {
         }
     }
 
-    public void handleInstallPullImage(WebSocketSession session, DockerWebSocketMessage message) {
-        // TODO: 实现拉取安装所需镜像的逻辑
-    }
 
     /**
      * 处理更新镜像请求

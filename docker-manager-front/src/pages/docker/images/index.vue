@@ -25,7 +25,7 @@
     </div>
 
     <!-- 添加正在拉取的镜像列表 -->
-    <div v-if="activePullTasks.length > 0" class="pulling-images-section">
+    <div v-if="activePullTasks && activePullTasks.length > 0" class="pulling-images-section">
       <div class="section-title">正在拉取的镜像</div>
       <t-table :data="activePullTasks" :columns="pullTaskColumns" row-key="taskId">
         <template #image="{ row }">
@@ -57,9 +57,9 @@
       </t-table>
     </div>
 
-    <t-table :data="images" :columns="columns" :loading="loading" row-key="Id">
+    <t-table :data="images" :columns="columns" :loading="loading" row-key="id">
       <template #id="{ row }">
-        <t-tag theme="default" variant="light">{{ row.Id.replace('sha256:', '').slice(0, 12) }}</t-tag>
+        <t-tag theme="default" variant="light">{{ row.id }}</t-tag>
       </template>
       <template #name="{ row }">
         <t-tag theme="primary" variant="light">{{ row.name }}</t-tag>
@@ -69,6 +69,9 @@
       </template>
       <template #created="{ row }">
         <span>{{ formatDate(row.created) }}</span>
+      </template>
+      <template #size="{ row }">
+        <span>{{ formatSize(row.size) }}</span>
       </template>
       <template #needUpdate="{ row }">
         <t-tag :theme="row.needUpdate ? 'warning' : 'success'" variant="light">
@@ -127,7 +130,6 @@
         <t-form-item label="版本" name="tag">
           <t-input v-model="pullImageFormData.tag" placeholder="请输入版本，例如：latest" />
         </t-form-item>
-
       </t-form>
       <div v-else class="pull-progress-container">
         <div class="space-y-4">
@@ -141,13 +143,13 @@
             当前阶段：{{ currentStage }}
           </div>
 
-          <t-scrollbar style="height: 120px;">
+          <div class="scrollbar-container" style="height: 120px; overflow: auto;">
             <div class="text-xs text-gray-400">
               <div v-for="(log, index) in logLines" :key="index" class="log-line">
                 {{ log }}
               </div>
             </div>
-          </t-scrollbar>
+          </div>
 
           <div class="text-right mt-4">
             <t-button
@@ -232,7 +234,7 @@
       <div class="delete-confirm-body">
         <p>
           确定要删除镜像
-          {{ currentDeleteImage?.RepoTags?.[0] || currentDeleteImage?.Id?.slice(0, 12) || '未命名镜像' }} 吗？
+          {{ currentDeleteImage?.name }}:{{ currentDeleteImage?.tag }} 吗？
         </p>
       </div>
     </t-dialog>
@@ -258,7 +260,16 @@ const deleteConfirmVisible = ref(false);
 const currentDeleteImage = ref<any>(null);
 
 // ==================== 2. 表格列配置 ====================
-const columns = IMAGE_TABLE_COLUMNS;
+const columns = [
+  { colKey: 'id', title: '镜像ID', width: 120 },
+  { colKey: 'name', title: '镜像名称', width: 300 },
+  { colKey: 'tag', title: '标签', width: 100 },
+  { colKey: 'created', title: '创建时间', width: 180 },
+  { colKey: 'size', title: '大小', width: 120 },
+  { colKey: 'needUpdate', title: '更新状态', width: 120 },
+  { colKey: 'lastChecked', title: '最后检查', width: 180 },
+  { colKey: 'operation', title: '操作', width: 200 },
+];
 
 // ==================== 3. 工具函数 ====================
 const formatSize = (size: number): string => {
@@ -281,26 +292,19 @@ const fetchImages = async () => {
   loading.value = true;
   try {
     const res = await getImageList();
-    if (res.code === 0 && Array.isArray(res.data)) {
-      images.value = res.data.map((img) => {
-        const imageId = img.id || '';
-        if (!imageId) {
-          console.warn('镜像ID为空:', img);
-        }
-        return {
-          ...img,
-          Id: imageId.replace('sha256:', '').slice(0, 8),
+    console.log('获取到的镜像列表:', res);
+    
+    // 处理镜像列表数据
+    images.value = res.map((img) => ({
+      id: img.id?.replace('sha256:', '').slice(0, 8) || '',
           name: img.name || '未命名镜像',
           tag: img.tag || 'latest',
           created: img.localCreateTime || img.created,
           lastChecked: img.lastChecked,
-          needUpdate: img.needUpdate || false
-        };
-      });
-    } else {
-      console.error('获取镜像列表失败:', res.message);
-      MessagePlugin.error(res.message || '获取镜像列表失败');
-    }
+      needUpdate: img.needUpdate || false,
+      size: img.size || 0,
+      RepoTags: [`${img.name}:${img.tag}`]
+    }));
   } catch (error) {
     console.error('获取镜像列表失败:', error);
     MessagePlugin.error(error instanceof Error ? error.message : '获取镜像列表失败');
@@ -311,21 +315,15 @@ const fetchImages = async () => {
 
 // ==================== 5. 事件处理函数 ====================
 const handleDelete = async (image: any) => {
-  try {
-    await deleteImage(image.Id);
-    MessagePlugin.success('删除成功');
-    fetchImages();
-  } catch (error) {
-    console.error('删除镜像失败:', error);
-    MessagePlugin.error(error instanceof Error ? error.message : '删除镜像失败');
-  }
+  currentDeleteImage.value = image;
+  deleteConfirmVisible.value = true;
 };
 
 const handleUpdate = async (image: any) => {
   try {
     await updateImage({
-      image: image.RepoTags[0].split(':')[0],
-      tag: image.RepoTags[0].split(':')[1]
+      image: image.name,
+      tag: image.tag
     });
     MessagePlugin.success('更新成功');
     fetchImages();
@@ -354,7 +352,7 @@ const handleBatchUpdate = async () => {
   try {
     await batchUpdateImages({ useProxy: false });
     MessagePlugin.success('批量更新成功');
-    fetchImages();
+  fetchImages();
   } catch (error) {
     console.error('批量更新失败:', error);
     MessagePlugin.error('批量更新失败');
@@ -949,6 +947,19 @@ onUnmounted(() => {
 .proxy-test-loading {
   padding: 32px;
   text-align: center;
+}
+
+.scrollbar-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-container::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 3px;
+}
+
+.scrollbar-container::-webkit-scrollbar-track {
+  background-color: #f1f1f1;
 }
 </style>
 

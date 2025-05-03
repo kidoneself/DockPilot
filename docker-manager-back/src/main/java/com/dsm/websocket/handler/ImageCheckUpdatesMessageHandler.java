@@ -8,8 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.TextMessage;
-import com.alibaba.fastjson.JSON;
 
 import java.util.List;
 import java.util.Map;
@@ -19,7 +17,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class ImageCheckUpdatesMessageHandler implements MessageHandler {
+public class ImageCheckUpdatesMessageHandler extends BaseMessageHandler {
 
     @Autowired
     private ImageService imageService;
@@ -32,44 +30,19 @@ public class ImageCheckUpdatesMessageHandler implements MessageHandler {
     @Override
     public void handle(WebSocketSession session, Object message) {
         try {
+            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+            
             // 检查所有镜像的更新状态
             imageService.checkAllImagesStatus();
             
             // 获取更新后的镜像列表
             List<ImageStatusDTO> images = imageService.listImages();
             
-            // 创建响应消息
-            DockerWebSocketMessage response = new DockerWebSocketMessage(
-                MessageType.IMAGE_CHECK_UPDATES.name(),
-                "",
-                images
-            );
-            
-            // 发送消息
-            session.sendMessage(new TextMessage(JSON.toJSONString(response)));
+            // 发送响应
+            sendResponse(session, MessageType.IMAGE_CHECK_UPDATES, wsMessage.getTaskId(), images);
         } catch (Exception e) {
             log.error("处理镜像检查更新消息时发生错误", e);
-            // 发送错误消息
-            sendErrorMessage(session, "检查镜像更新失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 发送错误消息
-     *
-     * @param session WebSocket 会话
-     * @param errorMessage 错误信息
-     */
-    private void sendErrorMessage(WebSocketSession session, String errorMessage) {
-        try {
-            DockerWebSocketMessage errorResponse = new DockerWebSocketMessage(
-                MessageType.ERROR.name(),
-                "",
-                Map.of("message", errorMessage)
-            );
-            session.sendMessage(new TextMessage(JSON.toJSONString(errorResponse)));
-        } catch (Exception e) {
-            log.error("发送错误消息失败", e);
+            sendErrorMessage(session, "检查镜像更新失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
         }
     }
 } 

@@ -7,8 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.TextMessage;
-import com.alibaba.fastjson.JSON;
 
 import java.util.Map;
 
@@ -17,7 +15,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class ImageDeleteMessageHandler implements MessageHandler {
+public class ImageDeleteMessageHandler extends BaseMessageHandler {
 
     @Autowired
     private ImageService imageService;
@@ -38,38 +36,17 @@ public class ImageDeleteMessageHandler implements MessageHandler {
             // 删除镜像
             imageService.removeImage(imageId, removeStatus);
             
-            // 创建响应消息
-            DockerWebSocketMessage response = new DockerWebSocketMessage(
-                MessageType.IMAGE_DELETE.name(),
-                "",
-                imageId
+            // 发送操作结果
+            sendOperationResult(
+                session,
+                wsMessage.getTaskId(),
+                true,
+                imageId,
+                "镜像删除成功"
             );
-            
-            // 发送消息
-            session.sendMessage(new TextMessage(JSON.toJSONString(response)));
         } catch (Exception e) {
             log.error("处理镜像删除消息时发生错误", e);
-            // 发送错误消息
-            sendErrorMessage(session, "删除镜像失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 发送错误消息
-     *
-     * @param session WebSocket 会话
-     * @param errorMessage 错误信息
-     */
-    private void sendErrorMessage(WebSocketSession session, String errorMessage) {
-        try {
-            DockerWebSocketMessage errorResponse = new DockerWebSocketMessage(
-                MessageType.ERROR.name(),
-                "",
-                Map.of("message", errorMessage)
-            );
-            session.sendMessage(new TextMessage(JSON.toJSONString(errorResponse)));
-        } catch (Exception e) {
-            log.error("发送错误消息失败", e);
+            sendErrorMessage(session, "删除镜像失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
         }
     }
 } 

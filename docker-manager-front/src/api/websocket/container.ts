@@ -410,21 +410,28 @@ export const getImageDetail = async (imageName: string): Promise<any> => {
  */
 export const createContainer = async (data: CreateContainerParams): Promise<any> => {
   return new Promise((resolve, reject) => {
+    const taskId = Date.now().toString();
+    
+    // 注册错误处理器
+    const errorHandler = (error: any) => {
+      dockerWebSocketService.offError(taskId, errorHandler);
+      reject(new Error(error.message));
+    };
+    dockerWebSocketService.onError(taskId, errorHandler);
+
     const handler = (message: WebSocketMessage) => {
       if (message.type === 'CONTAINER_OPERATION_RESULT') {
         dockerWebSocketService.off('CONTAINER_OPERATION_RESULT', handler);
+        dockerWebSocketService.offError(taskId, errorHandler);
         if (message.data.success) {
           resolve({
             code: 0,
             message: 'success',
-            data: message.data.containerId
+            data: message.data.data
           });
         } else {
           reject(new Error(message.data.message));
         }
-      } else if (message.type === 'ERROR') {
-        dockerWebSocketService.off('CONTAINER_OPERATION_RESULT', handler);
-        reject(new Error(message.data.message));
       }
     };
 
@@ -432,10 +439,11 @@ export const createContainer = async (data: CreateContainerParams): Promise<any>
     dockerWebSocketService.connect().then(() => {
       dockerWebSocketService.sendMessage({
         type: 'CONTAINER_CREATE',
-        taskId: '',
+        taskId,
         data
       });
     }).catch(error => {
+      dockerWebSocketService.offError(taskId, errorHandler);
       reject(error);
     });
   });

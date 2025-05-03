@@ -30,6 +30,21 @@ public enum MessageType {
     INSTALL_VALIDATE,
 
     /**
+     * 开始安装
+     */
+    INSTALL_START,
+
+    /**
+     * 安装日志
+     */
+    INSTALL_LOG,
+
+    /**
+     * 安装结果
+     */
+    INSTALL_START_RESULT,
+
+    /**
      * 拉取镜像
      */
     PULL_IMAGE,
@@ -88,6 +103,11 @@ public enum MessageType {
      * 容器更新
      */
     CONTAINER_UPDATE,
+    
+    /**
+     * 容器创建
+     */
+    CONTAINER_CREATE,
     
     /**
      * 容器日志

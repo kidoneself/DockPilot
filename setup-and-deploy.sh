@@ -97,11 +97,27 @@ setup_code() {
     else
         print_message "更新代码仓库..."
         cd dmc
-        git pull origin main
+        git fetch origin
         if [ $? -ne 0 ]; then
-            print_error "更新代码失败"
+            print_error "获取远程代码失败"
             exit 1
         fi
+    fi
+
+    # 切换到指定分支
+    BRANCH_NAME="feature/websocket"
+    print_message "切换到分支: $BRANCH_NAME"
+    git checkout $BRANCH_NAME
+    if [ $? -ne 0 ]; then
+        print_error "切换分支失败"
+        exit 1
+    fi
+
+    # 拉取最新代码
+    git pull origin $BRANCH_NAME
+    if [ $? -ne 0 ]; then
+        print_error "更新代码失败"
+        exit 1
     fi
 }
 

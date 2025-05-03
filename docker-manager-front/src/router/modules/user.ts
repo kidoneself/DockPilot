@@ -12,6 +12,7 @@ export default [
     meta: {
       title: '用户中心',
       icon: 'user',
+      hidden: true,
     },
     children: [
       {

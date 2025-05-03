@@ -1,5 +1,5 @@
 // WebSocket消息类型
-export type WebSocketMessageType =
+export type WebSocketMessageType = 
   | 'HEARTBEAT'
   | 'HEARTBEAT_RESPONSE'
   | 'TEST_NOTIFY'

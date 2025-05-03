@@ -9,6 +9,7 @@
   "dependencies": {
     "@stomp/stompjs": "^7.1.1",
     "@vueuse/core": "^12.3.0",
+    "antd": "^5.24.9",
     "axios": "^1.7.9",
     "dayjs": "^1.11.13",
     "echarts": "5.4.3",

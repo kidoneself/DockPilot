@@ -25,8 +25,8 @@
   </div>
 </template>
 <script setup lang="tsx">
-import type { PropType } from 'vue';
-import { computed } from 'vue';
+import type { PropType, VNode } from 'vue';
+import { computed, markRaw } from 'vue';
 
 import { getActive } from '@/router';
 import type { MenuRoute } from '@/types/interface';
@@ -46,10 +46,15 @@ const list = computed(() => {
   return getMenuList(props.navData);
 });
 
-const menuIcon = (item: ListItemType) => {
-  if (typeof item.icon === 'string') return <t-icon name={item.icon} />;
-  const RenderIcon = item.icon;
-  return RenderIcon;
+const menuIcon = (item: ListItemType): VNode | null => {
+  if (!item.icon) return null;
+  if (typeof item.icon === 'string') {
+    return markRaw(<t-icon name={item.icon} />);
+  }
+  // 如果是组件，转换为字符串名称
+  const iconComponent = item.icon as { name?: string };
+  const iconName = iconComponent.name?.toLowerCase().replace('icon', '') || '';
+  return markRaw(<t-icon name={iconName} />);
 };
 
 const renderMenuTitle = (title: string): string => {

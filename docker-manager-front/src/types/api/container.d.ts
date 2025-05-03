@@ -99,16 +99,16 @@ export interface ContainerListResponse {
 }
 
 export interface ImageInfo {
-  id: string;
-  statusId: number;
-  name: string;
-  tag: string;
-  size: number;
-  created: Date;
-  localCreateTime: string;
-  remoteCreateTime: string;
-  needUpdate: boolean;
-  lastChecked: Date;
+    id: string;
+    statusId: number;
+    name: string;
+    tag: string;
+    size: number;
+    created: Date;
+    localCreateTime: string;
+    remoteCreateTime: string;
+    needUpdate: boolean;
+    lastChecked: Date;
 }
 
 export type ImageListResponse = ImageInfo[];
@@ -116,7 +116,7 @@ export type ImageListResponse = ImageInfo[];
 export interface NetworkInfo {
   id: string;
   name: string;
-  nameStr: string;
+    nameStr: string;
   driver: string;
   scope: string;
   enableIPv6: boolean;
@@ -136,12 +136,12 @@ export interface NetworkInfo {
 export type NetworkListResponse = NetworkInfo[];
 
 export interface ContainerStatsResponse {
-  cpuPercent: number;
-  memoryUsage: number;
-  memoryLimit: number;
-  networkRx: number;
-  networkTx: number;
-  running: boolean;
+    cpuPercent: number;
+    memoryUsage: number;
+    memoryLimit: number;
+    networkRx: number;
+    networkTx: number;
+    running: boolean;
 }
 
 export interface ContainerLogsParams {

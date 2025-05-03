@@ -9,6 +9,7 @@ import type {
   WebSocketMessageType
 } from './types';
 import { useNotificationStore } from '@/store/modules/notification';
+import { MessagePlugin } from 'tdesign-vue-next';
 
 export class DockerWebSocketService {
   private wsClient: WebSocketClient | null = null;
@@ -20,6 +21,7 @@ export class DockerWebSocketService {
   private heartbeatInterval: number | null = null;
   private readonly heartbeatIntervalTime = 30000; // 30秒发送一次心跳
   private messageHandlerMap: Map<string, (message: WebSocketMessage) => void> = new Map();
+  private errorHandlers: Map<string, ((error: any) => void)[]> = new Map();
 
   constructor() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -256,9 +258,51 @@ export class DockerWebSocketService {
     this.messageHandlerMap.delete(messageId);
   }
 
+  /**
+   * 注册错误处理器
+   * @param type 消息类型
+   * @param handler 错误处理函数
+   */
+  public onError(type: string, handler: (error: any) => void): void {
+    if (!this.errorHandlers.has(type)) {
+      this.errorHandlers.set(type, []);
+    }
+    this.errorHandlers.get(type)?.push(handler);
+  }
+
+  /**
+   * 移除错误处理器
+   * @param type 消息类型
+   * @param handler 错误处理函数
+   */
+  public offError(type: string, handler: (error: any) => void): void {
+    const handlers = this.errorHandlers.get(type);
+    if (handlers) {
+      const index = handlers.indexOf(handler);
+      if (index !== -1) {
+        handlers.splice(index, 1);
+      }
+    }
+  }
+
   private handleMessage(message: WebSocketMessage): void {
     // 处理心跳响应
     if (message.type === 'HEARTBEAT_RESPONSE') {
+      return;
+    }
+
+    // 处理错误消息
+    if (message.type === 'ERROR') {
+      const errorMessage = message.data?.message || '操作失败';
+      
+      // 调用特定类型的错误处理器
+      const errorHandlers = this.errorHandlers.get(message.taskId) || [];
+      if (errorHandlers.length > 0) {
+        errorHandlers.forEach(handler => handler(message.data));
+    } else {
+        // 如果没有特定的错误处理器，使用默认的错误提示
+        MessagePlugin.error(errorMessage);
+      }
       return;
     }
 

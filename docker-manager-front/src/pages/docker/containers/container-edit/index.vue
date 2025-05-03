@@ -404,14 +404,14 @@ const fetchContainerDetail = async (id: string) => {
     
     // WebSocket 返回的数据直接就是容器详情对象
     if (!res) {
-      MessagePlugin.error('容器详情数据为空');
-      return;
-    }
+        MessagePlugin.error('容器详情数据为空');
+        return;
+      }
     
     const mappedData = mapContainerDetailToForm(res);
-    console.log('转换后的表单数据:', mappedData);
-    formData.value = mappedData;
-    console.log('设置后的表单数据:', formData.value);
+      console.log('转换后的表单数据:', mappedData);
+      formData.value = mappedData;
+      console.log('设置后的表单数据:', formData.value);
 
     // 获取网络列表，网络模式的设置会在fetchNetworkList中处理
     await fetchNetworkList();
