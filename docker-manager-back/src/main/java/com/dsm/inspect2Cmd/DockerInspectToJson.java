@@ -92,7 +92,7 @@ public class DockerInspectToJson {
         // 1. 读取 inspect2.json 文件内容为字符串
         String jsonStr = null;
         try {
-            java.nio.file.Path path = java.nio.file.Paths.get("/Users/lizhiqiang/coding-my/docker/docker-manager-back/src/main/java/com/dsm/inspect2Cmd/qbinspect.json");
+            java.nio.file.Path path = java.nio.file.Paths.get("/Users/lizhiqiang/coding-my/docker/docker-manager-back/src/main/java/com/dsm/inspect2Cmd/embyInspect.json");
             jsonStr = java.nio.file.Files.readString(path);
             System.out.println("inspect2.json 读取成功，内容长度：" + jsonStr.length()); // 调试输出
         } catch (Exception e) {

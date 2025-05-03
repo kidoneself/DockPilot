@@ -62,5 +62,12 @@
         WHERE id = #{id}
     </select>
 
+    <insert id="insert" parameterType="com.dsm.pojo.entity.Template">
+        INSERT INTO application_templates (
+            id, name, category, version, description, icon_url, template, created_at, updated_at, sort_weight
+        ) VALUES (
+            #{id}, #{name}, #{category}, #{version}, #{description}, #{iconUrl}, #{template}, #{createdAt}, #{updatedAt}, #{sortWeight}
+        )
+    </insert>
 
 </mapper> 

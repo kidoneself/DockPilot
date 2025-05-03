@@ -24,5 +24,8 @@ public interface TemplateMapper {
      */
     Template selectTemplateById(@Param("id") String id);
 
-
+    /**
+     * 插入模板
+     */
+    int insert(Template template);
 }

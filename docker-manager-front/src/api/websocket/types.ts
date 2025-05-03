@@ -34,6 +34,8 @@ export type WebSocketMessageType =
   | 'IMAGE_CANCEL_PULL'
   | 'IMAGE_CHECK_UPDATES'
   | 'IMAGE_OPERATION_RESULT'
+  | 'IMPORT_TEMPLATE'
+  | 'IMPORT_TEMPLATE_RESULT'
   | 'ERROR';
 
 // WebSocket消息接口

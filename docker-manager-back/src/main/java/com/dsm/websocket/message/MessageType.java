@@ -177,5 +177,15 @@ public enum MessageType {
     /**
      * 镜像操作结果
      */
-    IMAGE_OPERATION_RESULT
+    IMAGE_OPERATION_RESULT,
+
+    /**
+     * 导入模板
+     */
+    IMPORT_TEMPLATE,
+
+    /**
+     * 导入模板结果
+     */
+    IMPORT_TEMPLATE_RESULT
 } 

@@ -26,8 +26,12 @@
         </t-row>
       </div>
 
-      <!-- 分页 -->
-      <div class="pagination">
+      <!-- 分页和操作栏 -->
+      <div class="pagination-container">
+        <t-button theme="primary" @click="handleImportTemplate">
+          <template #icon><t-icon name="upload" /></template>
+          导入模板
+        </t-button>
         <t-pagination
           v-model="current"
           :total="total"
@@ -37,6 +41,44 @@
         />
       </div>
     </div>
+
+    <!-- 导入模板对话框 -->
+    <t-dialog
+      v-model:visible="showImportDialog"
+      header="导入模板"
+      :footer="false"
+      width="800px"
+      class="import-dialog"
+    >
+      <div class="import-content">
+        <div class="upload-area" @click="triggerFileInput" @drop.prevent="handleFileDrop" @dragover.prevent>
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".json,.yaml,.yml"
+            class="file-input"
+            @change="handleFileChange"
+          />
+          <div class="upload-placeholder">
+            <t-icon name="upload" size="48" />
+            <p>点击或拖拽文件到此处</p>
+            <p class="upload-tip">支持 .json、.yaml、.yml 格式</p>
+          </div>
+        </div>
+
+        <!-- 文件预览 -->
+        <div v-if="previewContent" class="preview-section">
+          <h3 class="preview-title">文件预览</h3>
+          <div class="preview-content">
+            <pre>{{ previewContent }}</pre>
+          </div>
+          <div class="preview-actions">
+            <t-button theme="default" @click="clearPreview">取消</t-button>
+            <t-button theme="primary" :loading="isImporting" @click="handleImport">确认导入</t-button>
+          </div>
+        </div>
+      </div>
+    </t-dialog>
   </div>
 </template>
 
@@ -46,6 +88,8 @@ import { useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { getAppList } from '@/api/appStore'
 import type { AppStoreApp } from '@/api/model/appStoreModel'
+import { dockerWebSocketService } from '@/api/websocket/DockerWebSocketService'
+import type { WebSocketMessage, WebSocketMessageType } from '@/api/websocket/types'
 
 const router = useRouter()
 
@@ -57,6 +101,13 @@ const loading = ref(false)
 
 // 应用列表数据
 const apps = ref<AppStoreApp[]>([])
+
+// 导入相关状态
+const showImportDialog = ref(false)
+const fileInput = ref<HTMLInputElement | null>(null)
+const previewContent = ref<string>('')
+const isImporting = ref(false)
+const currentFile = ref<File | null>(null)
 
 // 获取应用列表
 const fetchAppList = async () => {
@@ -117,6 +168,126 @@ const getCategoryName = (category: string) => {
 const handleInstall = (app: AppStoreApp) => {
   router.push(`/store/install/${app.id}`);
 }
+
+// 处理导入模板按钮点击
+const handleImportTemplate = () => {
+  showImportDialog.value = true;
+};
+
+// 处理文件选择
+const handleFileChange = (e: Event) => {
+  const target = e.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file) return;
+
+  // 检查文件大小（限制为1MB）
+  if (file.size > 1024 * 1024) {
+    MessagePlugin.error('文件大小不能超过1MB');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+      const content = event.target?.result;
+      previewContent.value = content as string;
+      currentFile.value = file;
+    } catch (error) {
+      MessagePlugin.error('文件读取失败：' + (error as Error).message);
+    }
+  };
+  reader.onerror = () => {
+    MessagePlugin.error('文件读取失败');
+  };
+  reader.readAsText(file);
+};
+
+// 处理文件拖放
+const handleFileDrop = (e: DragEvent) => {
+  e.preventDefault();
+  const file = e.dataTransfer?.files[0];
+  if (file) {
+    handleFile(file);
+  }
+};
+
+// 处理文件
+const handleFile = async (file: File) => {
+  // 检查文件大小（限制为1MB）
+  if (file.size > 1024 * 1024) {
+    MessagePlugin.error('文件大小不能超过1MB');
+    return;
+  }
+
+  try {
+    const content = await file.text();
+    previewContent.value = content;
+    currentFile.value = file;
+  } catch (error) {
+    console.error('读取文件失败:', error);
+    MessagePlugin.error('读取文件失败');
+  }
+};
+
+// 清除预览
+const clearPreview = () => {
+  previewContent.value = '';
+  currentFile.value = null;
+  if (fileInput.value) {
+    fileInput.value.value = '';
+  }
+};
+
+// 处理导入
+const handleImport = async () => {
+  if (!currentFile.value || !previewContent.value) return;
+
+  isImporting.value = true;
+  try {
+    // 发送导入请求
+    dockerWebSocketService.sendMessage({
+      type: 'IMPORT_TEMPLATE' as WebSocketMessageType,
+      taskId: generateTaskId(),
+      data: {
+        content: previewContent.value,
+        fileName: currentFile.value.name
+      }
+    });
+
+    // 注册导入结果处理器
+    dockerWebSocketService.on('IMPORT_TEMPLATE_RESULT', (message: WebSocketMessage) => {
+      const { success, message: resultMessage } = message.data as {
+        success: boolean;
+        message: string;
+      };
+
+      if (success) {
+        MessagePlugin.success('模板导入成功');
+        showImportDialog.value = false;
+        clearPreview();
+        // 刷新应用列表
+        fetchAppList();
+      } else {
+        MessagePlugin.error(resultMessage || '模板导入失败');
+      }
+      isImporting.value = false;
+    });
+  } catch (error) {
+    console.error('导入失败:', error);
+    MessagePlugin.error('导入失败');
+    isImporting.value = false;
+  }
+};
+
+// 触发文件选择
+const triggerFileInput = () => {
+  fileInput.value?.click();
+};
+
+// 生成任务ID
+const generateTaskId = () => {
+  return Math.random().toString(36).substring(2, 15);
+};
 
 // 初始化
 onMounted(() => {
@@ -245,13 +416,24 @@ onMounted(() => {
   font-size: 12px;
 }
 
-.pagination {
+.pagination-container {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
   padding-top: 24px;
   border-top: 1px solid var(--td-component-stroke);
   margin-top: auto;
   flex-shrink: 0;
+}
+
+.pagination-container .t-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pagination-container .t-icon {
+  font-size: 16px;
 }
 
 /* 响应式调整 */
@@ -262,6 +444,11 @@ onMounted(() => {
 
   .store-wrapper {
     padding: 16px;
+  }
+
+  .pagination-container {
+    flex-direction: column;
+    gap: 16px;
   }
 
   .app-icon-container {
@@ -286,6 +473,94 @@ onMounted(() => {
     width: 50px;
     height: 22px;
     font-size: 11px;
+  }
+}
+
+.import-dialog :deep(.t-dialog__body) {
+  padding: 0;
+}
+
+.import-content {
+  padding: 24px;
+}
+
+.upload-area {
+  border: 2px dashed var(--td-component-stroke);
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.upload-area:hover {
+  border-color: var(--td-brand-color);
+  background-color: var(--td-bg-color-container-hover);
+}
+
+.file-input {
+  display: none;
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--td-text-color-secondary);
+}
+
+.upload-tip {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.preview-section {
+  margin-top: 24px;
+}
+
+.preview-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+
+.preview-content {
+  background-color: var(--td-bg-color-secondarycontainer);
+  border-radius: 6px;
+  padding: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.preview-content pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* 响应式调整 */
+@media screen and (max-width: 768px) {
+  .import-content {
+    padding: 16px;
+  }
+
+  .upload-area {
+    padding: 24px;
+  }
+
+  .preview-content {
+    max-height: 200px;
   }
 }
 </style> 
