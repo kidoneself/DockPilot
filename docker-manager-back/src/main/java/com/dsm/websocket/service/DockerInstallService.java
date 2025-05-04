@@ -11,11 +11,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.dockerjava.api.command.CreateContainerCmd;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.HttpEntity;
-import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
@@ -104,6 +99,7 @@ public class DockerInstallService {
 
                 for (JsonNode config : configsNode) {
                     String targetPath = config.get("target").asText();
+                    targetPath = "/mnt/host" + targetPath;
                     messageSender.sendLog(session, "info", String.format("正在处理目标路径: %s", targetPath));
 
                     JsonNode urlsNode = config.get("urls");
@@ -116,10 +112,10 @@ public class DockerInstallService {
                                 // 从URL中获取文件名
                                 String fileName = url.substring(url.lastIndexOf('/') + 1);
                                 // 确保目标路径是完整的文件路径
-                                String fullTargetPath = targetPath.endsWith("/") ? 
-                                    targetPath + fileName : 
-                                    targetPath + "/" + fileName;
-                                
+                                String fullTargetPath = targetPath.endsWith("/") ?
+                                        targetPath + fileName :
+                                        targetPath + "/" + fileName;
+
                                 // 下载文件到目标路径
                                 downloadFile(url, fullTargetPath, session);
                                 messageSender.sendLog(session, "success", String.format("文件下载成功: %s", url));
@@ -194,7 +190,7 @@ public class DockerInstallService {
 
         try (InputStream in = conn.getInputStream();
              OutputStream out = Files.newOutputStream(Paths.get(targetPath))) {
-            
+
             byte[] buffer = new byte[8192];
             long downloaded = 0;
             int bytesRead;
@@ -208,9 +204,9 @@ public class DockerInstallService {
                 if (contentLength > 0) {
                     long percent = downloaded * 100 / contentLength;
                     if (percent != lastPrintedPercent) {
-                        messageSender.sendLog(session, "info", 
-                            String.format("📦 下载进度: %d%% (%d/%d bytes)", 
-                            percent, downloaded, contentLength));
+                        messageSender.sendLog(session, "info",
+                                String.format("📦 下载进度: %d%% (%d/%d bytes)",
+                                        percent, downloaded, contentLength));
                         lastPrintedPercent = percent;
                     }
                 }
