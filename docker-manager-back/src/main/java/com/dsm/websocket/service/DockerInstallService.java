@@ -98,7 +98,7 @@ public class DockerInstallService {
                 for (JsonNode config : configsNode) {
                     String targetPath = config.get("target").asText();
                     messageSender.sendLog(session, "info", String.format("正在处理目标路径: %s", targetPath));
-                    
+
                     JsonNode urlsNode = config.get("urls");
                     if (urlsNode != null && urlsNode.isArray()) {
                         for (JsonNode urlNode : urlsNode) {
@@ -106,12 +106,13 @@ public class DockerInstallService {
                             messageSender.sendLog(session, "info", String.format("正在下载文件: %s", url));
                             try {
                                 // 下载文件到目标路径
-                                downloadFile(url, targetPath);
+                                String hostPath = "/mnt/host" + targetPath;
+                                downloadFile(url, hostPath);
                                 messageSender.sendLog(session, "success", String.format("文件下载成功: %s", url));
                                 // 解压文件
-                                messageSender.sendLog(session, "info", String.format("正在解压文件: %s", targetPath));
-                                unzipFile(targetPath);
-                                messageSender.sendLog(session, "success", String.format("文件解压成功: %s", targetPath));
+                                messageSender.sendLog(session, "info", String.format("正在解压文件: %s", hostPath));
+                                unzipFile(hostPath);
+                                messageSender.sendLog(session, "success", String.format("文件解压成功: %s", hostPath));
                             } catch (Exception e) {
                                 messageSender.sendLog(session, "error", String.format("文件下载失败: %s, 错误: %s", url, e.getMessage()));
                             }
