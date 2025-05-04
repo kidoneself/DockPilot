@@ -11,6 +11,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.dockerjava.api.command.CreateContainerCmd;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
@@ -215,17 +218,27 @@ public class DockerInstallService {
         }
     }
 
-    private void unzipFile(String zipFilePath) throws IOException {
-        Path targetDir = Paths.get(zipFilePath).getParent();
-        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(Paths.get(zipFilePath)))) {
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                Path filePath = targetDir.resolve(entry.getName());
+    private void unzipFile(String tgzFilePath) throws IOException {
+        Path targetDir = Paths.get(tgzFilePath).getParent();
+        try (InputStream fi = Files.newInputStream(Paths.get(tgzFilePath));
+             GzipCompressorInputStream gzi = new GzipCompressorInputStream(fi);
+             TarArchiveInputStream ti = new TarArchiveInputStream(gzi)) {
+            
+            TarArchiveEntry entry;
+            while ((entry = ti.getNextTarEntry()) != null) {
                 if (entry.isDirectory()) {
-                    Files.createDirectories(filePath);
-                } else {
-                    Files.createDirectories(filePath.getParent());
-                    Files.copy(zis, filePath, StandardCopyOption.REPLACE_EXISTING);
+                    continue;
+                }
+                
+                Path filePath = targetDir.resolve(entry.getName());
+                Files.createDirectories(filePath.getParent());
+                
+                try (OutputStream out = Files.newOutputStream(filePath)) {
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+                    while ((bytesRead = ti.read(buffer)) != -1) {
+                        out.write(buffer, 0, bytesRead);
+                    }
                 }
             }
         }
