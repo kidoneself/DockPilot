@@ -11,13 +11,20 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.dockerjava.api.command.CreateContainerCmd;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.HttpEntity;
+import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -104,15 +111,22 @@ public class DockerInstallService {
                         for (JsonNode urlNode : urlsNode) {
                             String url = urlNode.asText();
                             messageSender.sendLog(session, "info", String.format("正在下载文件: %s", url));
+
                             try {
+                                // 从URL中获取文件名
+                                String fileName = url.substring(url.lastIndexOf('/') + 1);
+                                // 确保目标路径是完整的文件路径
+                                String fullTargetPath = targetPath.endsWith("/") ? 
+                                    targetPath + fileName : 
+                                    targetPath + "/" + fileName;
+                                
                                 // 下载文件到目标路径
-                                String hostPath = "/mnt/host" + targetPath;
-                                downloadFile(url, hostPath);
+                                downloadFile(url, fullTargetPath, session);
                                 messageSender.sendLog(session, "success", String.format("文件下载成功: %s", url));
                                 // 解压文件
-                                messageSender.sendLog(session, "info", String.format("正在解压文件: %s", hostPath));
-                                unzipFile(hostPath);
-                                messageSender.sendLog(session, "success", String.format("文件解压成功: %s", hostPath));
+                                messageSender.sendLog(session, "info", String.format("正在解压文件: %s", fullTargetPath));
+                                unzipFile(fullTargetPath);
+                                messageSender.sendLog(session, "success", String.format("文件解压成功: %s", fullTargetPath));
                             } catch (Exception e) {
                                 messageSender.sendLog(session, "error", String.format("文件下载失败: %s, 错误: %s", url, e.getMessage()));
                             }
@@ -171,10 +185,37 @@ public class DockerInstallService {
         return template.getTemplate();
     }
 
-    private void downloadFile(String url, String targetPath) throws IOException {
-        try (InputStream in = new URL(url).openStream()) {
-            Files.createDirectories(Paths.get(targetPath).getParent());
-            Files.copy(in, Paths.get(targetPath), StandardCopyOption.REPLACE_EXISTING);
+    private void downloadFile(String url, String targetPath, WebSocketSession session) throws IOException {
+        URL fileUrl = new URL(url);
+        URLConnection conn = fileUrl.openConnection();
+        long contentLength = conn.getContentLengthLong();
+
+        Files.createDirectories(Paths.get(targetPath).getParent());
+
+        try (InputStream in = conn.getInputStream();
+             OutputStream out = Files.newOutputStream(Paths.get(targetPath))) {
+            
+            byte[] buffer = new byte[8192];
+            long downloaded = 0;
+            int bytesRead;
+            long lastPrintedPercent = -1;
+
+            messageSender.sendLog(session, "info", "⬇️ 开始下载: " + url);
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+                downloaded += bytesRead;
+
+                if (contentLength > 0) {
+                    long percent = downloaded * 100 / contentLength;
+                    if (percent != lastPrintedPercent) {
+                        messageSender.sendLog(session, "info", 
+                            String.format("📦 下载进度: %d%% (%d/%d bytes)", 
+                            percent, downloaded, contentLength));
+                        lastPrintedPercent = percent;
+                    }
+                }
+            }
+            messageSender.sendLog(session, "success", "✅ 下载完成: " + targetPath);
         }
     }
 
