@@ -15,7 +15,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 @Slf4j
 @Service
@@ -79,7 +88,40 @@ public class DockerInstallService {
             }
 
             messageSender.sendLog(session, "info", "开始处理服务配置...");
-            
+
+            //todo 需要创建目录，或者下载配置文件
+            //获取configFiles节点
+            JsonNode configsNode = jsonNode.get("configs");
+            if (configsNode != null && configsNode.isArray()) {
+                messageSender.sendLog(session, "info", "开始处理配置文件...");
+
+                for (JsonNode config : configsNode) {
+                    String targetPath = config.get("target").asText();
+                    messageSender.sendLog(session, "info", String.format("正在处理目标路径: %s", targetPath));
+                    
+                    JsonNode urlsNode = config.get("urls");
+                    if (urlsNode != null && urlsNode.isArray()) {
+                        for (JsonNode urlNode : urlsNode) {
+                            String url = urlNode.asText();
+                            messageSender.sendLog(session, "info", String.format("正在下载文件: %s", url));
+                            try {
+                                // 下载文件到目标路径
+                                downloadFile(url, targetPath);
+                                messageSender.sendLog(session, "success", String.format("文件下载成功: %s", url));
+                                // 解压文件
+                                messageSender.sendLog(session, "info", String.format("正在解压文件: %s", targetPath));
+                                unzipFile(targetPath);
+                                messageSender.sendLog(session, "success", String.format("文件解压成功: %s", targetPath));
+                            } catch (Exception e) {
+                                messageSender.sendLog(session, "error", String.format("文件下载失败: %s, 错误: %s", url, e.getMessage()));
+                            }
+                        }
+
+                        messageSender.sendLog(session, "success", "所有配置文件处理完成");
+                    }
+                }
+            }
+
             // 使用for循环遍历services节点
             for (JsonNode serviceConfig : servicesNode) {
                 try {
@@ -88,19 +130,18 @@ public class DockerInstallService {
 
                     JsonNode template = serviceConfig.get("template");
 
-
                     // 生成容器启动命令
                     CreateContainerCmd containerCmd = dockerService.getCmdByTempJson(template);
                     if (containerCmd == null) {
                         messageSender.sendLog(session, "error", String.format("服务 [%s] 的容器启动命令生成失败", serviceName));
                         continue;
                     }
-                    
+
                     messageSender.sendLog(session, "success", String.format("服务 [%s] 的容器启动命令生成成功", serviceName));
-                    
+
                     String containerId = dockerService.startContainerWithCmd(containerCmd);
-                    messageSender.sendLog(session, "success", String.format("服务 [%s] 的容器创建成功", serviceName));
-                    
+                    messageSender.sendLog(session, "success", String.format("服务 [%s] 的容器创建成功", containerId));
+
                 } catch (Exception e) {
                     log.error("处理服务配置时发生错误", e);
                     messageSender.sendLog(session, "error", String.format("处理服务配置时发生错误: %s", e.getMessage()));
@@ -127,5 +168,28 @@ public class DockerInstallService {
     private String getApplicationTemplate(String appId) {
         Template template = templateMapper.selectTemplateById(appId);
         return template.getTemplate();
+    }
+
+    private void downloadFile(String url, String targetPath) throws IOException {
+        try (InputStream in = new URL(url).openStream()) {
+            Files.createDirectories(Paths.get(targetPath).getParent());
+            Files.copy(in, Paths.get(targetPath), StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private void unzipFile(String zipFilePath) throws IOException {
+        Path targetDir = Paths.get(zipFilePath).getParent();
+        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(Paths.get(zipFilePath)))) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                Path filePath = targetDir.resolve(entry.getName());
+                if (entry.isDirectory()) {
+                    Files.createDirectories(filePath);
+                } else {
+                    Files.createDirectories(filePath.getParent());
+                    Files.copy(zis, filePath, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
     }
 } 

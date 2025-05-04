@@ -49,6 +49,9 @@ public class ImportTemplateMessageHandler extends BaseMessageHandler {
             ObjectNode newTemplate = objectMapper.createObjectNode();
             newTemplate.set("services", rootNode.get("services"));
             newTemplate.set("parameters", rootNode.get("parameters"));
+            if (rootNode.get("configs") != null) {
+                newTemplate.set("configs", rootNode.get("configs"));
+            }
             
             // 将新的JSON对象转换为字符串
             String processedContent = objectMapper.writeValueAsString(newTemplate);

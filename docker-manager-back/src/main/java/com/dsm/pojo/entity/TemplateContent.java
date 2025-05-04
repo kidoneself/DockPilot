@@ -12,4 +12,7 @@ public class TemplateContent {
     
     @JsonProperty("parameters")
     private List<ParameterConfig> parameters;
+
+    @JsonProperty("configs")
+    private List<Configs> configs;
 } 

@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -41,18 +42,14 @@ public class ContainerServiceImpl implements ContainerService {
     public List<ContainerDTO> listContainers() {
         // 获取 Docker 容器列表
         List<Container> containers = dockerService.listContainers();
-        // 转换成 ContainerDTO 列表
-        return containers.stream().map(container -> {
+        List<ContainerDTO> containerDTOS = new ArrayList<>();
+        for (Container container : containers) {
             ContainerDTO dto = ContainerDTO.convertToDTO(container);
-            // 检查是否需要更新
-            if (container != null && container.getImage() != null) {
-                String latestImageId = dockerService.getLatestImageId(container.getImage());
-                dto.setNeedUpdate(latestImageId != null && !latestImageId.equals(container.getImageId()));
-            } else {
-                dto.setNeedUpdate(false);
-            }
-            return dto;
-        }).collect(Collectors.toList());
+            String latestImageId = dockerService.getLatestImageId(container.getImage());
+            dto.setNeedUpdate(latestImageId != null && !latestImageId.equals(container.getImageId()));
+            containerDTOS.add(dto);
+        }
+        return containerDTOS;
     }
 
 
