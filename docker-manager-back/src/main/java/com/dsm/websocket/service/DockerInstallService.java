@@ -10,6 +10,7 @@ import com.dsm.websocket.sender.DockerWebSocketMessageSender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.dockerjava.api.command.CreateContainerCmd;
+import com.github.dockerjava.api.model.Bind;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -26,10 +27,8 @@ import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Map;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -93,11 +92,11 @@ public class DockerInstallService {
             }
 
             messageSender.sendLog(session, "info", "开始处理服务配置...");
-
-            //todo 需要创建目录，或者下载配置文件
+            Boolean isConfig = true;
             //获取configFiles节点
             JsonNode configsNode = jsonNode.get("configs");
             if (configsNode != null && configsNode.isArray()) {
+                isConfig = false;
                 messageSender.sendLog(session, "info", "开始处理配置文件...");
 
                 for (JsonNode config : configsNode) {
@@ -143,12 +142,26 @@ public class DockerInstallService {
                     messageSender.sendLog(session, "info", String.format("正在处理服务 [%s] 的配置...", serviceName));
 
                     JsonNode template = serviceConfig.get("template");
+                    //获取模板里的volumes
+                    if (isConfig) {
 
+                    }
                     // 生成容器启动命令
                     CreateContainerCmd containerCmd = dockerService.getCmdByTempJson(template);
                     if (containerCmd == null) {
                         messageSender.sendLog(session, "error", String.format("服务 [%s] 的容器启动命令生成失败", serviceName));
                         continue;
+                    }
+                    if (isConfig) {
+                        //获取containerCmd中的volumes
+                        Bind[] binds = Objects.requireNonNull(containerCmd.getHostConfig()).getBinds();
+                        if (binds != null) {
+                            for (Bind bind : binds) {
+                                String hostPath = bind.getPath();
+                                hostPath = "/mnt/host" + hostPath;
+                                createHostDirectory(hostPath, session);
+                            }
+                        }
                     }
 
                     messageSender.sendLog(session, "success", String.format("服务 [%s] 的容器启动命令生成成功", serviceName));
@@ -223,16 +236,16 @@ public class DockerInstallService {
         try (InputStream fi = Files.newInputStream(Paths.get(tgzFilePath));
              GzipCompressorInputStream gzi = new GzipCompressorInputStream(fi);
              TarArchiveInputStream ti = new TarArchiveInputStream(gzi)) {
-            
+
             TarArchiveEntry entry;
             while ((entry = ti.getNextTarEntry()) != null) {
                 if (entry.isDirectory()) {
                     continue;
                 }
-                
+
                 Path filePath = targetDir.resolve(entry.getName());
                 Files.createDirectories(filePath.getParent());
-                
+
                 try (OutputStream out = Files.newOutputStream(filePath)) {
                     byte[] buffer = new byte[8192];
                     int bytesRead;
@@ -241,6 +254,37 @@ public class DockerInstallService {
                     }
                 }
             }
+        }
+    }
+
+    private boolean isPathSafe(String path) {
+        // 检查是否包含 .. 或 . 等危险路径
+        return !path.contains("..") && !path.contains("./") && !path.contains("/.");
+    }
+
+    private void createHostDirectory(String hostPath, WebSocketSession session) {
+        try {
+            // 打印原始路径（调试用）
+            messageSender.sendLog(session, "info", String.format("原始绑定路径: %s", hostPath));
+            
+            // 安全检查
+            if (!isPathSafe(hostPath)) {
+                messageSender.sendLog(session, "error", String.format("不安全的路径: %s", hostPath));
+                return;
+            }
+
+            Path path = Paths.get(hostPath);
+            // 检查目录是否已存在
+            if (Files.exists(path)) {
+                messageSender.sendLog(session, "info", String.format("目录已存在: %s", hostPath));
+                return;
+            }
+
+            // 创建目录
+            Files.createDirectories(path);
+            messageSender.sendLog(session, "success", String.format("创建宿主机目录成功: %s", hostPath));
+        } catch (IOException e) {
+            messageSender.sendLog(session, "error", String.format("创建宿主机目录失败: %s, 错误: %s", hostPath, e.getMessage()));
         }
     }
 } 
