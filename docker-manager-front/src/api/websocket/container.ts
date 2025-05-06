@@ -229,13 +229,7 @@ export const restartContainer = async (containerId: string): Promise<{ success: 
  * @param containerId 容器ID
  * @returns Promise<{success: boolean; message?: string; data?: ContainerDetail}>
  */
-export const getContainerDetail = async (
-  containerId: string,
-): Promise<{
-  success: boolean;
-  message?: string;
-  data?: ContainerDetail;
-}> => {
+export const getContainerDetail = async (containerId: string,): Promise<{ success: boolean; message?: string; data?: ContainerDetail; }> => {
   return new Promise((resolve) => {
     // 生成唯一的任务ID
     const taskId = `detail_${Date.now()}`;

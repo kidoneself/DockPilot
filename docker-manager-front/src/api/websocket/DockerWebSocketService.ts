@@ -192,67 +192,7 @@ export class DockerWebSocketService {
     }
   }
 
-  /**
-   * 取消拉取镜像
-   */
-  public async cancelPull(taskId: string): Promise<void> {
-    await this.sendMessage({
-      type: 'CANCEL_PULL',
-      taskId,
-      data: {},
-    });
-  }
 
-  /**
-   * 检查镜像更新
-   */
-  public async checkImageUpdates(images: DockerImage[]): Promise<void> {
-    try {
-      // 注册消息处理器
-      const messageHandler = (message: WebSocketMessage) => {
-        switch (message.type) {
-          case 'CHECK_UPDATES_COMPLETE':
-            // 更新镜像列表中的更新状态
-            if (message.data) {
-              const updateInfo = message.data;
-              images.forEach((img) => {
-                const imageKey = `${img.name}:${img.tag}`;
-                const imageUpdateInfo = updateInfo[imageKey];
-                if (imageUpdateInfo) {
-                  img.needUpdate = imageUpdateInfo.hasUpdate;
-                  img.lastChecked = new Date().toISOString();
-                }
-              });
-            }
-            // 清除消息处理器
-            this.off('CHECK_UPDATES_COMPLETE', messageHandler);
-            this.off('ERROR', messageHandler);
-            break;
-          case 'ERROR':
-            // 检查更新失败
-            // 清除消息处理器
-            this.off('CHECK_UPDATES_COMPLETE', messageHandler);
-            this.off('ERROR', messageHandler);
-            break;
-        }
-      };
-
-      // 注册处理器
-      this.on('CHECK_UPDATES_COMPLETE', messageHandler);
-      this.on('ERROR', messageHandler);
-
-      // 发送检查更新请求
-      await this.connect();
-      await this.sendMessage({
-        type: 'CHECK_IMAGE_UPDATES',
-        taskId: '',
-        data: { images },
-      });
-    } catch (error: unknown) {
-      // 检查镜像更新失败
-      throw error;
-    }
-  }
 
   /**
    * 添加消息处理器
@@ -268,28 +208,6 @@ export class DockerWebSocketService {
     this.messageHandlerMap.delete(messageId);
   }
 
-  /**
-   * 注册错误处理器
-   */
-  public onError(type: string, handler: (error: any) => void): void {
-    if (!this.errorHandlers.has(type)) {
-      this.errorHandlers.set(type, []);
-    }
-    this.errorHandlers.get(type)?.push(handler);
-  }
-
-  /**
-   * 移除错误处理器
-   */
-  public offError(type: string, handler: (error: any) => void): void {
-    const handlers = this.errorHandlers.get(type);
-    if (handlers) {
-      const index = handlers.indexOf(handler);
-      if (index !== -1) {
-        handlers.splice(index, 1);
-      }
-    }
-  }
 
   /**
    * 处理消息分发

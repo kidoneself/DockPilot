@@ -143,7 +143,7 @@ import {
   getStatusText,
   getStatusTheme,
   handleContainerOperation,
-} from './utils';
+} from '@/pages/docker/containers/utils';
 
 // 获取路由实例
 const router = useRouter();
@@ -245,24 +245,15 @@ const handleRefresh = () => {
  * @param container 容器对象
  */
 const handleStartStop = async (container: Container) => {
+  const isRunning = container.state === 'running';
+  const action = isRunning ? stopContainer : startContainer;
+  const type = isRunning ? operatingContainers.value.stopping : operatingContainers.value.starting;
+  const successMsg = isRunning ? '停止成功' : '启动成功';
+
   try {
-    if (container.state === 'running') {
-      await handleContainerOperation(
-        () => stopContainer(container.id),
-        container.id,
-        operatingContainers.value.stopping,
-      );
-      await fetchContainers();
-      MessagePlugin.success('停止成功');
-    } else {
-      await handleContainerOperation(
-        () => startContainer(container.id),
-        container.id,
-        operatingContainers.value.starting,
-      );
-      await fetchContainers();
-      MessagePlugin.success('启动成功');
-    }
+    await handleContainerOperation(() => action(container.id), container.id, type);
+    await fetchContainers();
+    MessagePlugin.success(successMsg);
   } catch (error) {
     MessagePlugin.error(error instanceof Error ? error.message : '操作失败');
   }
@@ -324,12 +315,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 主容器样式 */
 .container {
   padding: 20px;
 }
 
-/* 页面头部样式 */
 .header {
   display: flex;
   justify-content: space-between;
@@ -337,14 +326,12 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
-/* 标题样式 */
 .title {
   font-size: 20px;
   font-weight: 600;
   color: var(--td-text-color-primary);
 }
 
-/* 容器信息样式 */
 .container-info {
   display: flex;
   flex-direction: column;
@@ -361,7 +348,6 @@ onMounted(() => {
   color: var(--td-text-color-secondary);
 }
 
-/* 容器首字母样式 */
 .container-initial {
   width: 40px;
   height: 40px;
@@ -374,7 +360,6 @@ onMounted(() => {
   border-radius: 4px;
 }
 
-/* 容器 logo 包装器样式 */
 .container-logo-wrapper {
   width: 40px;
   height: 40px;
@@ -383,220 +368,6 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--td-bg-color-container);
-}
-
-/* 容器 logo 样式 */
-.container-logo {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-/* 日志对话框样式 */
-.logs-dialog {
-  max-height: 80vh;
-}
-
-/* 日志内容区域样式 */
-.logs-content {
-  display: flex;
-  flex-direction: column;
-  height: 60vh;
-}
-
-/* 日志工具栏样式 */
-.logs-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-/* 轮询状态指示器样式 */
-.polling-indicator {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--td-text-color-secondary);
-  font-size: 14px;
-}
-
-.loading-icon {
-  animation: rotate 1s linear infinite;
-}
-
-@keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* 日志内容区域样式 */
-.log-content {
-  max-height: 500px;
-  overflow: auto;
-  padding: 16px;
-  background-color: var(--td-bg-color-secondarycontainer);
-  font-family: monospace;
-}
-
-/* 日志项样式 */
-.log-item {
-  display: flex;
-  align-items: flex-start;
-  padding: 4px 0;
-  font-size: 13px;
-  line-height: 1.5;
-  white-space: pre;
-}
-
-/* 日志消息样式 */
-.log-message {
-  flex: 1;
-  white-space: pre;
-  min-width: 0;
-}
-
-/* ANSI 颜色样式 */
-:deep(.ansi-color-black) {
-  color: #000000;
-}
-
-:deep(.ansi-color-red) {
-  color: #ff0000;
-}
-
-:deep(.ansi-color-green) {
-  color: #00ff00;
-}
-
-:deep(.ansi-color-yellow) {
-  color: #ffff00;
-}
-
-:deep(.ansi-color-blue) {
-  color: #0000ff;
-}
-
-:deep(.ansi-color-magenta) {
-  color: #ff00ff;
-}
-
-:deep(.ansi-color-cyan) {
-  color: #00ffff;
-}
-
-:deep(.ansi-color-white) {
-  color: #ffffff;
-}
-
-:deep(.ansi-color-gray) {
-  color: #808080;
-}
-
-:deep(.ansi-color-light-red) {
-  color: #ff8080;
-}
-
-:deep(.ansi-color-light-green) {
-  color: #80ff80;
-}
-
-:deep(.ansi-color-light-yellow) {
-  color: #ffff80;
-}
-
-:deep(.ansi-color-light-blue) {
-  color: #8080ff;
-}
-
-:deep(.ansi-color-light-magenta) {
-  color: #ff80ff;
-}
-
-:deep(.ansi-color-light-cyan) {
-  color: #80ffff;
-}
-
-:deep(.ansi-color-light-white) {
-  color: #ffffff;
-}
-
-/* 自定义滚动条样式 */
-.log-content::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.log-content::-webkit-scrollbar-thumb {
-  background-color: var(--td-text-color-disabled);
-  border-radius: 3px;
-}
-
-.log-content::-webkit-scrollbar-track {
-  background-color: transparent;
-}
-
-/* 列标题样式 */
-.column-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  color: var(--td-text-color-primary);
-  position: relative;
-  padding-right: 20px;
-}
-
-.help-icon {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--td-text-color-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 16px;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background-color: var(--td-bg-color-container);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-.help-icon:hover {
-  color: var(--td-brand-color);
-  background-color: var(--td-brand-color-light);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* 提示框样式 */
-:deep(.t-tooltip) {
-  max-width: 300px;
-}
-
-:deep(.t-tooltip__content) {
-  padding: 12px 16px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--td-text-color-primary);
-  background-color: var(--td-bg-color-container);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-:deep(.t-tooltip__arrow) {
-  border-color: var(--td-bg-color-container);
-}
-
-:deep(.t-tooltip__arrow::before) {
   background-color: var(--td-bg-color-container);
 }
 </style>

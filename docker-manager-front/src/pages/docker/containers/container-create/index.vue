@@ -109,7 +109,7 @@
                 {{ option.label }}
               </template>
               <template #value="{ value }">
-                {{ networkOptions.find(n => n.value === value)?.label || value }}
+                {{ networkOptions.find((n) => n.value === value)?.label || value }}
               </template>
             </t-select>
           </t-tooltip>
@@ -320,15 +320,9 @@ import { getNetworkList } from '@/api/websocket/container';
 import router from '@/router';
 
 // 导入常量和类型定义
-import { IMAGE_OPTIONS, TYPE_OPTIONS, NETWORK_OPTIONS, RESTART_POLICY_OPTIONS, FORM_RULES } from '@/constants/container';
-import type { ContainerForm, CreateContainerParams } from '@/api/model/containerModel.ts';
-import { mapFormDataToRequest, mapContainerDetailToForm } from '@/utils/container';
-
-// 权限选项配置
-const VOLUME_PERMISSION_OPTIONS = [
-  { label: '只读', value: true },
-  { label: '读写', value: false },
-];
+import { RESTART_POLICY_OPTIONS, FORM_RULES, VOLUME_PERMISSION_OPTIONS } from '@/constants/container';
+import type { ContainerForm } from '@/api/model/containerModel';
+import { mapFormDataToRequest } from '@/utils/container';
 
 // 表单数据：使用ref创建响应式数据
 const INITIAL_DATA: ContainerForm = {
@@ -389,7 +383,7 @@ const fetchImageList = async () => {
     imageOptions.value = res.data.map((img) => ({
       label: `${img.name}:${img.tag}`,
       value: `${img.name}:${img.tag}`,
-      size: img.size || 0
+      size: img.size || 0,
     }));
   } catch (error) {
     console.error('获取镜像列表失败:', error);
@@ -405,16 +399,16 @@ const fetchNetworkList = async () => {
     networkOptions.value = res.data.map((network) => ({
       label: network.nameStr || network.name || '未知网络',
       value: network.name || '未知网络',
-      gateway: network.ipamConfig?.[0]?.gateway || ''
+      gateway: network.ipamConfig?.[0]?.gateway || '',
     }));
 
     // 设置默认网络模式为桥接模式
-    const bridgeNetwork = networkOptions.value.find(n => n.value === 'bridge');
+    const bridgeNetwork = networkOptions.value.find((n) => n.value === 'bridge');
     if (bridgeNetwork) {
       formData.value.networkMode = bridgeNetwork.value;
       handleNetworkModeChange(bridgeNetwork.value, {
         selectedOptions: [bridgeNetwork],
-        trigger: 'default'
+        trigger: 'default',
       });
     }
   } catch (error) {
@@ -422,7 +416,6 @@ const fetchNetworkList = async () => {
     MessagePlugin.error('获取网络列表失败');
   }
 };
-
 
 // 处理镜像选择变化
 const handleImageChange = async (
@@ -442,61 +435,61 @@ const handleImageChange = async (
     loading.value = true;
     const imageName = value as string;
     const res = await getImageDetail(imageName);
-      const detail = res.data;
-      formData.value = { ...INITIAL_DATA };
+    const detail = res.data;
+    formData.value = { ...INITIAL_DATA };
 
-      // 分割镜像名称和标签
-      const [image, tag = 'latest'] = imageName.split(':');
-      formData.value.image = image;
-      formData.value.tag = tag;
+    // 分割镜像名称和标签
+    const [image, tag = 'latest'] = imageName.split(':');
+    formData.value.image = image;
+    formData.value.tag = tag;
 
-      // 生成随机容器名称
-      const randomNum = Math.floor(Math.random() * 90) + 10;
-      formData.value.name = `${image.replace(/[^a-zA-Z0-9]/g, '-')}-${randomNum}`;
-      formData.value.restartPolicy = 'always';
+    // 生成随机容器名称
+    const randomNum = Math.floor(Math.random() * 90) + 10;
+    formData.value.name = `${image.replace(/[^a-zA-Z0-9]/g, '-')}-${randomNum}`;
+    formData.value.restartPolicy = 'always';
 
-      if (detail) {
-        const { config } = detail;
+    if (detail) {
+      const { config } = detail;
 
-        // 设置入口点
-        if (config.entrypoint) {
-          formData.value.entrypoint = config.entrypoint;
-        }
+      // 设置入口点
+      if (config.entrypoint) {
+        formData.value.entrypoint = config.entrypoint;
+      }
 
-        // 设置默认命令
-        if (config.cmd) {
-          formData.value.cmd = config.cmd;
-        }
+      // 设置默认命令
+      if (config.cmd) {
+        formData.value.cmd = config.cmd;
+      }
 
-        // 设置暴露端口
-        if (config.exposedPorts) {
-          formData.value.portMappings = Object.keys(config.exposedPorts).map((port) => {
-            const [portNumber, protocol] = port.split('/');
-            return {
-              hostPort: portNumber,
-              containerPort: portNumber,
-              protocol: protocol || 'tcp',
-              ip: '',
-            };
-          });
-        }
+      // 设置暴露端口
+      if (config.exposedPorts) {
+        formData.value.portMappings = Object.keys(config.exposedPorts).map((port) => {
+          const [portNumber, protocol] = port.split('/');
+          return {
+            hostPort: portNumber,
+            containerPort: portNumber,
+            protocol: protocol || 'tcp',
+            ip: '',
+          };
+        });
+      }
 
-        // 设置数据卷
-        if (config.volumes) {
-          formData.value.volumeMappings = Object.keys(config.volumes).map((volume) => ({
-            hostPath: '',
-            containerPath: volume,
-            readOnly: false,
-          }));
-        }
+      // 设置数据卷
+      if (config.volumes) {
+        formData.value.volumeMappings = Object.keys(config.volumes).map((volume) => ({
+          hostPath: '',
+          containerPath: volume,
+          readOnly: false,
+        }));
+      }
 
-        // 设置环境变量
-        if (config.env) {
-          formData.value.environmentVariables = config.env.map((env: string) => {
-            const [key, value] = env.split('=');
-            return { key, value };
-          });
-        }
+      // 设置环境变量
+      if (config.env) {
+        formData.value.environmentVariables = config.env.map((env: string) => {
+          const [key, value] = env.split('=');
+          return { key, value };
+        });
+      }
     }
   } catch (error) {
     console.error('获取镜像详情失败:', error);
@@ -514,7 +507,7 @@ const handleNetworkModeChange = (
     selectedOptions: SelectOption[];
     trigger: SelectValueChangeTrigger;
     e?: KeyboardEvent | MouseEvent;
-  }
+  },
 ) => {
   const mode = value as string;
 
@@ -528,21 +521,21 @@ const handleNetworkModeChange = (
     showNetworkConfig.value = false;
     // 恢复之前保存的端口映射
     if (tempPortMappings.value.length > 0) {
-      formData.value.portMappings = tempPortMappings.value.map(port => ({
+      formData.value.portMappings = tempPortMappings.value.map((port) => ({
         hostPort: port.hostPort,
         containerPort: port.containerPort,
         protocol: port.protocol,
-        ip: port.ip || ''
+        ip: port.ip || '',
       }));
     }
   } else if (mode === 'host' || mode === 'none') {
     // 保存当前的端口映射
-      tempPortMappings.value = formData.value.portMappings.map(port => ({
+    tempPortMappings.value = formData.value.portMappings.map((port) => ({
       hostPort: port.hostPort,
       containerPort: port.containerPort,
       protocol: port.protocol,
-      ip: port.ip || ''
-      }));
+      ip: port.ip || '',
+    }));
     disablePortMappings.value = true;
     showNetworkConfig.value = false;
     formData.value.portMappings = [];
@@ -551,15 +544,15 @@ const handleNetworkModeChange = (
     showNetworkConfig.value = true;
     // 恢复之前保存的端口映射
     if (tempPortMappings.value.length > 0) {
-      formData.value.portMappings = tempPortMappings.value.map(port => ({
+      formData.value.portMappings = tempPortMappings.value.map((port) => ({
         hostPort: port.hostPort,
         containerPort: port.containerPort,
         protocol: port.protocol,
-        ip: port.ip || ''
+        ip: port.ip || '',
       }));
     }
     // 设置网关
-    const selectedNetwork = networkOptions.value.find(n => n.value === mode);
+    const selectedNetwork = networkOptions.value.find((n) => n.value === mode);
     if (selectedNetwork?.gateway) {
       formData.value.gateway = selectedNetwork.gateway;
     }
@@ -611,10 +604,10 @@ const removeEnv = (index: number) => {
 // 处理创建容器
 const handleCreateContainer = async (context: SubmitContext) => {
   if (context.validateResult === true) {
-  try {
-    creating.value = true;
-    const request = mapFormDataToRequest(formData.value);
-    const res = await createContainer(request);
+    try {
+      creating.value = true;
+      const request = mapFormDataToRequest(formData.value);
+      const res = await createContainer(request);
       containerId.value = res.data;
       activeForm.value = 6;
       MessagePlugin.success('容器创建成功');
@@ -679,17 +672,10 @@ const cmdText = computed({
   get: () => formData.value.cmd.join(' '),
   set: (value: string) => {
     formData.value.cmd = value.split(' ').filter(Boolean);
-  }
+  },
 });
 </script>
 
 <style lang="less" scoped>
 @import './index.less';
-
-// 端口映射和数据卷映射的样式
-.port-mapping,
-.volume-mapping {
-  position: relative;
-  margin-bottom: 16px;
-}
 </style>

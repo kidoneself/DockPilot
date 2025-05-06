@@ -389,7 +389,7 @@ export default {
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next';
+import { MessagePlugin } from 'tdesign-vue-next';
 import {
   getContainerDetail,
   getContainerLogs,
@@ -401,15 +401,6 @@ import {
   updateContainer,
 } from '@/api/websocket/container';
 import type { ContainerDetail } from '@/api/model/containerModel';
-import {
-  IMAGE_OPTIONS,
-  TYPE_OPTIONS,
-  NETWORK_OPTIONS,
-  RESTART_POLICY_OPTIONS,
-  FORM_RULES,
-} from '@/constants/container';
-import type { ContainerForm, CreateContainerParams } from '@/api/model/containerModel.ts';
-import { mapFormDataToRequest, mapContainerDetailToForm } from '@/utils/container';
 
 const route = useRoute();
 const router = useRouter();
@@ -644,7 +635,6 @@ const handleRestart = async () => {
 // 处理删除容器
 const handleDelete = async () => {
   if (!containerDetail.value) return;
-
   isOperating.value = true;
   try {
     const containerId = containerDetail.value.containerId;
@@ -817,113 +807,6 @@ const formatBytes = (bytes: number) => {
 // 格式化百分比
 const formatPercent = (value: number) => {
   return value.toFixed(2);
-};
-
-// 网络设置表格列
-const networkColumns = [
-  { colKey: 'network', title: '网络' },
-  { colKey: 'ipAddress', title: 'IP地址' },
-  { colKey: 'gateway', title: '网关' },
-];
-
-// 网络设置数据
-const networkSettings = computed(() => {
-  if (!containerDetail.value?.networkSettings) return [];
-  return [
-    {
-      network: containerDetail.value.networkSettings.NetworkMode,
-      ipAddress: containerDetail.value.networkSettings.IPAddress,
-      gateway: containerDetail.value.networkSettings.Gateway,
-    },
-  ];
-});
-
-const containerInfo = computed(() => [
-  { label: '容器ID', content: containerDetail.value?.containerId },
-  { label: '容器名称', content: containerDetail.value?.containerName },
-  { label: '镜像', content: containerDetail.value?.imageName },
-  { label: '镜像ID', content: containerDetail.value?.imageId },
-  { label: '命令', content: containerDetail.value?.command },
-  { label: '状态', content: containerDetail.value?.status },
-  { label: '创建时间', content: containerDetail.value?.createdTime },
-  { label: '大小', content: containerDetail.value?.data?.sizeRw ? formatSize(containerDetail.value.data.sizeRw) : '-' },
-  {
-    label: '根文件系统大小',
-    content: containerDetail.value?.data?.sizeRootFs ? formatSize(containerDetail.value.data.sizeRootFs) : '-',
-  },
-]);
-
-const networkInfo = computed(() => [
-  { label: '网络模式', content: containerDetail.value?.networkMode },
-  { label: 'IP地址', content: containerDetail.value?.ipAddress },
-  { label: '重启策略', content: containerDetail.value?.restartPolicyName },
-]);
-
-const mountColumns = [
-  { colKey: 'Source', title: '源路径' },
-  { colKey: 'Destination', title: '目标路径' },
-  {
-    colKey: 'ReadOnly',
-    title: '只读',
-    cell: ({ row }: { row: { ReadOnly: boolean } }) => (row.ReadOnly ? '是' : '否'),
-  },
-];
-
-const labelColumns = [
-  { colKey: 'key', title: '键' },
-  { colKey: 'value', title: '值' },
-];
-
-const labelData = computed(() => {
-  if (!containerDetail.value?.labels) return [];
-  return Object.entries(containerDetail.value.labels).map(([key, value]) => ({
-    key,
-    value,
-  }));
-});
-
-const formatSize = (size: number) => {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = size;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex++;
-  }
-  return `${value.toFixed(2)} ${units[unitIndex]}`;
-};
-
-const INITIAL_DATA: ContainerForm = {
-  image: '',
-  tag: '',
-  autoPull: false,
-  name: '',
-  autoRemove: false,
-  restartPolicy: '',
-  portMappings: [{ hostPort: '', containerPort: '', protocol: '', ip: '' }],
-  networkMode: '',
-  ipAddress: '',
-  gateway: '',
-  volumeMappings: [],
-  devices: [],
-  environmentVariables: [],
-  privileged: false,
-  capAdd: [],
-  capDrop: [],
-  memoryLimit: '',
-  cpuLimit: '',
-  entrypoint: [],
-  cmd: [],
-  workingDir: '',
-  user: '',
-  labels: [],
-  healthcheck: {
-    test: [],
-    interval: '',
-    timeout: '',
-    retries: 0,
-    startPeriod: '',
-  },
 };
 </script>
 
