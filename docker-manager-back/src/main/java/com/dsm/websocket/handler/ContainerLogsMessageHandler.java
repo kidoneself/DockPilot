@@ -3,14 +3,11 @@ package com.dsm.websocket.handler;
 import com.dsm.service.ContainerService;
 import com.dsm.websocket.message.MessageType;
 import com.dsm.websocket.model.DockerWebSocketMessage;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
-import com.alibaba.fastjson.JSON;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -18,13 +15,10 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class ContainerLogsMessageHandler implements MessageHandler {
+public class ContainerLogsMessageHandler extends BaseMessageHandler {
 
-    private final ContainerService containerService;
-
-    public ContainerLogsMessageHandler(ContainerService containerService) {
-        this.containerService = containerService;
-    }
+    @Autowired
+    private ContainerService containerService;
 
     @Override
     public MessageType getType() {
@@ -33,50 +27,12 @@ public class ContainerLogsMessageHandler implements MessageHandler {
 
     @Override
     public void handle(WebSocketSession session, Object message) {
-        try {
-            if (!(message instanceof DockerWebSocketMessage)) {
-                log.error("无效的消息类型: {}", message.getClass().getName());
-                return;
-            }
-
-            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
-            Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
-            String containerId = (String) data.get("containerId");
-
-            if (containerId == null || containerId.isEmpty()) {
-                log.error("容器ID不能为空");
-                sendError(session, "容器ID不能为空");
-                return;
-            }
-
-            // 获取容器日志
-            String logs = containerService.getContainerLogs(containerId, 100, false, false);
-
-            // 构建响应消息
-            DockerWebSocketMessage response = new DockerWebSocketMessage(
-                MessageType.CONTAINER_LOGS.name(),
-                "",
-                logs
-            );
-
-            // 发送响应
-            session.sendMessage(new TextMessage(JSON.toJSONString(response)));
-        } catch (Exception e) {
-            log.error("处理容器日志消息时发生错误", e);
-            try {
-                sendError(session, "获取容器日志失败: " + e.getMessage());
-            } catch (IOException ex) {
-                log.error("发送错误消息失败", ex);
-            }
-        }
+        DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+        Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
+        String containerId = (String) data.get("containerId");
+        // 获取容器日志
+        String logs = containerService.getContainerLogs(containerId, 100, false, false);
+        sendResponse(session, MessageType.CONTAINER_LOGS, wsMessage.getTaskId(), logs);
     }
 
-    private void sendError(WebSocketSession session, String message) throws IOException {
-        DockerWebSocketMessage errorMessage = new DockerWebSocketMessage(
-            MessageType.ERROR.name(),
-            "",
-            Map.of("message", message)
-        );
-        session.sendMessage(new TextMessage(JSON.toJSONString(errorMessage)));
-    }
 } 

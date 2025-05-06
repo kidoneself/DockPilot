@@ -1,9 +1,9 @@
 package com.dsm.controller;
 
-import com.dsm.model.dto.AppStoreAppDTO;
-import com.dsm.pojo.common.PageResult;
-import com.dsm.pojo.entity.Template;
-import com.dsm.pojo.param.TemplateQueryParam;
+import com.dsm.model.AppStoreAppDTO;
+import com.dsm.model.PageResult;
+import com.dsm.model.Template;
+import com.dsm.model.TemplateQueryParam;
 import com.dsm.service.AppStoreService;
 import com.dsm.utils.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;

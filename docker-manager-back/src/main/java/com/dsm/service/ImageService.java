@@ -1,7 +1,7 @@
 package com.dsm.service;
 
-import com.dsm.model.dto.ImageStatusDTO;
-import com.dsm.pojo.dto.image.ImageInspectDTO;
+import com.dsm.model.ImageInspectDTO;
+import com.dsm.model.ImageStatusDTO;
 
 import java.util.List;
 import java.util.Map;

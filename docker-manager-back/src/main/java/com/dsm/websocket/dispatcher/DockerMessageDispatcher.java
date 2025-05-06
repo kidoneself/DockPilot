@@ -1,10 +1,8 @@
 package com.dsm.websocket.dispatcher;
 
-import com.dsm.websocket.handler.ContainerDetailMessageHandler;
-import com.dsm.websocket.handler.ContainerListMessageHandler;
 import com.dsm.websocket.handler.MessageHandler;
-import com.dsm.websocket.model.DockerWebSocketMessage;
 import com.dsm.websocket.message.MessageType;
+import com.dsm.websocket.model.DockerWebSocketMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -13,7 +11,6 @@ import org.springframework.web.socket.WebSocketSession;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.HashMap;
 
 /**
  * Docker WebSocket 消息分发器

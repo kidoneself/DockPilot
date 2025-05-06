@@ -27,6 +27,8 @@ public class DockerErrorResolver {
                 errorCode = DockerErrorCode.CONTAINER_NAME_CONFLICT;
             } else if (message.contains("Mounts denied") && message.contains("is not shared from the host")) {
                 errorCode = DockerErrorCode.MOUNT_PATH_NOT_SHARED;
+            } else if (message.contains("unable to delete") && message.contains("image is being used by")) {
+                errorCode = DockerErrorCode.IMAGE_IS_BEING_USED;
             }
         }
 

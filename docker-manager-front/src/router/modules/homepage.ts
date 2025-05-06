@@ -42,7 +42,7 @@ export default [
         name: 'DockerContainers',
         component: () => import('@/pages/docker/containers/index.vue'),
         meta: {
-          title: '容器管理',
+          title: '容器列表',
         },
       },
       {
@@ -80,28 +80,6 @@ export default [
           title: '镜像列表',
         },
       },
-      // {
-      //   path: 'networks',
-      //   name: 'DockerNetworks',
-      //   component: () => import('@/pages/docker/networks/index.vue'),
-      //   meta: {
-      //     title: {
-      //       zh_CN: '网络管理',
-      //       en_US: 'Network Management',
-      //     },
-      //   },
-      // },
-      // {
-      //   path: 'volumes',
-      //   name: 'DockerVolumes',
-      //   component: () => import('@/pages/docker/volumes/index.vue'),
-      //   meta: {
-      //     title: {
-      //       zh_CN: '存储卷管理',
-      //       en_US: 'Volume Management',
-      //     },
-      //   },
-      // },
     ],
   },
   {
@@ -120,15 +98,6 @@ export default [
         component: () => import('@/pages/system/proxy.vue'),
         meta: {
           title: '加速设置',
-        },
-      },
-      {
-        path: 'xml-editor',
-        name: 'XmlEditor',
-        component: () => import('@/pages/system/xml-editor/index.vue'),
-        meta: {
-          title: 'XML编辑器',
-          hidden: true,
         },
       },
     ],

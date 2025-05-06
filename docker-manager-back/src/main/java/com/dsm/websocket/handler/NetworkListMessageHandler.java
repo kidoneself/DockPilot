@@ -1,6 +1,6 @@
 package com.dsm.websocket.handler;
 
-import com.dsm.pojo.dto.NetworkInfoDTO;
+import com.dsm.model.NetworkInfoDTO;
 import com.dsm.service.NetworkService;
 import com.dsm.websocket.message.MessageType;
 import com.dsm.websocket.model.DockerWebSocketMessage;
@@ -28,17 +28,10 @@ public class NetworkListMessageHandler extends BaseMessageHandler {
 
     @Override
     public void handle(WebSocketSession session, Object message) {
-        try {
             DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
-            
             // 获取网络列表
             List<NetworkInfoDTO> networks = networkService.listNetworks();
-            
             // 发送响应
             sendResponse(session, MessageType.NETWORK_LIST, wsMessage.getTaskId(), networks);
-        } catch (Exception e) {
-            log.error("处理网络列表消息时发生错误", e);
-            sendErrorMessage(session, "获取网络列表失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
-        }
     }
 } 

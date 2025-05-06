@@ -105,7 +105,7 @@ public class JsonPlaceholderReplacerUtil {
             logger.debug("替换值: {}", replacement);
             result.replace(startIndex, endIndex + 2, replacement);
         }
-        logger.debug("处理后的文本: {}", result.toString());
+        logger.debug("处理后的文本: {}", result);
         return result.toString();
     }
 }

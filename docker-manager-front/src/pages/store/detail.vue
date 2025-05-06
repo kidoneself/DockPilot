@@ -102,7 +102,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
-import { getAppDetail } from '@/api/appStore'
+import { getAppDetail } from '@/api/appStoreApi'
 import type { AppStoreAppDetail } from '@/api/model/appStoreModel'
 
 const route = useRoute()
@@ -123,11 +123,7 @@ const fetchAppDetail = async () => {
   try {
     loading.value = true
     const id = route.params.id as string
-    console.log('获取应用详情，ID:', id)
-    
     const res = await getAppDetail(id)
-    console.log('应用详情数据:', res)
-    
     if (res.code === 0) {
       appDetail.value = res.data
     } else {

@@ -1,6 +1,6 @@
 package com.dsm.utils;
 
-import com.dsm.pojo.entity.Log;
+import com.dsm.model.Log;
 import com.dsm.service.LogService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -13,36 +13,22 @@ import javax.annotation.Resource;
 public class LogUtil {
     private static LogService logService;
 
-    @Resource
-    public void setLogService(LogService logService) {
-        LogUtil.logService = logService;
-    }
-
-    @PostConstruct
-    public void init() {
-        if (logService == null) {
-            log.error("LogService未初始化，无法保存日志");
-        } else {
-            log.info("LogService初始化成功");
-        }
-    }
-
     // 记录操作日志
-    public static void log(String content) {
-        log("OPERATION", "INFO", content);
+    public static void logOpe(String content) {
+        logOpe("OPERATION", "INFO", content);
     }
 
     // 记录系统日志
     public static void logSysError(String content) {
-        log("SYSTEM", "ERROR", content);
+        logOpe("SYSTEM", "ERROR", content);
     }
 
     public static void logSysInfo(String content) {
-        log("SYSTEM", "INFO", content);
+        logOpe("SYSTEM", "INFO", content);
     }
 
     // 统一的日志记录方法
-    private static void log(String type, String level, String content) {
+    private static void logOpe(String type, String level, String content) {
         try {
             Log logEntry = new Log();
             logEntry.setType(type);
@@ -56,6 +42,20 @@ public class LogUtil {
             }
         } catch (Exception e) {
             log.error("记录日志失败: {}", e.getMessage());
+        }
+    }
+
+    @Resource
+    public void setLogService(LogService logService) {
+        LogUtil.logService = logService;
+    }
+
+    @PostConstruct
+    public void init() {
+        if (logService == null) {
+            log.error("LogService未初始化，无法保存日志");
+        } else {
+            log.info("LogService初始化成功");
         }
     }
 } 

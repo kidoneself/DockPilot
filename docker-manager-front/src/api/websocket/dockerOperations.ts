@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { dockerWebSocketService } from './DockerWebSocketService';
+import type { WebSocketMessage } from '@/api/model/websocketModel';
 
 // 状态变量
 export const progress = ref(0);
@@ -10,7 +11,7 @@ export const error = ref('');
  * 处理拉取开始消息
  * @param message 消息对象
  */
-const handlePullStart = (message: any) => {
+const handlePullStart = (message: WebSocketMessage) => {
     status.value = '开始拉取镜像';
     progress.value = 0;
     error.value = '';
@@ -20,7 +21,7 @@ const handlePullStart = (message: any) => {
  * 处理拉取进度消息
  * @param message 消息对象
  */
-const handlePullProgress = (message: any) => {
+const handlePullProgress = (message: WebSocketMessage) => {
     progress.value = message.data.progress;
     status.value = message.data.status;
 };
@@ -29,7 +30,7 @@ const handlePullProgress = (message: any) => {
  * 处理拉取完成消息
  * @param message 消息对象
  */
-const handlePullComplete = (message: any) => {
+const handlePullComplete = (message: WebSocketMessage) => {
     status.value = '拉取完成';
     progress.value = 100;
 };
@@ -38,7 +39,7 @@ const handlePullComplete = (message: any) => {
  * 处理错误消息
  * @param message 消息对象
  */
-const handlePullError = (message: any) => {
+const handlePullError = (message: WebSocketMessage) => {
     error.value = message.data.error;
     status.value = '拉取失败';
 };
@@ -68,7 +69,7 @@ export const removeHandlers = () => {
  * @param imageName 镜像名称
  */
 export const pullImage = (imageName: string) => {
-    dockerWebSocketService.send({
+    dockerWebSocketService.sendMessage({
         type: 'PULL_IMAGE',
         taskId: '',
         data: { imageName }

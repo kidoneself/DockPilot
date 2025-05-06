@@ -2,6 +2,7 @@ package com.dsm.inspect2Cmd;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.Iterator;
 import java.util.Map;
 
@@ -46,7 +47,7 @@ public class DockerInspectToJson {
         // 端口映射
         simplifiedJson += "\"ports\":{";
         if (portsNode != null) {
-            Iterator<Map.Entry<String, JsonNode>> portsIter = (Iterator<Map.Entry<String, JsonNode>>) portsNode.fields();
+            Iterator<Map.Entry<String, JsonNode>> portsIter = portsNode.fields();
             while (portsIter.hasNext()) {
                 Map.Entry<String, JsonNode> entry = portsIter.next();
                 String containerPort = entry.getKey();

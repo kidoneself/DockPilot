@@ -1,6 +1,6 @@
 package com.dsm.mapper;
 
-import com.dsm.pojo.entity.SystemSetting;
+import com.dsm.model.SystemSetting;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;

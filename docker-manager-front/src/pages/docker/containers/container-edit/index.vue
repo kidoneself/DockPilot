@@ -320,7 +320,7 @@ import router from '@/router';
 
 // 导入常量和类型定义
 import { RESTART_POLICY_OPTIONS, FORM_RULES } from '@/constants/container';
-import type { ContainerForm } from '@/types/container.d.ts';
+import type { ContainerForm } from '@/api/model/containerModel.ts';
 import { mapFormDataToRequest, mapContainerDetailToForm } from '@/utils/container';
 
 // 权限选项配置
@@ -385,7 +385,7 @@ const fetchNetworkList = async () => {
   try {
     const res = await getNetworkList();
     // 处理网络列表数据
-    networkOptions.value = res.map((network) => ({
+    networkOptions.value = res.data.map((network) => ({
       label: network.nameStr || network.name || '未知网络',
       value: network.name || '未知网络',
       gateway: network.ipamConfig?.[0]?.gateway || ''
@@ -396,22 +396,16 @@ const fetchNetworkList = async () => {
   }
 };
 
+
+
 const fetchContainerDetail = async (id: string) => {
   try {
-    console.log('开始获取容器详情，ID:', id);
     const res = await getContainerDetail(id);
-    console.log('获取容器详情响应:', res);
-    
     // WebSocket 返回的数据直接就是容器详情对象
-    if (!res) {
-        MessagePlugin.error('容器详情数据为空');
-        return;
-      }
-    
-    const mappedData = mapContainerDetailToForm(res);
-      console.log('转换后的表单数据:', mappedData);
+    console.log(res);
+ 
+    const mappedData = mapContainerDetailToForm(res.data);
       formData.value = mappedData;
-      console.log('设置后的表单数据:', formData.value);
 
     // 获取网络列表，网络模式的设置会在fetchNetworkList中处理
     await fetchNetworkList();
@@ -432,6 +426,7 @@ const handleNetworkModeChange = (
   }
 ) => {
   const mode = value as string;
+
   // 重置网络相关配置
   formData.value.ipAddress = '';
   formData.value.gateway = '';
@@ -440,13 +435,38 @@ const handleNetworkModeChange = (
   if (mode === 'bridge') {
     disablePortMappings.value = false;
     showNetworkConfig.value = false;
+    // 恢复之前保存的端口映射
+    if (tempPortMappings.value.length > 0) {
+      formData.value.portMappings = tempPortMappings.value.map(port => ({
+        hostPort: port.hostPort,
+        containerPort: port.containerPort,
+        protocol: port.protocol,
+        ip: port.ip || ''
+      }));
+    }
   } else if (mode === 'host' || mode === 'none') {
+    // 保存当前的端口映射
+    tempPortMappings.value = formData.value.portMappings.map(port => ({
+      hostPort: port.hostPort,
+      containerPort: port.containerPort,
+      protocol: port.protocol,
+      ip: port.ip || ''
+    }));
     disablePortMappings.value = true;
     showNetworkConfig.value = false;
     formData.value.portMappings = [];
   } else {
     disablePortMappings.value = false;
     showNetworkConfig.value = true;
+    // 恢复之前保存的端口映射
+    if (tempPortMappings.value.length > 0) {
+      formData.value.portMappings = tempPortMappings.value.map(port => ({
+        hostPort: port.hostPort,
+        containerPort: port.containerPort,
+        protocol: port.protocol,
+        ip: port.ip || ''
+      }));
+    }
     // 设置网关
     const selectedNetwork = networkOptions.value.find(n => n.value === mode);
     if (selectedNetwork?.gateway) {
@@ -502,7 +522,11 @@ const handleUpdateContainer = async () => {
   try {
     creating.value = true;
     const request = mapFormDataToRequest(formData.value);
-    const newContainerId = await updateContainer(route.query.id as string, request);
+
+    const res = await updateContainer(route.query.id as string, request);
+    console.log(res);
+
+    const newContainerId = res.newContainerId;
     await fetchContainerDetail(newContainerId);
     MessagePlugin.success('更新容器成功');
     containerId.value = newContainerId;
@@ -579,8 +603,6 @@ const handleImageChange = async (
     e?: KeyboardEvent | MouseEvent;
   },
 ) => {
-  // 编辑页面不需要处理镜像变化
-  console.log('镜像选择变化:', value);
 };
 </script>
 

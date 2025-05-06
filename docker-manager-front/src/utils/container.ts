@@ -3,7 +3,7 @@
  * 生成时间：2024-06-09 21:15:00
  */
 
-import type { ContainerForm, CreateContainerParams } from '@/types/container.d.ts';
+import type { ContainerForm, CreateContainerParams } from '@/api/model/containerModel.ts';
 
 /**
  * 表单数据转为创建容器请求参数

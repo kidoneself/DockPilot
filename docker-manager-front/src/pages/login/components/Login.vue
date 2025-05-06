@@ -140,7 +140,6 @@ const onSubmit = async (ctx: SubmitContext) => {
       const redirectUrl = redirect ? decodeURIComponent(redirect) : '/dashboard';
       router.push(redirectUrl);
     } catch (e) {
-      console.log(e);
       MessagePlugin.error(e.message);
     }
   }

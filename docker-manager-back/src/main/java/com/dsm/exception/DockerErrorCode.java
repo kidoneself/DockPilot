@@ -11,6 +11,7 @@ public enum DockerErrorCode {
     DOCKER_DAEMON_UNAVAILABLE("Docker 守护进程不可用"),
     CONTAINER_NAME_CONFLICT("容器名称重复"),
     MOUNT_PATH_NOT_SHARED("映射宿主机路径不存在或者无权限"),
+    IMAGE_IS_BEING_USED("有容器正在使用该镜像"),
     UNKNOWN_ERROR("未知错误");
 
     private final String message;

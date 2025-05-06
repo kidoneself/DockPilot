@@ -13,30 +13,94 @@
       </div>
       <div class="action-buttons">
         <t-space>
-          <t-button theme="primary" @click="handleStartConfirm" :disabled="containerDetail?.status === 'running' || isOperating" :loading="isOperating">
-            <template #icon><t-icon name="play-circle" /></template>
-            启动
-          </t-button>
-          <t-button theme="warning" @click="handleStopConfirm" :disabled="containerDetail?.status !== 'running' || isOperating" :loading="isOperating">
-            <template #icon><t-icon name="stop-circle" /></template>
-            停止
-          </t-button>
-          <t-button theme="default" @click="handleRestartConfirm" :disabled="containerDetail?.status !== 'running' || isOperating" :loading="isOperating">
-            <template #icon><t-icon name="refresh" /></template>
-            重启
-          </t-button>
-          <t-button theme="danger" @click="handleDeleteConfirm" :disabled="containerDetail?.status === 'running' || isOperating" :loading="isOperating">
-            <template #icon><t-icon name="delete" /></template>
-            删除
-          </t-button>
+          <t-popconfirm
+            content="确认启动该容器吗？"
+            @confirm="handleStart"
+            :disabled="containerDetail?.status === 'running' || isOperating"
+          >
+            <t-button
+              theme="primary"
+              :disabled="containerDetail?.status === 'running' || isOperating"
+              :loading="isOperating"
+            >
+              <template #icon>
+                <t-icon name="play-circle" />
+              </template>
+              启动
+            </t-button>
+          </t-popconfirm>
+
+          <t-popconfirm
+            content="确认停止该容器吗？"
+            @confirm="handleStop"
+            :disabled="containerDetail?.status !== 'running' || isOperating"
+          >
+            <t-button
+              theme="warning"
+              :disabled="containerDetail?.status !== 'running' || isOperating"
+              :loading="isOperating"
+            >
+              <template #icon>
+                <t-icon name="stop-circle" />
+              </template>
+              停止
+            </t-button>
+          </t-popconfirm>
+
+          <t-popconfirm
+            content="确认重启该容器吗？"
+            @confirm="handleRestart"
+            :disabled="containerDetail?.status !== 'running' || isOperating"
+          >
+            <t-button
+              theme="default"
+              :disabled="containerDetail?.status !== 'running' || isOperating"
+              :loading="isOperating"
+            >
+              <template #icon>
+                <t-icon name="refresh" />
+              </template>
+              重启
+            </t-button>
+          </t-popconfirm>
+
+          <t-popconfirm
+            content="确认删除该容器吗？此操作不可恢复！"
+            @confirm="handleDelete"
+            :disabled="containerDetail?.status === 'running' || isOperating"
+          >
+            <t-button
+              theme="danger"
+              :disabled="containerDetail?.status === 'running' || isOperating"
+              :loading="isOperating"
+            >
+              <template #icon>
+                <t-icon name="delete" />
+              </template>
+              删除
+            </t-button>
+          </t-popconfirm>
+
           <t-button theme="default" @click="handleEdit" :disabled="isOperating">
-            <template #icon><t-icon name="edit" /></template>
+            <template #icon>
+              <t-icon name="edit" />
+            </template>
             编辑
           </t-button>
-          <t-button v-if="containerDetail?.needUpdate" theme="warning" @click="handleUpdateConfirm" :disabled="isOperating" :loading="isOperating">
-            <template #icon><t-icon name="cloud-download" /></template>
-            更新
-          </t-button>
+
+          <t-popconfirm
+            v-if="containerDetail?.needUpdate"
+            content="确认更新该容器吗？"
+            @confirm="handleUpdate"
+            :disabled="isOperating"
+          >
+            <t-button theme="warning" :disabled="isOperating" :loading="isOperating">
+              <template #icon>
+                <t-icon name="cloud-download" />
+              </template>
+              更新
+            </t-button>
+          </t-popconfirm>
         </t-space>
       </div>
     </div>
@@ -51,7 +115,9 @@
               <t-icon name="info-circle" size="20px" />
               <span>基础信息</span>
               <t-tag v-if="containerDetail?.needUpdate" theme="warning" variant="light" class="update-tag">
-                <template #icon><t-icon name="info-circle-filled" /></template>
+                <template #icon>
+                  <t-icon name="info-circle-filled" />
+                </template>
                 需要更新
               </t-tag>
             </div>
@@ -90,7 +156,7 @@
               <div class="info-value">{{ containerDetail?.volumes?.length || 0 }} 个</div>
             </div>
           </div>
-      </t-card>
+        </t-card>
       </div>
 
       <!-- 右侧功能区 -->
@@ -113,7 +179,7 @@
                     <div class="stats-card">
                       <div class="stats-icon">
                         <t-icon name="cpu" size="24px" />
-      </div>
+                      </div>
                       <div class="stats-info">
                         <div class="stats-label">CPU 使用率</div>
                         <div class="stats-value">{{ formatPercent(resourceStats.cpuPercent) }}%</div>
@@ -128,12 +194,13 @@
                     <div class="stats-card">
                       <div class="stats-icon">
                         <t-icon name="data-base" size="24px" />
-      </div>
+                      </div>
                       <div class="stats-info">
                         <div class="stats-label">内存使用</div>
                         <div class="stats-value">
                           <template v-if="containerDetail?.status === 'running'">
-                            {{ formatBytes(resourceStats?.memoryUsage || 0) }} / {{ formatBytes(resourceStats?.memoryLimit || 0) }}
+                            {{ formatBytes(resourceStats?.memoryUsage || 0) }} /
+                            {{ formatBytes(resourceStats?.memoryLimit || 0) }}
                           </template>
                           <template v-else>
                             <t-tag theme="warning" variant="light">容器已停止</t-tag>
@@ -141,23 +208,24 @@
                         </div>
                         <t-progress
                           v-if="containerDetail?.status === 'running'"
-                          :percentage="Number(formatPercent((resourceStats?.memoryUsage || 0) / (resourceStats?.memoryLimit || 1) * 100))"
+                          :percentage="
+                            Number(
+                              formatPercent(
+                                ((resourceStats?.memoryUsage || 0) / (resourceStats?.memoryLimit || 1)) * 100,
+                              ),
+                            )
+                          "
                           color="#108ee9"
                           track-color="#e8e8e8"
                         />
-                        <t-progress
-                          v-else
-                          :percentage="0"
-                          color="#e8e8e8"
-                          track-color="#e8e8e8"
-                        />
+                        <t-progress v-else :percentage="0" color="#e8e8e8" track-color="#e8e8e8" />
                       </div>
                     </div>
 
                     <div class="stats-card">
                       <div class="stats-icon">
                         <t-icon name="download" size="24px" />
-      </div>
+                      </div>
                       <div class="stats-info">
                         <div class="stats-label">网络接收</div>
                         <div class="stats-value">{{ formatBytes(resourceStats.networkRx) }}</div>
@@ -197,22 +265,10 @@
               </template>
               <t-collapse>
                 <t-collapse-panel header="端口映射" value="ports">
-                  <t-table 
-                    :columns="portColumns" 
-                    :data="portMappings" 
-                    row-key="key"
-                    hover
-                    stripe
-                  />
+                  <t-table :columns="portColumns" :data="portMappings" row-key="key" hover stripe />
                 </t-collapse-panel>
                 <t-collapse-panel header="环境变量" value="env">
-                  <t-table 
-                    :columns="envColumns" 
-                    :data="environmentVariables" 
-                    row-key="id"
-                    hover
-                    stripe
-                  />
+                  <t-table :columns="envColumns" :data="environmentVariables" row-key="id" hover stripe />
                 </t-collapse-panel>
                 <t-collapse-panel header="命令/Entrypoint" value="cmd">
                   <div class="cmd-info">
@@ -227,13 +283,7 @@
                   </div>
                 </t-collapse-panel>
                 <t-collapse-panel header="挂载卷" value="volumes">
-                  <t-table 
-                    :data="volumeMappings" 
-                    :columns="volumeColumns" 
-                    row-key="id"
-                    hover
-                    stripe
-                  />
+                  <t-table :data="volumeMappings" :columns="volumeColumns" row-key="id" hover stripe />
                 </t-collapse-panel>
               </t-collapse>
             </t-card>
@@ -247,17 +297,17 @@
                   <div class="log-actions">
                     <t-switch v-model="isAutoScroll" />
                     <t-button theme="default" variant="text" @click="fetchLogs">
-                      <template #icon><t-icon name="refresh" /></template>
+                      <template #icon>
+                        <t-icon name="refresh" />
+                      </template>
                       刷新
-                </t-button>
-            </div>
-      </div>
+                    </t-button>
+                  </div>
+                </div>
               </template>
               <div class="logs-wrapper">
                 <div class="logs-content" ref="logsContainer">
-                  <div v-if="logs.length === 0" class="logs-empty">
-                    暂无日志
-            </div>
+                  <div v-if="logs.length === 0" class="logs-empty">暂无日志</div>
                   <div v-else class="logs-list">
                     <div v-for="(log, index) in logs" :key="index" class="log-line">
                       <span :class="log.type">{{ (log.content || '').split(':')[0] }}:</span>
@@ -275,13 +325,13 @@
                   <t-icon name="network" size="20px" />
                   <span>网络与挂载</span>
                 </div>
-          </template>
+              </template>
               <div class="network-content">
                 <div class="network-info">
                   <div class="info-item">
                     <span class="info-label">IP地址：</span>
                     <span class="info-value">{{ containerDetail?.ipAddress || '-' }}</span>
-      </div>
+                  </div>
                   <div class="info-item">
                     <span class="info-label">网络模式：</span>
                     <span class="info-value">{{ containerDetail?.networkMode || '-' }}</span>
@@ -289,33 +339,9 @@
                 </div>
                 <div class="volume-list">
                   <!-- <div class="sub-title">Volume列表</div> -->
-                  <t-table 
-                    :data="volumeMappings" 
-                    :columns="volumeColumns" 
-                    row-key="id"
-                    hover
-                    stripe
-                  />
-            </div>
-                <a-table
-                  :columns="networkColumns"
-                  :data-source="networkSettings"
-                  :pagination="false"
-                  size="small"
-                >
-                  <template #bodyCell="{ column, record }">
-                    <template v-if="column.dataIndex === 'network'">
-                      {{ record.network }}
-              </template>
-                    <template v-if="column.dataIndex === 'ipAddress'">
-                      {{ record.ipAddress }}
-          </template>
-                    <template v-if="column.dataIndex === 'gateway'">
-                      {{ record.gateway }}
-                  </template>
-                  </template>
-                </a-table>
-            </div>
+                  <t-table :data="volumeMappings" :columns="volumeColumns" row-key="id" hover stripe />
+                </div>
+              </div>
             </t-card>
           </t-tab-panel>
           <t-tab-panel value="advanced" label="高级设置">
@@ -331,11 +357,11 @@
                   <div class="info-item">
                     <span class="info-label">重启策略：</span>
                     <span class="info-value">{{ containerDetail?.restartPolicyName || '-' }}</span>
-          </div>
+                  </div>
                   <div class="info-item">
                     <span class="info-label">最大重启次数：</span>
                     <span class="info-value">{{ containerDetail?.restartPolicyMaxRetry || 0 }}</span>
-      </div>
+                  </div>
                   <div class="info-item">
                     <span class="info-label">当前重启次数：</span>
                     <span class="info-value">{{ containerDetail?.restartCount || 0 }}</span>
@@ -344,22 +370,6 @@
                     <span class="info-label">特权模式：</span>
                     <span class="info-value">{{ containerDetail?.privileged ? '是' : '否' }}</span>
                   </div>
-                  <!-- <div class="info-item">
-                    <span class="info-label">CapAdd：</span>
-                    <span class="info-value">{{ containerDetail?.capAdd?.join(', ') || '-' }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">CapDrop：</span>
-                    <span class="info-value">{{ containerDetail?.capDrop?.join(', ') || '-' }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">Labels：</span>
-                    <div class="info-value">
-                      <t-tag v-for="(value, key) in containerDetail?.labels" :key="key" class="label-tag">
-                        {{ key }}: {{ value }}
-                      </t-tag>
-                    </div>
-                  </div> -->
                 </div>
               </div>
             </t-card>
@@ -367,22 +377,6 @@
         </t-tabs>
       </div>
     </div>
-
-    <!-- 操作确认对话框 -->
-    <t-dialog
-      v-model:visible="confirmDialogVisible"
-      :header="confirmDialogTitle"
-      :body="confirmDialogContent"
-      @confirm="handleConfirmOperation"
-      @close="handleCancelOperation"
-    >
-      <template #footer>
-        <t-space>
-          <t-button theme="default" @click="handleCancelOperation">取消</t-button>
-          <t-button theme="primary" @click="handleConfirmOperation" :loading="isConfirmLoading">确认</t-button>
-        </t-space>
-      </template>
-    </t-dialog>
   </div>
 </template>
 
@@ -396,10 +390,25 @@ export default {
 import { computed, onMounted, ref, watch, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next';
-import { getContainerDetail, getContainerLogs, getContainerStats, startContainer, stopContainer, restartContainer, deleteContainer, updateContainer } from '@/api/websocket/container';
-import type { ContainerDetail } from '@/types/api/container';
-import { IMAGE_OPTIONS, TYPE_OPTIONS, NETWORK_OPTIONS, RESTART_POLICY_OPTIONS, FORM_RULES } from '@/constants/container';
-import type { ContainerForm, CreateContainerParams } from '@/types/container.d.ts';
+import {
+  getContainerDetail,
+  getContainerLogs,
+  getContainerStats,
+  startContainer,
+  stopContainer,
+  restartContainer,
+  deleteContainer,
+  updateContainer,
+} from '@/api/websocket/container';
+import type { ContainerDetail } from '@/api/model/containerModel';
+import {
+  IMAGE_OPTIONS,
+  TYPE_OPTIONS,
+  NETWORK_OPTIONS,
+  RESTART_POLICY_OPTIONS,
+  FORM_RULES,
+} from '@/constants/container';
+import type { ContainerForm, CreateContainerParams } from '@/api/model/containerModel.ts';
 import { mapFormDataToRequest, mapContainerDetailToForm } from '@/utils/container';
 
 const route = useRoute();
@@ -420,11 +429,6 @@ const statsTimer = ref<number | null>(null);
 
 // 操作相关状态
 const isOperating = ref(false);
-const confirmDialogVisible = ref(false);
-const confirmDialogTitle = ref('');
-const confirmDialogContent = ref('');
-const isConfirmLoading = ref(false);
-const currentOperation = ref<'start' | 'stop' | 'restart' | 'delete' | 'update' | null>(null);
 
 // 获取容器状态主题
 const getStatusTheme = (state: string) => {
@@ -480,11 +484,11 @@ const volumeColumns = [
 // 存储配置数据
 const volumeMappings = computed(() => {
   if (!containerDetail.value?.volumes || !Array.isArray(containerDetail.value.volumes)) return [];
-  return containerDetail.value.volumes.map((volume: { hostPath: string; containerPath: string; readOnly: boolean }, index: number) => ({
+  return containerDetail.value.volumes.map((volume: any, index: number) => ({
     id: `${index}`,
     hostPath: volume.hostPath || '-',
     containerPath: volume.containerPath || '-',
-    readOnly: volume.readOnly ? '只读' : '读写'
+    readOnly: volume.readOnly ? '只读' : '读写',
   }));
 });
 
@@ -498,15 +502,27 @@ const portColumns = [
 // 端口映射数据
 const portMappings = computed(() => {
   if (!containerDetail.value?.ports || !Array.isArray(containerDetail.value.ports)) return [];
-  return containerDetail.value.ports.map((portStr: string, index: number) => {
-    const [containerPort, hostPort] = portStr.split(':');
-    const [port, protocol] = containerPort.split('/');
-    return {
-    key: `${index}`,
-      containerPort: port || '-',
-      hostPort: hostPort || '-',
-      protocol: protocol || 'tcp'
-    };
+  return containerDetail.value.ports.map((port: any, index: number) => {
+    // 如果是字符串格式，例如："80/tcp:8080"
+    if (typeof port === 'string') {
+      const [containerPort, hostPort] = port.split(':');
+      const [portNum, protocol] = containerPort.split('/');
+      return {
+        key: `${index}`,
+        containerPort: portNum || '-',
+        hostPort: hostPort || '-',
+        protocol: protocol || 'tcp',
+      };
+    }
+    // 如果是对象格式，例如：{ containerPort: 80, hostPort: 8080, protocol: 'tcp' }
+    else {
+      return {
+        key: `${index}`,
+        containerPort: String(port.containerPort) || '-',
+        hostPort: String(port.hostPort) || '-',
+        protocol: port.protocol || 'tcp',
+      };
+    }
   });
 });
 
@@ -522,26 +538,24 @@ const environmentVariables = computed(() => {
   return containerDetail.value.envs.map((envStr: string, index: number) => {
     const [key, value] = envStr.split('=');
     return {
-    id: index,
+      id: index,
       key: key || '-',
-      value: value || '-'
+      value: value || '-',
     };
   });
 });
 
 // 命令/Entrypoint 数据
 const cmdInfo = computed(() => ({
-  entrypoint: Array.isArray(containerDetail.value?.entrypoints) 
-    ? containerDetail.value.entrypoints.join(' ') 
-    : '-',
-  command: containerDetail.value?.command || '-'
-  }));
+  entrypoint: Array.isArray(containerDetail.value?.entrypoints) ? containerDetail.value.entrypoints.join(' ') : '-',
+  command: containerDetail.value?.command || '-',
+}));
 
 // 解析日志行
 const parseLogLine = (line: string) => {
   // 移除 ANSI 转义序列
   const cleanLine = line.replace(/\x1b\[[0-9;]*m/g, '');
-  
+
   // 判断日志类型并提取内容
   if (line.includes('[32mINFO')) {
     const content = cleanLine.replace('INFO:', '');
@@ -556,7 +570,7 @@ const parseLogLine = (line: string) => {
     const content = cleanLine.replace('DEBUG:', '');
     return { type: 'debug', content: `DEBUG:${content}` };
   }
-  
+
   return { type: 'default', content: cleanLine };
 };
 
@@ -565,55 +579,104 @@ const fetchContainerDetail = async () => {
   try {
     loading.value = true;
     const res = await getContainerDetail(route.query.id as string);
-    console.log('获取到的容器详情响应:', res);
-    containerDetail.value = res;
-      console.log('设置后的容器详情:', containerDetail.value);
+    containerDetail.value = res.data;
   } catch (error) {
-    console.error('获取容器详情失败:', error);
     MessagePlugin.error('获取容器详情失败');
   } finally {
     loading.value = false;
   }
 };
 
-// 处理启动确认
-const handleStartConfirm = () => {
-  currentOperation.value = 'start';
-  confirmDialogTitle.value = '启动容器';
-  confirmDialogContent.value = `确认要启动容器 "${containerDetail.value?.containerName}" 吗？`;
-  confirmDialogVisible.value = true;
+// 处理启动容器
+const handleStart = async () => {
+  if (!containerDetail.value) return;
+
+  isOperating.value = true;
+  try {
+    const containerId = containerDetail.value.containerId;
+    await startContainer(containerId);
+    MessagePlugin.success('启动成功');
+    await fetchContainerDetail();
+  } catch (error) {
+    console.error('启动失败:', error);
+    MessagePlugin.error('启动失败');
+  } finally {
+    isOperating.value = false;
+  }
 };
 
-// 处理停止确认
-const handleStopConfirm = () => {
-  currentOperation.value = 'stop';
-  confirmDialogTitle.value = '停止容器';
-  confirmDialogContent.value = `确认要停止容器 "${containerDetail.value?.containerName}" 吗？`;
-  confirmDialogVisible.value = true;
+// 处理停止容器
+const handleStop = async () => {
+  if (!containerDetail.value) return;
+
+  isOperating.value = true;
+  try {
+    const containerId = containerDetail.value.containerId;
+    await stopContainer(containerId);
+    MessagePlugin.success('停止成功');
+    await fetchContainerDetail();
+  } catch (error) {
+    console.error('停止失败:', error);
+    MessagePlugin.error('停止失败');
+  } finally {
+    isOperating.value = false;
+  }
 };
 
-// 处理重启确认
-const handleRestartConfirm = () => {
-  currentOperation.value = 'restart';
-  confirmDialogTitle.value = '重启容器';
-  confirmDialogContent.value = `确认要重启容器 "${containerDetail.value?.containerName}" 吗？`;
-  confirmDialogVisible.value = true;
+// 处理重启容器
+const handleRestart = async () => {
+  if (!containerDetail.value) return;
+
+  isOperating.value = true;
+  try {
+    const containerId = containerDetail.value.containerId;
+    await restartContainer(containerId);
+    MessagePlugin.success('重启成功');
+    await fetchContainerDetail();
+  } catch (error) {
+    console.error('重启失败:', error);
+    MessagePlugin.error('重启失败');
+  } finally {
+    isOperating.value = false;
+  }
 };
 
-// 处理删除确认
-const handleDeleteConfirm = () => {
-  currentOperation.value = 'delete';
-  confirmDialogTitle.value = '删除容器';
-  confirmDialogContent.value = `确认要删除容器 "${containerDetail.value?.containerName}" 吗？此操作不可恢复！`;
-  confirmDialogVisible.value = true;
+// 处理删除容器
+const handleDelete = async () => {
+  if (!containerDetail.value) return;
+
+  isOperating.value = true;
+  try {
+    const containerId = containerDetail.value.containerId;
+    await deleteContainer(containerId);
+    MessagePlugin.success('删除成功');
+    router.push('/docker/containers');
+  } catch (error) {
+    console.error('删除失败:', error);
+    MessagePlugin.error('删除失败');
+  } finally {
+    isOperating.value = false;
+  }
 };
 
-// 处理更新确认
-const handleUpdateConfirm = () => {
-  currentOperation.value = 'update';
-  confirmDialogTitle.value = '更新容器';
-  confirmDialogContent.value = `确认要更新容器 "${containerDetail.value?.containerName}" 吗？`;
-  confirmDialogVisible.value = true;
+// 处理更新容器
+const handleUpdate = async () => {
+  if (!containerDetail.value) return;
+  isOperating.value = true;
+  try {
+    const containerId = containerDetail.value.containerId;
+    await updateContainer(containerId, {
+      image: containerDetail.value.imageName,
+      tag: 'latest',
+    });
+    MessagePlugin.success('更新成功');
+    await fetchContainerDetail();
+  } catch (error) {
+    console.error('更新失败:', error);
+    MessagePlugin.error('更新失败');
+  } finally {
+    isOperating.value = false;
+  }
 };
 
 // 处理编辑
@@ -625,69 +688,15 @@ const handleEdit = () => {
   router.push(`/docker/containers/edit?id=${containerDetail.value?.containerId}`);
 };
 
-// 处理确认操作
-const handleConfirmOperation = async () => {
-  if (!containerDetail.value || !currentOperation.value) return;
-  
-  isConfirmLoading.value = true;
-  isOperating.value = true;
-  try {
-    const containerId = containerDetail.value.containerId;
-    switch (currentOperation.value) {
-      case 'start':
-        await startContainer(containerId);
-        MessagePlugin.success('启动成功');
-        break;
-      case 'stop':
-        await stopContainer(containerId);
-        MessagePlugin.success('停止成功');
-        break;
-      case 'restart':
-        await restartContainer(containerId);
-        MessagePlugin.success('重启成功');
-        break;
-      case 'delete':
-        await deleteContainer(containerId);
-        MessagePlugin.success('删除成功');
-        router.push('/docker/containers');
-        return;
-      case 'update':
-        await updateContainer(containerId, {
-          image: containerDetail.value.imageName,
-          tag: 'latest'
-        });
-        MessagePlugin.success('更新成功');
-        break;
-    }
-    await fetchContainerDetail();
-  } catch (error) {
-    console.error('操作失败:', error);
-    MessagePlugin.error('操作失败');
-  } finally {
-    isConfirmLoading.value = false;
-    isOperating.value = false;
-    confirmDialogVisible.value = false;
-    currentOperation.value = null;
-  }
-};
-
-// 处理取消操作
-const handleCancelOperation = () => {
-  confirmDialogVisible.value = false;
-  currentOperation.value = null;
-};
-
 // 获取日志
 const fetchLogs = async () => {
   try {
     const res = await getContainerLogs(route.query.id as string);
     if (res.data) {
       // 将日志按行分割并解析
-      const newLogs = res.data.split('\n')
-        .filter(Boolean)
-        .map(parseLogLine);
+      const newLogs = res.data.split('\n').filter(Boolean).map(parseLogLine);
       logs.value = newLogs;
-      
+
       // 自动滚动到底部
       if (isAutoScroll.value && logsContainer.value) {
         setTimeout(() => {
@@ -709,7 +718,7 @@ watch(activeTab, (newTab) => {
   } else {
     stopLogPolling();
   }
-  
+
   if (newTab === 'monitor') {
     startStatsPolling();
   } else {
@@ -718,23 +727,25 @@ watch(activeTab, (newTab) => {
 });
 
 // 监听路由变化
-watch(() => route.query.id, (newId) => {
-  if (newId) {
-    fetchContainerDetail();
-    // 如果当前是资源监控标签页，则开始轮询
-    if (activeTab.value === 'monitor') {
-      startStatsPolling();
+watch(
+  () => route.query.id,
+  (newId) => {
+    if (newId) {
+      fetchContainerDetail();
+      // 如果当前是资源监控标签页，则开始轮询
+      if (activeTab.value === 'monitor') {
+        startStatsPolling();
+      }
+    } else {
+      stopStatsPolling();
     }
-  } else {
-    stopStatsPolling();
-  }
-});
+  },
+);
 
 // 获取资源使用情况
 const fetchResourceStats = async () => {
   try {
     const res = await getContainerStats(route.query.id as string);
-    console.log('获取到的资源使用情况:', res);
     resourceStats.value = res;
   } catch (error) {
     console.error('获取资源使用情况失败:', error);
@@ -822,8 +833,8 @@ const networkSettings = computed(() => {
     {
       network: containerDetail.value.networkSettings.NetworkMode,
       ipAddress: containerDetail.value.networkSettings.IPAddress,
-      gateway: containerDetail.value.networkSettings.Gateway
-    }
+      gateway: containerDetail.value.networkSettings.Gateway,
+    },
   ];
 });
 
@@ -836,7 +847,10 @@ const containerInfo = computed(() => [
   { label: '状态', content: containerDetail.value?.status },
   { label: '创建时间', content: containerDetail.value?.createdTime },
   { label: '大小', content: containerDetail.value?.data?.sizeRw ? formatSize(containerDetail.value.data.sizeRw) : '-' },
-  { label: '根文件系统大小', content: containerDetail.value?.data?.sizeRootFs ? formatSize(containerDetail.value.data.sizeRootFs) : '-' },
+  {
+    label: '根文件系统大小',
+    content: containerDetail.value?.data?.sizeRootFs ? formatSize(containerDetail.value.data.sizeRootFs) : '-',
+  },
 ]);
 
 const networkInfo = computed(() => [
@@ -848,10 +862,10 @@ const networkInfo = computed(() => [
 const mountColumns = [
   { colKey: 'Source', title: '源路径' },
   { colKey: 'Destination', title: '目标路径' },
-  { 
-    colKey: 'ReadOnly', 
+  {
+    colKey: 'ReadOnly',
     title: '只读',
-    cell: ({ row }: { row: { ReadOnly: boolean } }) => row.ReadOnly ? '是' : '否'
+    cell: ({ row }: { row: { ReadOnly: boolean } }) => (row.ReadOnly ? '是' : '否'),
   },
 ];
 
@@ -1177,8 +1191,8 @@ const INITIAL_DATA: ContainerForm = {
   }
 
   .logs-empty {
-  display: flex;
-  align-items: center;
+    display: flex;
+    align-items: center;
     justify-content: center;
     height: 100%;
     color: var(--td-text-color-secondary);
@@ -1244,7 +1258,7 @@ const INITIAL_DATA: ContainerForm = {
       border-radius: 8px;
       padding: 20px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  display: flex;
+      display: flex;
       gap: 16px;
 
       .stats-icon {
@@ -1253,7 +1267,7 @@ const INITIAL_DATA: ContainerForm = {
         border-radius: 8px;
         background-color: var(--td-brand-color-1);
         display: flex;
-  align-items: center;
+        align-items: center;
         justify-content: center;
         color: var(--td-brand-color);
 
@@ -1273,8 +1287,8 @@ const INITIAL_DATA: ContainerForm = {
 
         .stats-value {
           font-size: 24px;
-  font-weight: 600;
-  color: var(--td-text-color-primary);
+          font-weight: 600;
+          color: var(--td-text-color-primary);
           margin-bottom: 8px;
         }
 

@@ -1,16 +1,16 @@
 package com.dsm.websocket.handler;
 
-import com.dsm.model.dockerApi.ContainerCreateRequest;
+import com.alibaba.fastjson.JSON;
+import com.dsm.model.ContainerCreateRequest;
+import com.dsm.model.JsonContainerRequest;
 import com.dsm.service.ContainerService;
+import com.dsm.utils.JsonContainerRequestToContainerCreateRequestConverter;
 import com.dsm.websocket.message.MessageType;
 import com.dsm.websocket.model.DockerWebSocketMessage;
-import com.dsm.utils.JsonContainerRequestToContainerCreateRequestConverter;
-import com.dsm.model.dto.JsonContainerRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
-import com.alibaba.fastjson.JSON;
 
 import java.util.Map;
 
@@ -31,27 +31,15 @@ public class ContainerUpdateMessageHandler extends BaseMessageHandler {
 
     @Override
     public void handle(WebSocketSession session, Object message) {
-        try {
-            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
-            Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
-            String containerId = (String) data.get("containerId");
-            JsonContainerRequest json = JSON.parseObject(JSON.toJSONString(data), JsonContainerRequest.class);
-            ContainerCreateRequest request = JsonContainerRequestToContainerCreateRequestConverter.convert(json);
+        DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+        Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
+        String containerId = (String) data.get("containerId");
+        JsonContainerRequest json = JSON.parseObject(JSON.toJSONString(data), JsonContainerRequest.class);
+        ContainerCreateRequest request = JsonContainerRequestToContainerCreateRequestConverter.convert(json);
+        // 更新容器
+        String newContainerId = containerService.updateContainer(containerId, request);
+        sendResponse(session, MessageType.CONTAINER_OPERATION_RESULT, wsMessage.getTaskId(), newContainerId);
 
-            // 更新容器
-            containerService.updateContainer(containerId, request);
 
-            // 发送操作结果
-            sendOperationResult(
-                session,
-                wsMessage.getTaskId(),
-                true,
-                containerId,
-                "容器更新成功"
-            );
-        } catch (Exception e) {
-            log.error("处理容器更新消息时发生错误", e);
-            sendErrorMessage(session, "更新容器失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
-        }
     }
 } 

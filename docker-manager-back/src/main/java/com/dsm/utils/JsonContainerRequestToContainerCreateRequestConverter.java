@@ -1,7 +1,7 @@
 package com.dsm.utils;
 
-import com.dsm.model.dockerApi.ContainerCreateRequest;
-import com.dsm.model.dto.JsonContainerRequest;
+import com.dsm.model.ContainerCreateRequest;
+import com.dsm.model.JsonContainerRequest;
 import com.github.dockerjava.api.model.*;
 import lombok.experimental.UtilityClass;
 

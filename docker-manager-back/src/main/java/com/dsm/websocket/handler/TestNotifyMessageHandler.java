@@ -20,14 +20,9 @@ public class TestNotifyMessageHandler extends BaseMessageHandler {
 
     @Override
     public void handle(WebSocketSession session, Object message) {
-        try {
-            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
-            
-            // 发送测试通知响应
-            sendResponse(session, MessageType.TEST_NOTIFY, wsMessage.getTaskId(), "测试通知成功");
-        } catch (Exception e) {
-            log.error("处理测试通知消息时发生错误", e);
-            sendErrorMessage(session, "测试通知失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
-        }
+        DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+        // 发送测试通知响应
+        sendResponse(session, MessageType.TEST_NOTIFY, wsMessage.getTaskId(), "测试通知成功");
+
     }
 } 

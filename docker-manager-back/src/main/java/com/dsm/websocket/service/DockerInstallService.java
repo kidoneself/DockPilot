@@ -3,7 +3,7 @@ package com.dsm.websocket.service;
 import com.alibaba.fastjson.JSON;
 import com.dsm.api.DockerService;
 import com.dsm.mapper.TemplateMapper;
-import com.dsm.pojo.entity.Template;
+import com.dsm.model.Template;
 import com.dsm.utils.JsonPlaceholderReplacerUtil;
 import com.dsm.websocket.model.DockerWebSocketMessage;
 import com.dsm.websocket.sender.DockerWebSocketMessageSender;
@@ -266,7 +266,7 @@ public class DockerInstallService {
         try {
             // 打印原始路径（调试用）
             messageSender.sendLog(session, "info", String.format("原始绑定路径: %s", hostPath));
-            
+
             // 安全检查
             if (!isPathSafe(hostPath)) {
                 messageSender.sendLog(session, "error", String.format("不安全的路径: %s", hostPath));

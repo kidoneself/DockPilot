@@ -9,15 +9,18 @@ import org.springframework.web.socket.WebSocketSession;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
 public class DockerValidationService {
-    
+
     @Autowired
     private DockerWebSocketMessageSender messageSender;
-    
+
     public void handleInstallValidate(WebSocketSession session, DockerWebSocketMessage message) {
         try {
             @SuppressWarnings("unchecked") Map<String, Object> params = (Map<String, Object>) message.getData();

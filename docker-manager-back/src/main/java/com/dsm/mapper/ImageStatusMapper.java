@@ -1,6 +1,6 @@
 package com.dsm.mapper;
 
-import com.dsm.pojo.entity.ImageStatus;
+import com.dsm.model.ImageStatus;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

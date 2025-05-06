@@ -1,10 +1,5 @@
-import { MessagePlugin } from 'tdesign-vue-next';
-
 // 容器状态类型
 export type ContainerState = 'running' | 'exited' | 'created' | 'paused' | 'restarting';
-
-// 容器操作类型
-export type ContainerOperation = 'starting' | 'stopping' | 'restarting';
 
 // 容器操作状态
 export interface ContainerOperationState {
@@ -20,7 +15,7 @@ export const getStatusTheme = (state: ContainerState): 'success' | 'warning' | '
     exited: 'warning',
     created: 'primary',
     paused: 'default',
-    restarting: 'primary'
+    restarting: 'primary',
   };
   return themeMap[state] || 'default';
 };
@@ -32,7 +27,7 @@ export const getStatusIcon = (state: ContainerState): string => {
     exited: 'error-circle',
     created: 'time',
     paused: 'pause',
-    restarting: 'time'
+    restarting: 'time',
   };
   return iconMap[state] || 'help-circle';
 };
@@ -44,7 +39,7 @@ export const getStatusText = (state: ContainerState): string => {
     exited: '已停止',
     created: '已创建',
     paused: '已暂停',
-    restarting: '重启中'
+    restarting: '重启中',
   };
   return textMap[state] || '未知';
 };
@@ -56,7 +51,7 @@ export const getStatusColor = (state: ContainerState): string => {
     exited: 'var(--td-warning-color)',
     created: 'var(--td-primary-color)',
     paused: 'var(--td-gray-color-6)',
-    restarting: 'var(--td-primary-color)'
+    restarting: 'var(--td-primary-color)',
   };
   return colorMap[state] || 'var(--td-gray-color-6)';
 };
@@ -73,18 +68,21 @@ export const getContainerInitial = (name: string | undefined): string => {
  * @param operation 操作函数
  * @param containerId 容器ID
  * @param operatingSet 操作状态集合
+ * @returns 返回操作结果
  */
 export const handleContainerOperation = async (
-  operation: () => Promise<any>,
+  operation: () => Promise<{ success: boolean; message?: string }>,
   containerId: string,
-  operatingSet: Set<string>
+  operatingSet: Set<string>,
 ) => {
+  operatingSet.add(containerId);
   try {
-    operatingSet.add(containerId);
-    await operation();
-  } catch (error) {
-    throw error;
+    const result = await operation();
+    if (!result.success && result.message) {
+      throw new Error(result.message);
+    }
+    return result;
   } finally {
     operatingSet.delete(containerId);
   }
-}; 
+};

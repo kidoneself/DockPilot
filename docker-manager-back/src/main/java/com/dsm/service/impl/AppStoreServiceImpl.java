@@ -1,9 +1,9 @@
 package com.dsm.service.impl;
 
 import com.dsm.mapper.TemplateMapper;
-import com.dsm.pojo.common.PageResult;
-import com.dsm.pojo.entity.Template;
-import com.dsm.pojo.param.TemplateQueryParam;
+import com.dsm.model.PageResult;
+import com.dsm.model.Template;
+import com.dsm.model.TemplateQueryParam;
 import com.dsm.service.AppStoreService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,5 +42,4 @@ public class AppStoreServiceImpl implements AppStoreService {
     }
 
 
-
-} 
+}

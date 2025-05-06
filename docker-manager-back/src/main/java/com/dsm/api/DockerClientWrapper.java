@@ -15,12 +15,14 @@ import com.github.dockerjava.core.InvocationBuilder;
 import com.github.dockerjava.core.command.LogContainerResultCallback;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -63,28 +65,28 @@ public class DockerClientWrapper {
     public void startContainer(String containerId) {
         executeDockerCommand(() -> {
             dockerClient.startContainerCmd(containerId).exec();
-            LogUtil.log("启动容器成功: " + containerId);
+            LogUtil.logOpe("启动容器成功: " + containerId);
         }, "启动容器", containerId);
     }
 
     public void stopContainer(String containerId) {
         executeDockerCommand(() -> {
             dockerClient.stopContainerCmd(containerId).exec();
-            LogUtil.log("停止容器成功: " + containerId);
+            LogUtil.logOpe("停止容器成功: " + containerId);
         }, "停止容器", containerId);
     }
 
     public void restartContainer(String containerId) {
         executeDockerCommand(() -> {
             dockerClient.restartContainerCmd(containerId).exec();
-            LogUtil.log("重启容器成功: " + containerId);
+            LogUtil.logOpe("重启容器成功: " + containerId);
         }, "重启容器", containerId);
     }
 
     public void removeContainer(String containerId) {
         executeDockerCommand(() -> {
             dockerClient.removeContainerCmd(containerId).withForce(true).exec();
-            LogUtil.log("删除容器成功: " + containerId);
+            LogUtil.logOpe("删除容器成功: " + containerId);
         }, "删除容器", containerId);
     }
 
@@ -138,7 +140,7 @@ public class DockerClientWrapper {
     public void removeImage(String imageId) {
         executeDockerCommand(() -> {
             dockerClient.removeImageCmd(imageId).withForce(true).exec();
-            LogUtil.log("删除镜像成功: " + imageId);
+            LogUtil.logOpe("删除镜像成功: " + imageId);
         }, "删除镜像", imageId);
     }
 
@@ -153,7 +155,7 @@ public class DockerClientWrapper {
     public void renameContainer(String containerId, String newName) {
         executeDockerCommand(() -> {
             dockerClient.renameContainerCmd(containerId).withName(newName).exec();
-            LogUtil.log("重命名容器成功: " + containerId + " -> " + newName);
+            LogUtil.logOpe("重命名容器成功: " + containerId + " -> " + newName);
         }, "重命名容器", containerId);
     }
 
@@ -208,4 +210,70 @@ public class DockerClientWrapper {
         dockerClient.startContainerCmd(containerId).exec();
         return containerId;
     }
+
+
+
+    public void recreateContainerWithNewImage(String containerId, String imageName) {
+        try {
+            // 1. 获取原容器信息
+            InspectContainerResponse inspect = dockerClient.inspectContainerCmd(containerId).exec();
+            String originalName = inspect.getName().replace("/", "");
+            String backupName = originalName + "_backup";
+            // 2. 停止容器（如果运行中）
+            if (Boolean.TRUE.equals(inspect.getState().getRunning())) {
+                dockerClient.stopContainerCmd(containerId).exec();
+            }
+
+            // 3. 备份原容器（重命名）
+            dockerClient.renameContainerCmd(containerId).withName(backupName).exec();
+
+            // 4. 拉取新镜像（可选）
+            dockerClient.pullImageCmd(imageName.split(":")[0])
+                    .withTag(imageName.contains(":") ? imageName.split(":")[1] : "latest")
+                    .start()
+                    .awaitCompletion();
+
+            // 5. 使用新镜像 + 原配置创建新容器
+            CreateContainerResponse newContainer = dockerClient.createContainerCmd(imageName)
+                    .withName(originalName)
+                    .withEnv(inspect.getConfig().getEnv())
+                    .withCmd(inspect.getConfig().getCmd())
+                    .withExposedPorts(inspect.getConfig().getExposedPorts())
+                    .withVolumes((Volume) inspect.getConfig().getVolumes())
+                    .withWorkingDir(inspect.getConfig().getWorkingDir())
+                    .withHostConfig(inspect.getHostConfig())
+                    .withLabels(inspect.getConfig().getLabels())
+                    .exec();
+
+            // 6. 启动新容器
+            dockerClient.startContainerCmd(newContainer.getId()).exec();
+
+            // 7. 验证成功（你可以加健康检查）
+
+            // 8. 删除旧容器
+            dockerClient.removeContainerCmd(containerId).exec();
+        } catch (Exception e) {
+            // 回滚：如果新容器创建失败，尝试恢复旧容器
+            LogUtil.logSysError("容器升级失败，尝试回滚旧容器: {}" + e.getMessage());
+            try {
+                // 删除失败的新容器（如果存在同名容器）
+                List<Container> containers = dockerClient.listContainersCmd().withShowAll(true).exec();
+                for (Container c : containers) {
+                    if (Arrays.asList(c.getNames()).contains("/" + containerId)) {
+                        dockerClient.removeContainerCmd(c.getId()).withForce(true).exec();
+                        break;
+                    }
+                }
+                // 把 backup 改回去
+                dockerClient.renameContainerCmd(containerId).withName(containerId).exec();
+                dockerClient.startContainerCmd(containerId).exec();
+                LogUtil.logOpe("容器升级失败，尝试回滚旧容器: {}" + e.getMessage());
+            } catch (Exception rollbackEx) {
+                LogUtil.logSysError("回滚旧容器失败 {}" + e.getMessage());
+
+            }
+        }
+    }
+
+
 }

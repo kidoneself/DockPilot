@@ -321,7 +321,7 @@ import router from '@/router';
 
 // 导入常量和类型定义
 import { IMAGE_OPTIONS, TYPE_OPTIONS, NETWORK_OPTIONS, RESTART_POLICY_OPTIONS, FORM_RULES } from '@/constants/container';
-import type { ContainerForm, CreateContainerParams } from '@/types/container.d.ts';
+import type { ContainerForm, CreateContainerParams } from '@/api/model/containerModel.ts';
 import { mapFormDataToRequest, mapContainerDetailToForm } from '@/utils/container';
 
 // 权限选项配置
@@ -384,10 +384,9 @@ const containerId = ref<string>(''); // 容器ID
 const fetchImageList = async () => {
   try {
     const res = await getImageList();
-    console.log('获取到的镜像列表:', res);
-    
+
     // 处理镜像列表数据
-    imageOptions.value = res.map((img) => ({
+    imageOptions.value = res.data.map((img) => ({
       label: `${img.name}:${img.tag}`,
       value: `${img.name}:${img.tag}`,
       size: img.size || 0
@@ -402,10 +401,8 @@ const fetchImageList = async () => {
 const fetchNetworkList = async () => {
   try {
     const res = await getNetworkList();
-    console.log('获取到的网络列表:', res);
-    
     // 处理网络列表数据
-    networkOptions.value = res.map((network) => ({
+    networkOptions.value = res.data.map((network) => ({
       label: network.nameStr || network.name || '未知网络',
       value: network.name || '未知网络',
       gateway: network.ipamConfig?.[0]?.gateway || ''
@@ -425,6 +422,7 @@ const fetchNetworkList = async () => {
     MessagePlugin.error('获取网络列表失败');
   }
 };
+
 
 // 处理镜像选择变化
 const handleImageChange = async (
@@ -519,8 +517,7 @@ const handleNetworkModeChange = (
   }
 ) => {
   const mode = value as string;
-  console.log('网络模式变化:', mode);
-  
+
   // 重置网络相关配置
   formData.value.ipAddress = '';
   formData.value.gateway = '';
@@ -617,9 +614,7 @@ const handleCreateContainer = async (context: SubmitContext) => {
   try {
     creating.value = true;
     const request = mapFormDataToRequest(formData.value);
-      console.log('创建容器请求:', request);
     const res = await createContainer(request);
-      console.log('创建容器响应:', res);
       containerId.value = res.data;
       activeForm.value = 6;
       MessagePlugin.success('容器创建成功');

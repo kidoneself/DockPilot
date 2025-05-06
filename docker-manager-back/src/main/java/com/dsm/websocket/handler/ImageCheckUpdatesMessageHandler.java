@@ -1,16 +1,15 @@
 package com.dsm.websocket.handler;
 
+import com.dsm.model.ImageStatusDTO;
 import com.dsm.service.ImageService;
 import com.dsm.websocket.message.MessageType;
 import com.dsm.websocket.model.DockerWebSocketMessage;
-import com.dsm.model.dto.ImageStatusDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 镜像更新检查消息处理器
@@ -29,20 +28,13 @@ public class ImageCheckUpdatesMessageHandler extends BaseMessageHandler {
 
     @Override
     public void handle(WebSocketSession session, Object message) {
-        try {
-            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
-            
-            // 检查所有镜像的更新状态
-            imageService.checkAllImagesStatus();
-            
-            // 获取更新后的镜像列表
-            List<ImageStatusDTO> images = imageService.listImages();
-            
-            // 发送响应
-            sendResponse(session, MessageType.IMAGE_CHECK_UPDATES, wsMessage.getTaskId(), images);
-        } catch (Exception e) {
-            log.error("处理镜像检查更新消息时发生错误", e);
-            sendErrorMessage(session, "检查镜像更新失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
-        }
+        DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+        // 检查所有镜像的更新状态
+        imageService.checkAllImagesStatus();
+        // 获取更新后的镜像列表
+        List<ImageStatusDTO> images = imageService.listImages();
+        // 发送响应
+        sendResponse(session, MessageType.IMAGE_CHECK_UPDATES, wsMessage.getTaskId(), images);
+
     }
 } 

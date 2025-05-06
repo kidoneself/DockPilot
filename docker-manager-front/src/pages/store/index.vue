@@ -86,7 +86,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
-import { getAppList } from '@/api/appStore'
+import { getAppList } from '@/api/appStoreApi'
 import type { AppStoreApp } from '@/api/model/appStoreModel'
 import { dockerWebSocketService } from '@/api/websocket/DockerWebSocketService'
 import type { WebSocketMessage, WebSocketMessageType } from '@/api/websocket/types'
@@ -113,21 +113,13 @@ const currentFile = ref<File | null>(null)
 const fetchAppList = async () => {
   try {
     loading.value = true
-    console.log('请求参数:', {
-      page: current.value,
-      size: pageSize.value
-    })
-    
     const res = await getAppList({
       page: current.value,
       size: pageSize.value
     })
     
-    console.log('接口返回数据:', res)
-    
+
     if (res.code === 0) {
-      console.log('应用列表数据:', res.data.records)
-      console.log('总数:', res.data.total)
       apps.value = res.data.records
       total.value = res.data.total
     } else {
@@ -144,7 +136,6 @@ const fetchAppList = async () => {
 
 // 事件处理
 const handlePageChange = (pageInfo: { current: number }) => {
-  console.log('页码变化:', pageInfo)
   current.value = pageInfo.current
   fetchAppList()
 }

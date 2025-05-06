@@ -1,7 +1,7 @@
 package com.dsm.utils;
 
-import com.dsm.model.dto.ContainerStaticInfoDTO;
-import com.dsm.model.dto.VolumeMapping;
+import com.dsm.model.ContainerStaticInfoDTO;
+import com.dsm.model.VolumeMapping;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.api.model.Ports.Binding;

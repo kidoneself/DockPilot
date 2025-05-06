@@ -1,8 +1,8 @@
 package com.dsm.service;
 
-import com.dsm.pojo.common.PageResult;
-import com.dsm.pojo.entity.Template;
-import com.dsm.pojo.param.TemplateQueryParam;
+import com.dsm.model.PageResult;
+import com.dsm.model.Template;
+import com.dsm.model.TemplateQueryParam;
 
 public interface AppStoreService {
 
@@ -12,7 +12,4 @@ public interface AppStoreService {
     Template getTemplate(String id);
 
 
-
-
-
-} 
+}

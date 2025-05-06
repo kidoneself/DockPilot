@@ -27,16 +27,16 @@ public abstract class BaseMessageHandler implements MessageHandler {
      * 发送响应
      *
      * @param session WebSocket 会话
-     * @param type 消息类型
-     * @param taskId 任务ID
-     * @param data 响应数据
+     * @param type    消息类型
+     * @param taskId  任务ID
+     * @param data    响应数据
      */
     public void sendResponse(WebSocketSession session, MessageType type, String taskId, Object data) {
         try {
             DockerWebSocketMessage response = new DockerWebSocketMessage(
-                type.name(),
-                taskId,
-                data
+                    type.name(),
+                    taskId,
+                    data
             );
             session.sendMessage(new TextMessage(JSON.toJSONString(response)));
         } catch (Exception e) {
@@ -48,9 +48,9 @@ public abstract class BaseMessageHandler implements MessageHandler {
      * 发送操作结果响应
      *
      * @param session WebSocket 会话
-     * @param taskId 任务ID
+     * @param taskId  任务ID
      * @param success 是否成功
-     * @param data 响应数据
+     * @param data    响应数据
      * @param message 响应消息
      */
     public void sendOperationResult(WebSocketSession session, String taskId, boolean success, Object data, String message) {
@@ -72,19 +72,19 @@ public abstract class BaseMessageHandler implements MessageHandler {
     /**
      * 发送错误消息
      *
-     * @param session WebSocket 会话
+     * @param session      WebSocket 会话
      * @param errorMessage 错误信息
-     * @param taskId 任务ID
+     * @param taskId       任务ID
      */
     public void sendErrorMessage(WebSocketSession session, String errorMessage, String taskId) {
         try {
             Map<String, Object> errorData = new HashMap<>();
             errorData.put("message", errorMessage);
-            
+
             DockerWebSocketMessage errorResponse = new DockerWebSocketMessage(
-                MessageType.ERROR.name(),
-                taskId,
-                errorData
+                    MessageType.ERROR.name(),
+                    taskId,
+                    errorData
             );
             session.sendMessage(new TextMessage(JSON.toJSONString(errorResponse)));
         } catch (Exception e) {

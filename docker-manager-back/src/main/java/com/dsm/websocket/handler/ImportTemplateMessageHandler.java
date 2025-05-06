@@ -1,7 +1,7 @@
 package com.dsm.websocket.handler;
 
 import com.dsm.mapper.TemplateMapper;
-import com.dsm.pojo.entity.Template;
+import com.dsm.model.Template;
 import com.dsm.websocket.message.MessageType;
 import com.dsm.websocket.model.DockerWebSocketMessage;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -41,10 +41,10 @@ public class ImportTemplateMessageHandler extends BaseMessageHandler {
             DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
             Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
             String templateContent = (String) data.get("content");
-            
+
             // 解析完整的模板内容
             JsonNode rootNode = objectMapper.readTree(templateContent);
-            
+
             // 创建新的JSON对象，只包含services和parameters节点
             ObjectNode newTemplate = objectMapper.createObjectNode();
             newTemplate.set("services", rootNode.get("services"));
@@ -52,7 +52,7 @@ public class ImportTemplateMessageHandler extends BaseMessageHandler {
             if (rootNode.get("configs") != null) {
                 newTemplate.set("configs", rootNode.get("configs"));
             }
-            
+
             // 将新的JSON对象转换为字符串
             String processedContent = objectMapper.writeValueAsString(newTemplate);
 
@@ -73,12 +73,12 @@ public class ImportTemplateMessageHandler extends BaseMessageHandler {
             templateMapper.insert(template);
 
             // 发送成功响应
-            sendResponse(session, MessageType.IMPORT_TEMPLATE_RESULT, wsMessage.getTaskId(), 
-                Map.of("success", true, "message", "模板导入成功"));
+            sendResponse(session, MessageType.IMPORT_TEMPLATE_RESULT, wsMessage.getTaskId(),
+                    Map.of("success", true, "message", "模板导入成功"));
         } catch (Exception e) {
             log.error("导入模板失败", e);
             sendResponse(session, MessageType.IMPORT_TEMPLATE_RESULT, ((DockerWebSocketMessage) message).getTaskId(),
-                Map.of("success", false, "message", "导入模板失败: " + e.getMessage()));
+                    Map.of("success", false, "message", "导入模板失败: " + e.getMessage()));
         }
     }
 } 

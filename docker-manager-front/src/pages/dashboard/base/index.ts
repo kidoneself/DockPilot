@@ -203,7 +203,6 @@ export function getLineChartDataSet({
     if (dateTime.length > 0) {
       const dateAbsTime: number = (new Date(dateTime[1]).getTime() - new Date(dateTime[0]).getTime()) / divideNum;
       const enhandTime: number = new Date(dateTime[0]).getTime() + dateAbsTime * i;
-      // console.log('dateAbsTime..', dateAbsTime, enhandTime);
       timeArray.push(dayjs(enhandTime).format('MM-DD'));
     } else {
       timeArray.push(

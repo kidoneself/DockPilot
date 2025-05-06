@@ -1,8 +1,8 @@
 package com.dsm.websocket.handler;
 
-import com.dsm.websocket.service.DockerValidationService;
 import com.dsm.websocket.message.MessageType;
 import com.dsm.websocket.model.DockerWebSocketMessage;
+import com.dsm.websocket.service.DockerValidationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

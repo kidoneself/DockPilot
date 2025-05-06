@@ -1,31 +1,29 @@
-import { ref } from 'vue';
-import { WebSocketClient } from '@/api/websocket/WebSocketClient';
-import type { 
-  WebSocketMessage, 
-  PullImageParams, 
-  PullImageProgress, 
-  DockerWebSocketCallbacks,
-  DockerImage,
-  WebSocketMessageType
-} from './types';
-import { useNotificationStore } from '@/store/modules/notification';
-import { MessagePlugin } from 'tdesign-vue-next';
+import {ws as wsClient} from '@/utils/websocket';
+import type {
+    DockerImage,
+    DockerWebSocketCallbacks,
+    PullImageParams,
+    WebSocketMessage
+} from '@/api/model/websocketModel';
+import {useNotificationStore} from '@/store/modules/notification';
+import {MessagePlugin} from 'tdesign-vue-next';
 
+/**
+ * Docker WebSocket 服务
+ * 专注于Docker业务逻辑和消息处理，底层连接管理由utils/websocket.ts提供
+ */
 export class DockerWebSocketService {
-  private wsClient: WebSocketClient | null = null;
-  private readonly wsUrl: string;
   private messageHandlers: Map<string, ((message: WebSocketMessage) => void)[]> = new Map();
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectTimeout = 3000;
-  private heartbeatInterval: number | null = null;
-  private readonly heartbeatIntervalTime = 30000; // 30秒发送一次心跳
   private messageHandlerMap: Map<string, (message: WebSocketMessage) => void> = new Map();
   private errorHandlers: Map<string, ((error: any) => void)[]> = new Map();
+  private heartbeatInterval: number | null = null;
+  private readonly heartbeatIntervalTime = 30000; // 30秒发送一次心跳
+  private boundHandleRawMessage: (event: MessageEvent) => void;
 
   constructor() {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    this.wsUrl = `${wsProtocol}//${window.location.host}/ws/docker`;
+    // 在初始化时创建绑定的函数引用
+    this.boundHandleRawMessage = this.handleRawMessage.bind(this);
+    // 在初始化时不添加监听器，而是在connect方法中添加
     this.initHeartbeat();
   }
 
@@ -34,50 +32,55 @@ export class DockerWebSocketService {
       clearInterval(this.heartbeatInterval);
     }
     this.heartbeatInterval = window.setInterval(() => {
-      if (this.wsClient && this.wsClient.isConnected()) {
+      if (wsClient.isConnected()) {
         this.sendMessage({
           type: 'HEARTBEAT',
           taskId: '',
-          data: { timestamp: Date.now() }
+          data: { timestamp: Date.now() },
         });
       }
     }, this.heartbeatIntervalTime);
   }
 
-  public async connect(): Promise<void> {
-    if (this.wsClient && this.wsClient.isConnected()) {
-      return;
+  /**
+   * 处理原始WebSocket消息
+   */
+  private handleRawMessage(event: MessageEvent) {
+    try {
+      const message = JSON.parse(event.data);
+      this.handleMessage(message);
+    } catch (error) {
+      // 解析WebSocket消息失败
     }
-
-    return new Promise<void>(async (resolve, reject) => {
-      try {
-        this.wsClient = new WebSocketClient({
-          url: this.wsUrl,
-          onMessage: (message: WebSocketMessage) => {
-            console.log('收到WebSocket消息:', message);
-            
-            this.handleMessage(message);
-          },
-          onError: (error: Error) => {
-            console.error('WebSocket错误:', error);
-            this.handleReconnect();
-          },
-          onClose: () => {
-            console.warn('WebSocket连接已关闭');
-            this.handleReconnect();
-          }
-        });
-        await this.wsClient.connect();
-        this.reconnectAttempts = 0;
-        this.initHeartbeat();
-        resolve();
-      } catch (error: unknown) {
-        console.error('创建 WebSocket 连接时出错:', error);
-        reject(error);
-      }
-    });
   }
 
+  /**
+   * 确保WebSocket连接已建立并注册消息处理器
+   */
+  public async connect(): Promise<void> {
+    // 先移除可能存在的消息监听器，防止重复添加
+    wsClient.removeEventListener('message', this.boundHandleRawMessage);
+
+    // 如果已连接，则直接添加监听器并返回
+    if (wsClient.isConnected()) {
+      // 添加消息监听器
+      wsClient.addEventListener('message', this.boundHandleRawMessage);
+      return Promise.resolve();
+    }
+
+    try {
+      await wsClient.connect();
+      // 连接成功后添加消息监听器
+      wsClient.addEventListener('message', this.boundHandleRawMessage);
+      return Promise.resolve();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * 注册消息处理器
+   */
   public on(type: string, handler: (message: WebSocketMessage) => void): void {
     if (!this.messageHandlers.has(type)) {
       this.messageHandlers.set(type, []);
@@ -85,7 +88,19 @@ export class DockerWebSocketService {
     this.messageHandlers.get(type)?.push(handler);
   }
 
-  public off(type: string, handler: (message: WebSocketMessage) => void): void {
+  /**
+   * 移除消息处理器
+   * @param type 消息类型
+   * @param handler 可选的处理函数，如果不提供则移除该类型的所有处理器
+   */
+  public off(type: string, handler?: (message: WebSocketMessage) => void): void {
+    // 如果没有提供处理函数，则移除该类型的所有处理器
+    if (!handler) {
+      this.messageHandlers.delete(type);
+      return;
+    }
+
+    // 移除特定的处理函数
     const handlers = this.messageHandlers.get(type);
     if (handlers) {
       const index = handlers.indexOf(handler);
@@ -95,173 +110,166 @@ export class DockerWebSocketService {
     }
   }
 
+  /**
+   * 发送WebSocket消息
+   */
   public async sendMessage(message: WebSocketMessage): Promise<void> {
-    if (!this.wsClient) {
-      await this.connect();
-    }
-    this.wsClient?.send(message);
+    await this.connect();
+    wsClient.send(message);
   }
 
+  /**
+   * 检查镜像可用性
+   */
   public async checkImages(images: { name: string; tag: string }[]): Promise<void> {
     await this.sendMessage({
       type: 'INSTALL_CHECK_IMAGES',
       taskId: '',
-      data: { images }
+      data: { images },
     });
   }
 
+  /**
+   * 验证参数
+   */
   public async validateParams(params: any): Promise<void> {
     await this.sendMessage({
       type: 'INSTALL_VALIDATE',
       taskId: '',
-      data: { params }
+      data: { params },
     });
   }
 
+  /**
+   * 拉取Docker镜像
+   */
   public async pullImage(params: PullImageParams, callbacks: DockerWebSocketCallbacks): Promise<void> {
     try {
-      // 创建 WebSocket 客户端
-      this.wsClient = new WebSocketClient({
-        url: this.wsUrl,
-        onMessage: (message: WebSocketMessage) => {
-          switch (message.type) {
-            case 'PULL_START':
-              callbacks.onStart?.(message.taskId);
-              break;
-            case 'PULL_PROGRESS':
-              callbacks.onProgress?.(message.data);
-              break;
-            case 'PULL_COMPLETE':
-              callbacks.onComplete?.();
-              break;
-            case 'ERROR':
-              callbacks.onError?.(message.data.error);
-              break;
-            default:
-              console.warn('未知的消息类型:', message.type);
-          }
-        },
-        onError: (error: Error) => {
-          callbacks.onError?.(error instanceof Error ? error.message : 'WebSocket错误');
-        },
-        onClose: () => {
-          callbacks.onError?.('WebSocket连接已关闭');
+      // 注册消息处理器
+      const messageHandler = (message: WebSocketMessage) => {
+        switch (message.type) {
+          case 'PULL_START':
+            callbacks.onStart?.(message.taskId);
+            break;
+          case 'PULL_PROGRESS':
+            callbacks.onProgress?.(message.data);
+            break;
+          case 'PULL_COMPLETE':
+            callbacks.onComplete?.();
+            // 清除消息处理器
+            this.off('PULL_START', messageHandler);
+            this.off('PULL_PROGRESS', messageHandler);
+            this.off('PULL_COMPLETE', messageHandler);
+            this.off('ERROR', messageHandler);
+            break;
+          case 'ERROR':
+            callbacks.onError?.(message.data.error);
+            // 清除消息处理器
+            this.off('PULL_START', messageHandler);
+            this.off('PULL_PROGRESS', messageHandler);
+            this.off('PULL_COMPLETE', messageHandler);
+            this.off('ERROR', messageHandler);
+            break;
         }
-      });
-
-      // 连接 WebSocket
-      await this.wsClient.connect();
-
-      // 发送拉取请求
-      const pullRequest: WebSocketMessage = {
-        type: 'PULL_IMAGE',
-        taskId: '',
-        data: params
       };
 
-      this.wsClient.send(pullRequest);
+      // 注册处理器
+      this.on('PULL_START', messageHandler);
+      this.on('PULL_PROGRESS', messageHandler);
+      this.on('PULL_COMPLETE', messageHandler);
+      this.on('ERROR', messageHandler);
+
+      // 发送拉取请求
+      await this.connect();
+      await this.sendMessage({
+        type: 'PULL_IMAGE',
+        taskId: '',
+        data: params,
+      });
     } catch (error: unknown) {
       callbacks.onError?.(error instanceof Error ? error.message : '拉取镜像失败');
       throw error;
     }
   }
 
+  /**
+   * 取消拉取镜像
+   */
   public async cancelPull(taskId: string): Promise<void> {
-    if (!this.wsClient) {
-      throw new Error('WebSocket未连接');
-    }
-
-    const cancelRequest: WebSocketMessage = {
+    await this.sendMessage({
       type: 'CANCEL_PULL',
       taskId,
-      data: {}
-    };
-
-    this.wsClient.send(cancelRequest);
+      data: {},
+    });
   }
 
+  /**
+   * 检查镜像更新
+   */
   public async checkImageUpdates(images: DockerImage[]): Promise<void> {
     try {
-      // 创建 WebSocket 客户端
-      this.wsClient = new WebSocketClient({
-        url: this.wsUrl,
-        onMessage: (message: WebSocketMessage) => {
-          switch (message.type) {
-            case 'CHECK_UPDATES_COMPLETE':
-              // 更新镜像列表中的更新状态
-              if (message.data) {
-                const updateInfo = message.data;
-                images.forEach(img => {
-                  const imageKey = `${img.name}:${img.tag}`;
-                  const imageUpdateInfo = updateInfo[imageKey];
-                  if (imageUpdateInfo) {
-                    img.needUpdate = imageUpdateInfo.hasUpdate;
-                    img.lastChecked = new Date().toISOString();
-                  }
-                });
-              }
-              break;
-            case 'ERROR':
-              console.error('检查更新失败:', message.data.error);
-              break;
-            default:
-              console.warn('未知的消息类型:', message.type);
-          }
-        },
-        onError: (error: Error) => {
-          console.error('WebSocket错误:', error);
-        },
-        onClose: () => {
-          console.warn('WebSocket连接已关闭');
+      // 注册消息处理器
+      const messageHandler = (message: WebSocketMessage) => {
+        switch (message.type) {
+          case 'CHECK_UPDATES_COMPLETE':
+            // 更新镜像列表中的更新状态
+            if (message.data) {
+              const updateInfo = message.data;
+              images.forEach((img) => {
+                const imageKey = `${img.name}:${img.tag}`;
+                const imageUpdateInfo = updateInfo[imageKey];
+                if (imageUpdateInfo) {
+                  img.needUpdate = imageUpdateInfo.hasUpdate;
+                  img.lastChecked = new Date().toISOString();
+                }
+              });
+            }
+            // 清除消息处理器
+            this.off('CHECK_UPDATES_COMPLETE', messageHandler);
+            this.off('ERROR', messageHandler);
+            break;
+          case 'ERROR':
+            // 检查更新失败
+            // 清除消息处理器
+            this.off('CHECK_UPDATES_COMPLETE', messageHandler);
+            this.off('ERROR', messageHandler);
+            break;
         }
-      });
-
-      // 连接 WebSocket
-      await this.wsClient.connect();
-
-      // 发送检查更新请求
-      const checkUpdatesRequest: WebSocketMessage = {
-        type: 'CHECK_IMAGE_UPDATES',
-        taskId: '',
-        data: { images }
       };
 
-      this.wsClient.send(checkUpdatesRequest);
+      // 注册处理器
+      this.on('CHECK_UPDATES_COMPLETE', messageHandler);
+      this.on('ERROR', messageHandler);
+
+      // 发送检查更新请求
+      await this.connect();
+      await this.sendMessage({
+        type: 'CHECK_IMAGE_UPDATES',
+        taskId: '',
+        data: { images },
+      });
     } catch (error: unknown) {
-      console.error('检查镜像更新失败:', error);
+      // 检查镜像更新失败
       throw error;
     }
   }
 
-  public disconnect(): void {
-    this.wsClient?.disconnect();
-    this.wsClient = null;
-  }
-
-  private handleReconnect() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      console.log(`尝试重新连接 (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-      setTimeout(() => {
-        this.connect();
-      }, this.reconnectTimeout);
-    } else {
-      console.error('WebSocket 重连失败，已达到最大重试次数');
-    }
-  }
-
+  /**
+   * 添加消息处理器
+   */
   public addMessageHandler(messageId: string, handler: (message: WebSocketMessage) => void): void {
     this.messageHandlerMap.set(messageId, handler);
   }
 
+  /**
+   * 移除消息处理器
+   */
   public removeMessageHandler(messageId: string): void {
     this.messageHandlerMap.delete(messageId);
   }
 
   /**
    * 注册错误处理器
-   * @param type 消息类型
-   * @param handler 错误处理函数
    */
   public onError(type: string, handler: (error: any) => void): void {
     if (!this.errorHandlers.has(type)) {
@@ -272,8 +280,6 @@ export class DockerWebSocketService {
 
   /**
    * 移除错误处理器
-   * @param type 消息类型
-   * @param handler 错误处理函数
    */
   public offError(type: string, handler: (error: any) => void): void {
     const handlers = this.errorHandlers.get(type);
@@ -285,7 +291,27 @@ export class DockerWebSocketService {
     }
   }
 
+  /**
+   * 处理消息分发
+   */
   private handleMessage(message: WebSocketMessage): void {
+    // 记录消息是否已处理
+    let isHandled = false;
+
+    // 优先处理特定消息ID的处理器
+    if (message.taskId && this.messageHandlerMap.has(message.taskId)) {
+      const handler = this.messageHandlerMap.get(message.taskId);
+      if (handler) {
+        handler(message);
+        isHandled = true; // 标记消息已处理
+      }
+    }
+
+    // 如果消息已经被taskId处理器处理，则不再执行类型处理器
+    if (isHandled) {
+      return;
+    }
+
     // 处理心跳响应
     if (message.type === 'HEARTBEAT_RESPONSE') {
       return;
@@ -294,12 +320,18 @@ export class DockerWebSocketService {
     // 处理错误消息
     if (message.type === 'ERROR') {
       const errorMessage = message.data?.message || '操作失败';
-      
+
+      // 如果有taskId，假定这是一个特定操作的错误，
+      // 应该由该操作的处理逻辑自行处理（通过reject Promise），不显示全局错误
+      if (message.taskId) {
+        return;
+      }
+
       // 调用特定类型的错误处理器
       const errorHandlers = this.errorHandlers.get(message.taskId) || [];
       if (errorHandlers.length > 0) {
-        errorHandlers.forEach(handler => handler(message.data));
-    } else {
+        errorHandlers.forEach((handler) => handler(message.data));
+      } else {
         // 如果没有特定的错误处理器，使用默认的错误提示
         MessagePlugin.error(errorMessage);
       }
@@ -308,7 +340,6 @@ export class DockerWebSocketService {
 
     // 处理测试通知消息
     if (message.type === 'TEST_NOTIFY_RESPONSE') {
-      console.log('处理测试通知响应:', message);
       const notificationStore = useNotificationStore();
       if (message.data) {
         notificationStore.handleWebSocketNotification({
@@ -318,7 +349,7 @@ export class DockerWebSocketService {
           status: true,
           collected: false,
           date: message.data.date || new Date().toLocaleString(),
-          quality: message.data.quality || 'high'
+          quality: message.data.quality || 'high',
         });
       }
       return;
@@ -326,17 +357,39 @@ export class DockerWebSocketService {
 
     // 处理其他消息
     const handlers = this.messageHandlers.get(message.type) || [];
-    handlers.forEach(handler => handler(message));
+    handlers.forEach((handler) => handler(message));
+  }
 
-    // 处理特定消息ID的处理器
-    if (message.taskId && this.messageHandlerMap.has(message.taskId)) {
-      const handler = this.messageHandlerMap.get(message.taskId);
-      if (handler) {
-        handler(message);
-      }
+  /**
+   * 断开WebSocket连接
+   * 注意：这个方法只移除DockerWebSocketService的消息监听器，
+   * 不会真正断开底层WebSocket连接，因为连接是全局共享的
+   */
+  public disconnect(): void {
+    try {
+      // 移除消息监听器
+      wsClient.removeEventListener('message', this.boundHandleRawMessage);
+    } catch (error) {
+      // 移除消息监听器时出错
     }
+  }
+
+  /**
+   * 获取当前注册的处理器状态
+   * 调试用，可以查看各类型消息的处理器数量
+   */
+  public getRegisteredHandlersStatus(): Record<string, number> {
+    const status: Record<string, number> = {};
+
+    this.messageHandlers.forEach((handlers, type) => {
+      status[type] = handlers.length;
+    });
+
+    status['__taskIdHandlers'] = this.messageHandlerMap.size;
+
+    return status;
   }
 }
 
 // 创建单例实例
-export const dockerWebSocketService = new DockerWebSocketService(); 
+export const dockerWebSocketService = new DockerWebSocketService();

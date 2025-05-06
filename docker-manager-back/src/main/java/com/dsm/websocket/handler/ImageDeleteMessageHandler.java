@@ -27,26 +27,14 @@ public class ImageDeleteMessageHandler extends BaseMessageHandler {
 
     @Override
     public void handle(WebSocketSession session, Object message) {
-        try {
-            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
-            Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
-            String imageId = (String) data.get("imageId");
-            boolean removeStatus = data.containsKey("removeStatus") ? (boolean) data.get("removeStatus") : true;
+        DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+        Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
+        String imageId = (String) data.get("imageId");
+        boolean removeStatus = !data.containsKey("removeStatus") || (boolean) data.get("removeStatus");
+        // 删除镜像
+        imageService.removeImage(imageId, removeStatus);
+        // 发送操作结果
+        sendResponse(session, MessageType.CONTAINER_OPERATION_RESULT, wsMessage.getTaskId(), null);
 
-            // 删除镜像
-            imageService.removeImage(imageId, removeStatus);
-            
-            // 发送操作结果
-            sendOperationResult(
-                session,
-                wsMessage.getTaskId(),
-                true,
-                imageId,
-                "镜像删除成功"
-            );
-        } catch (Exception e) {
-            log.error("处理镜像删除消息时发生错误", e);
-            sendErrorMessage(session, "删除镜像失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
-        }
     }
 } 

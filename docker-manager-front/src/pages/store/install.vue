@@ -184,13 +184,13 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
-import { getAppDetail } from '@/api/appStore';
+import { getAppDetail } from '@/api/appStoreApi';
 import type { AppStoreAppDetail, ParameterConfig } from '@/api/model/appStoreModel';
 import { dockerWebSocketService } from '@/api/websocket/DockerWebSocketService';
-import type { WebSocketMessage } from '@/api/websocket/types';
+import type { WebSocketMessage } from '@/api/model/websocketModel';
 import { checkImages } from '@/api/docker';
 
 const route = useRoute();
@@ -442,7 +442,6 @@ const handleInstall = async () => {
 
       if (success) {
         addLog('success', '模板处理成功');
-        console.log('处理后的模板:', template);
         handleInstallComplete();
       } else {
         addLog('error', resultMessage || '安装失败');
@@ -531,15 +530,12 @@ const pullImage = async (imageName: string) => {
       { imageName },
       {
         onStart: (taskId) => {
-          console.log('开始拉取镜像:', imageName, '任务ID:', taskId)
           imagePullStates.value[imageName].taskId = taskId;
         },
         onProgress: (progress) => {
-          console.log('拉取进度:', progress)
           imagePullStates.value[imageName].progress = progress.progress;
         },
         onComplete: async () => {
-          console.log('拉取完成:', imageName)
           imagePullStates.value[imageName].status = false;
           imagePullStates.value[imageName].progress = 100;
           isAnyImagePulling.value = false;
@@ -577,14 +573,11 @@ const pullImage = async (imageName: string) => {
 onMounted(() => {
     // 注册 WebSocket 消息处理器
     dockerWebSocketService.on('INSTALL_CHECK_IMAGES_RESULT', (message: WebSocketMessage) => {
-        console.log('收到镜像检查结果:', message.data);
         const results = message.data as Array<{ name: string; tag: string; exists: boolean }>;
         results.forEach(result => {
             const fullImageName = `${result.name}:${result.tag}`;
-            console.log('更新镜像状态:', fullImageName, result.exists);
             imageCheckStatus.value[fullImageName] = result.exists;
         });
-        console.log('更新后的镜像状态:', imageCheckStatus.value);
     });
 
     fetchAppDetail().then(() => {
@@ -594,10 +587,11 @@ onMounted(() => {
 
 // 在组件卸载时移除处理器
 onUnmounted(() => {
-    dockerWebSocketService.off('INSTALL_CHECK_IMAGES_RESULT', () => {});
-    dockerWebSocketService.off('INSTALL_LOG', () => {});
-    dockerWebSocketService.off('INSTALL_START_RESULT', () => {});
-    dockerWebSocketService.off('INSTALL_VALIDATE_RESULT', () => {});
+    // 正确移除所有已注册的处理器
+    dockerWebSocketService.off('INSTALL_CHECK_IMAGES_RESULT');
+    dockerWebSocketService.off('INSTALL_LOG');
+    dockerWebSocketService.off('INSTALL_START_RESULT');
+    dockerWebSocketService.off('INSTALL_VALIDATE_RESULT');
 });
 </script>
 

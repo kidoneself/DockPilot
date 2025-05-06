@@ -1,7 +1,7 @@
 package com.dsm.mapper;
 
-import com.dsm.pojo.entity.Template;
-import com.dsm.pojo.param.TemplateQueryParam;
+import com.dsm.model.Template;
+import com.dsm.model.TemplateQueryParam;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

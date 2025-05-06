@@ -4,9 +4,7 @@ import com.dsm.api.DockerService;
 import com.dsm.config.AppConfig;
 import com.dsm.exception.BusinessException;
 import com.dsm.mapper.ImageStatusMapper;
-import com.dsm.model.dto.ImageStatusDTO;
-import com.dsm.pojo.dto.image.*;
-import com.dsm.pojo.entity.ImageStatus;
+import com.dsm.model.*;
 import com.dsm.service.ImageService;
 import com.dsm.utils.LogUtil;
 import com.dsm.websocket.callback.PullImageCallback;
@@ -53,30 +51,25 @@ public class ImageServiceImpl implements ImageService {
     @Transactional
     public void removeImage(String imageId, boolean removeStatus) {
         LogUtil.logSysInfo("删除镜像: " + imageId + ", 同时删除状态记录: " + removeStatus);
-        try {
-            // 获取镜像详情
-            InspectImageResponse imageInfo = dockerService.getInspectImage(imageId);
-            String[] repoTags = imageInfo.getRepoTags().toArray(new String[0]);
-            // 删除Docker镜像
-            dockerService.removeImage(imageId);
-            // 如果需要同时删除状态记录
-            if (removeStatus) {
-                for (String repoTag : repoTags) {
-                    String[] parts = repoTag.split(":");
-                    if (parts.length >= 2) {
-                        String name = parts[0];
-                        String tag = parts[1];
-                        // 删除数据库记录
-                        imageStatusMapper.deleteByNameAndTag(name, tag);
-                        LogUtil.logSysInfo("已删除镜像状态记录: " + name + ":" + tag);
-                    }
+        // 获取镜像详情
+        InspectImageResponse imageInfo = dockerService.getInspectImage(imageId);
+        String[] repoTags = imageInfo.getRepoTags().toArray(new String[0]);
+        // 删除Docker镜像
+        dockerService.removeImage(imageId);
+        // 如果需要同时删除状态记录
+        if (removeStatus) {
+            for (String repoTag : repoTags) {
+                String[] parts = repoTag.split(":");
+                if (parts.length >= 2) {
+                    String name = parts[0];
+                    String tag = parts[1];
+                    // 删除数据库记录
+                    imageStatusMapper.deleteByNameAndTag(name, tag);
+                    LogUtil.logSysInfo("已删除镜像状态记录: " + name + ":" + tag);
                 }
             }
-            LogUtil.log("成功删除镜像: " + imageId + (removeStatus ? " (已删除状态记录)" : ""));
-        } catch (Exception e) {
-            LogUtil.logSysError("删除镜像失败: " + e.getMessage());
-            throw new RuntimeException("删除镜像失败: " + e.getMessage());
         }
+        LogUtil.logOpe("成功删除镜像: " + imageId + (removeStatus ? " (已删除状态记录)" : ""));
     }
 
 

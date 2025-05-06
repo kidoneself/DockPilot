@@ -1,112 +1,114 @@
 <template>
   <div class="container">
-    <div class="header">
-      <div class="title">镜像列表</div>
-      <div class="actions">
-        <t-button theme="primary" @click="handlePull">
-          <template #icon>
-            <t-icon name="add" />
-          </template>
-          拉取镜像
-        </t-button>
-        <t-button theme="warning" @click="handleCheckUpdates">
-          <template #icon>
-            <t-icon name="swap" />
-          </template>
-          检查更新
-        </t-button>
-        <t-button @click="fetchImages">
-          <template #icon>
-            <t-icon name="refresh" />
-          </template>
-          刷新
-        </t-button>
+    <t-card>
+      <div class="header">
+        <div class="title">镜像列表</div>
+        <div class="actions">
+          <t-button theme="primary" @click="handlePull">
+            <template #icon>
+              <t-icon name="add" />
+            </template>
+            拉取镜像
+          </t-button>
+          <t-button theme="warning" @click="handleCheckUpdates">
+            <template #icon>
+              <t-icon name="swap" />
+            </template>
+            检查更新
+          </t-button>
+          <t-button @click="fetchImages">
+            <template #icon>
+              <t-icon name="refresh" />
+            </template>
+            刷新
+          </t-button>
+        </div>
       </div>
-    </div>
 
-    <!-- 添加正在拉取的镜像列表 -->
-    <div v-if="activePullTasks && activePullTasks.length > 0" class="pulling-images-section">
-      <div class="section-title">正在拉取的镜像</div>
-      <t-table :data="activePullTasks" :columns="pullTaskColumns" row-key="taskId">
-        <template #image="{ row }">
-          <t-tag theme="primary">{{ row.image }}:{{ row.tag }}</t-tag>
+      <!-- 添加正在拉取的镜像列表 -->
+      <div v-if="activePullTasks && activePullTasks.length > 0" class="pulling-images-section">
+        <div class="section-title">正在拉取的镜像</div>
+        <t-table :data="activePullTasks" :columns="pullTaskColumns" row-key="taskId">
+          <template #image="{ row }">
+            <t-tag theme="primary">{{ row.image }}:{{ row.tag }}</t-tag>
+          </template>
+          <template #progress="{ row }">
+            <div class="inline-progress">
+              <t-progress :percentage="row.progress" :stroke-width="4" :show-label="false" />
+              <span class="progress-text">{{ row.progress }}%</span>
+            </div>
+          </template>
+          <template #status="{ row }">
+            <t-tag :theme="getTaskStatusTheme(row.status)" variant="light">
+              {{ getTaskStatusText(row.status) }}
+            </t-tag>
+          </template>
+          <template #operation="{ row }">
+            <t-space>
+              <t-button size="small" @click="showPullTaskDetails(row)">查看详情</t-button>
+              <t-button
+                v-if="row.status !== 'success' && row.status !== 'error'"
+                size="small"
+                theme="danger"
+                @click="handleCancelPullTask(row)"
+                >取消
+              </t-button>
+            </t-space>
+          </template>
+        </t-table>
+      </div>
+
+      <t-table :data="images" :columns="columns" :loading="loading" row-key="id">
+        <template #id="{ row }">
+          <t-tag theme="default" variant="light">{{ row.id?.slice(0, 8) }}</t-tag>
         </template>
-        <template #progress="{ row }">
-          <div class="inline-progress">
-            <t-progress :percentage="row.progress" :stroke-width="4" :show-label="false" />
-            <span class="progress-text">{{ row.progress }}%</span>
-          </div>
+        <template #name="{ row }">
+          <t-tag theme="primary" variant="light">{{ row.name }}</t-tag>
         </template>
-        <template #status="{ row }">
-          <t-tag :theme="getTaskStatusTheme(row.status)" variant="light">
-            {{ getTaskStatusText(row.status) }}
+        <template #tag="{ row }">
+          <t-tag theme="warning" variant="light">{{ row.tag }}</t-tag>
+        </template>
+        <template #created="{ row }">
+          <span>{{ formatDate(row.created) }}</span>
+        </template>
+        <template #size="{ row }">
+          <span>{{ formatSize(row.size) }}</span>
+        </template>
+        <template #needUpdate="{ row }">
+          <t-tag :theme="row.needUpdate ? 'warning' : 'success'" variant="light">
+            <template #icon>
+              <t-icon :name="row.needUpdate ? 'time' : 'check-circle'" />
+            </template>
+            {{ row.needUpdate ? '需要更新' : '已是最新' }}
           </t-tag>
         </template>
+        <template #lastChecked="{ row }">
+          <span>{{ row.lastChecked ? formatDate(row.lastChecked) : '尚未检查' }}</span>
+        </template>
         <template #operation="{ row }">
-          <t-space>
-            <t-button size="small" @click="showPullTaskDetails(row)">查看详情</t-button>
-            <t-button
-              v-if="row.status !== 'success' && row.status !== 'error'"
-              size="small"
-              theme="danger"
-              @click="handleCancelPullTask(row)"
-              >取消
+          <t-space size="small">
+            <t-button size="small" theme="primary" @click="handleRun(row)">
+              <template #icon>
+                <t-icon name="play" />
+              </template>
+              创建
+            </t-button>
+            <t-button v-if="row.needUpdate" size="small" theme="warning" @click="handleUpdate(row)">
+              <template #icon>
+                <t-icon name="refresh" />
+              </template>
+              更新
+            </t-button>
+            <t-button size="small" theme="danger" @click="handleDelete(row)">
+              <template #icon>
+                <t-icon name="delete" />
+              </template>
+              删除
             </t-button>
           </t-space>
         </template>
       </t-table>
-    </div>
-
-    <t-table :data="images" :columns="columns" :loading="loading" row-key="id">
-      <template #id="{ row }">
-        <t-tag theme="default" variant="light">{{ row.id }}</t-tag>
-      </template>
-      <template #name="{ row }">
-        <t-tag theme="primary" variant="light">{{ row.name }}</t-tag>
-      </template>
-      <template #tag="{ row }">
-        <t-tag theme="warning" variant="light">{{ row.tag }}</t-tag>
-      </template>
-      <template #created="{ row }">
-        <span>{{ formatDate(row.created) }}</span>
-      </template>
-      <template #size="{ row }">
-        <span>{{ formatSize(row.size) }}</span>
-      </template>
-      <template #needUpdate="{ row }">
-        <t-tag :theme="row.needUpdate ? 'warning' : 'success'" variant="light">
-          <template #icon>
-            <t-icon :name="row.needUpdate ? 'time' : 'check-circle'" />
-          </template>
-          {{ row.needUpdate ? '需要更新' : '已是最新' }}
-        </t-tag>
-      </template>
-      <template #lastChecked="{ row }">
-        <span>{{ row.lastChecked ? formatDate(row.lastChecked) : '尚未检查' }}</span>
-      </template>
-      <template #operation="{ row }">
-        <t-space size="small">
-          <t-button size="small" theme="primary" @click="handleRun(row)">
-            <template #icon>
-              <t-icon name="play" />
-            </template>
-            创建
-          </t-button>
-          <t-button v-if="row.needUpdate" size="small" theme="warning" @click="handleUpdate(row)">
-            <template #icon>
-              <t-icon name="refresh" />
-            </template>
-            更新
-          </t-button>
-          <t-button size="small" theme="danger" @click="handleDelete(row)">
-            <template #icon>
-              <t-icon name="delete" />
-            </template>
-            删除
-          </t-button>
-        </t-space>
-      </template>
-    </t-table>
+    </t-card>
 
     <!-- 拉取镜像对话框 -->
     <t-dialog
@@ -133,17 +135,11 @@
       </t-form>
       <div v-else class="pull-progress-container">
         <div class="space-y-4">
-          <t-progress
-            :percentage="pullProgress"
-            theme="plump"
-            label="inside"
-          />
-          
-          <div class="text-sm text-gray-600">
-            当前阶段：{{ currentStage }}
-          </div>
+          <t-progress :percentage="pullProgress" theme="plump" label="inside" />
 
-          <div class="scrollbar-container" style="height: 120px; overflow: auto;">
+          <div class="text-sm text-gray-600">当前阶段：{{ currentStage }}</div>
+
+          <div class="scrollbar-container" style="height: 120px; overflow: auto">
             <div class="text-xs text-gray-400">
               <div v-for="(log, index) in logLines" :key="index" class="log-line">
                 {{ log }}
@@ -152,21 +148,10 @@
           </div>
 
           <div class="text-right mt-4">
-            <t-button
-              v-if="!completed"
-              theme="default"
-              variant="outline"
-              @click="handleCancelPull"
-            >
+            <t-button v-if="!completed" theme="default" variant="outline" @click="handleCancelPull">
               取消拉取
             </t-button>
-            <t-button
-              v-else
-              theme="primary"
-              @click="closePullDialog"
-            >
-              关闭
-            </t-button>
+            <t-button v-else theme="primary" @click="closePullDialog"> 关闭 </t-button>
           </div>
         </div>
       </div>
@@ -245,12 +230,17 @@
 import { MessagePlugin } from 'tdesign-vue-next';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import type { InputValue } from 'tdesign-vue-next';
-import { dockerWebSocketAPI } from '@/api/docker';
 import type { PullImageProgress } from '@/api/docker';
-import { IMAGE_TABLE_COLUMNS } from '@/constants/tableColumns';
+import { dockerWebSocketAPI } from '@/api/docker';
 import { formatDate } from '@/utils/format';
-import { getImageList, getImageDetail, deleteImage, updateImage, batchUpdateImages, cancelImagePull, checkImageUpdates } from '@/api/websocket/container';
+import {
+  batchUpdateImages,
+  cancelImagePull,
+  checkImageUpdates,
+  deleteImage,
+  getImageList,
+  updateImage,
+} from '@/api/websocket/container';
 
 // ==================== 1. 响应式数据定义 ====================
 const images = ref([]);
@@ -293,17 +283,16 @@ const fetchImages = async () => {
   try {
     const res = await getImageList();
     console.log('获取到的镜像列表:', res);
-    
     // 处理镜像列表数据
-    images.value = res.map((img) => ({
-      id: img.id?.replace('sha256:', '').slice(0, 8) || '',
-          name: img.name || '未命名镜像',
-          tag: img.tag || 'latest',
-          created: img.localCreateTime || img.created,
-          lastChecked: img.lastChecked,
+    images.value = res.data.map((img) => ({
+      id: img.id.replace('sha256:', '') || '',
+      name: img.name || '未命名镜像',
+      tag: img.tag || 'latest',
+      created: img.localCreateTime || img.created,
+      lastChecked: img.lastChecked,
       needUpdate: img.needUpdate || false,
       size: img.size || 0,
-      RepoTags: [`${img.name}:${img.tag}`]
+      RepoTags: [`${img.name}:${img.tag}`],
     }));
   } catch (error) {
     console.error('获取镜像列表失败:', error);
@@ -323,7 +312,7 @@ const handleUpdate = async (image: any) => {
   try {
     await updateImage({
       image: image.name,
-      tag: image.tag
+      tag: image.tag,
     });
     MessagePlugin.success('更新成功');
     fetchImages();
@@ -352,7 +341,7 @@ const handleBatchUpdate = async () => {
   try {
     await batchUpdateImages({ useProxy: false });
     MessagePlugin.success('批量更新成功');
-  fetchImages();
+    fetchImages();
   } catch (error) {
     console.error('批量更新失败:', error);
     MessagePlugin.error('批量更新失败');
@@ -386,8 +375,8 @@ const handleRun = (row: any) => {
     path: '/docker/create',
     query: {
       image: row.name,
-      tag: row.tag
-    }
+      tag: row.tag,
+    },
   });
 };
 
@@ -463,7 +452,6 @@ const showPullTaskDetails = (task: any) => {
 // 取消指定任务
 const handleCancelPullTask = async (task: any) => {
   try {
-    console.log('取消拉取任务:', task.taskId);
     const result = await cancelImagePull(task.taskId);
 
     if (result.code === 0) {
@@ -565,8 +553,8 @@ const onPullImageConfirm = async () => {
             isPulling.value = false;
             pullImageDialogVisible.value = false;
           }, 3000);
-        }
-      }
+        },
+      },
     );
   } catch (error) {
     console.error('拉取镜像出错:', error);
@@ -717,15 +705,18 @@ const closePullDialog = () => {
 // 确认删除镜像
 const confirmDelete = async () => {
   if (!currentDeleteImage.value) return;
-  try {
-    await deleteImage(currentDeleteImage.value.Id);
+
+  // 调用deleteImage函数，获取操作结果
+  const result = await deleteImage(currentDeleteImage.value.id);
+
+  // 根据操作结果处理UI
+  if (result.success) {
     MessagePlugin.success('删除成功');
     deleteConfirmVisible.value = false;
     currentDeleteImage.value = null;
     fetchImages();
-  } catch (error) {
-    console.error('删除镜像失败:', error);
-    MessagePlugin.error('删除镜像失败');
+  } else if (result.message) {
+    MessagePlugin.error(result.message);
   }
 };
 
@@ -962,4 +953,3 @@ onUnmounted(() => {
   background-color: #f1f1f1;
 }
 </style>
-

@@ -1,13 +1,12 @@
 package com.dsm.controller;
 
-import com.dsm.pojo.entity.Route;
-import com.dsm.pojo.entity.SystemSetting;
+import com.dsm.model.Route;
+import com.dsm.model.SystemSetting;
 import com.dsm.service.SystemSettingService;
 import com.dsm.utils.ApiResponse;
 import com.dsm.utils.LogUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 

@@ -6,6 +6,20 @@
         <t-button @click="sendTestMessage" :loading="loading">
           发送测试消息
         </t-button>
+        
+        <!-- 处理器状态 -->
+        <t-button @click="showHandlerStatus" variant="outline">
+          查看处理器状态
+        </t-button>
+        
+        <!-- 处理器状态信息 -->
+        <div v-if="Object.keys(handlerStatus).length > 0" class="handler-status">
+          <h4>当前注册的WebSocket处理器:</h4>
+          <div v-for="(count, type) in handlerStatus" :key="type" class="handler-item">
+            <span>{{ type }}: </span>
+            <t-tag theme="primary">{{ count }}</t-tag>
+          </div>
+        </div>
 
         <!-- 消息记录 -->
         <t-card title="消息记录" :bordered="true">
@@ -29,11 +43,12 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { dockerWebSocketService } from '@/api/websocket/DockerWebSocketService';
 import { useNotificationStore } from '@/store/modules/notification';
-import type { WebSocketMessage } from '@/api/websocket/types';
+import type { WebSocketMessage } from '@/api/model/websocketModel';
 
 const loading = ref(false);
 const messages = ref<Array<{ time: string; content: string }>>([]);
 const notificationStore = useNotificationStore();
+const handlerStatus = ref<Record<string, number>>({});
 
 // 发送测试消息
 const sendTestMessage = async () => {
@@ -55,10 +70,13 @@ const sendTestMessage = async () => {
   }
 };
 
+// 显示处理器状态
+const showHandlerStatus = () => {
+  handlerStatus.value = dockerWebSocketService.getRegisteredHandlersStatus();
+};
+
 // 接收测试消息响应
 const handleTestResponse = (message: WebSocketMessage) => {
-  console.log('收到测试响应:', message);
-  
   // 只添加到消息记录
   messages.value.unshift({
     time: new Date().toLocaleTimeString(),
@@ -69,6 +87,8 @@ const handleTestResponse = (message: WebSocketMessage) => {
 // 组件挂载时注册消息监听
 onMounted(() => {
   dockerWebSocketService.on('TEST_NOTIFY_RESPONSE', handleTestResponse);
+  // 初始显示处理器状态
+  showHandlerStatus();
 });
 
 // 组件卸载时移除消息监听
@@ -91,5 +111,20 @@ onUnmounted(() => {
 
 .message-content {
   font-size: 14px;
+}
+
+.handler-status {
+  margin: 16px 0;
+  padding: 16px;
+  background-color: var(--td-bg-color-container);
+  border-radius: 6px;
+  border: 1px solid var(--td-component-stroke);
+}
+
+.handler-item {
+  margin: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style> 

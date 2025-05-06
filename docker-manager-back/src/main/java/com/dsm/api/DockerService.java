@@ -1,8 +1,8 @@
 package com.dsm.api;
 
 import com.dsm.config.AppConfig;
-import com.dsm.model.dockerApi.ContainerCreateRequest;
-import com.dsm.model.dto.ResourceUsageDTO;
+import com.dsm.model.ContainerCreateRequest;
+import com.dsm.model.ResourceUsageDTO;
 import com.dsm.utils.DockerStatsConverter;
 import com.dsm.utils.LogUtil;
 import com.dsm.websocket.callback.PullImageCallback;
@@ -20,9 +20,7 @@ import java.io.BufferedWriter;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -179,6 +177,10 @@ public class DockerService {
         return dockerClientWrapper.listNetworks();
     }
 
+
+    public void recreateContainerWithNewImage(String containerId, String imageName) {
+        dockerClientWrapper.recreateContainerWithNewImage(containerId, imageName);
+    }
 
     /**
      * 取消镜像拉取操作
@@ -541,31 +543,6 @@ public class DockerService {
     }
 
 
-    public Network inspectNetwork(String networkId) {
-        return null;
-    }
-
-    // FIXME: 功能尚未完成，暂不启用
-    public String createNetwork(String name, String driver, Map<String, Object> ipamConfig) {
-        return null;
-    }
-
-    // FIXME: 功能尚未完成，暂不启用
-    public void removeNetwork(String networkId) {
-
-    }
-
-    // FIXME: 功能尚未完成，暂不启用
-    public void connectContainerToNetwork(String containerId, String networkId, String ipAddress, String[] aliases) {
-
-    }
-
-    // FIXME: 功能尚未完成，暂不启用
-    public void disconnectContainerFromNetwork(String containerId, String networkId, boolean force) {
-
-    }
-
-
     /**
      * 使用skopeo从远程仓库拉取镜像到宿主机Docker
      *
@@ -678,22 +655,7 @@ public class DockerService {
         return dockerClientWrapper.startContainerWithCmd(containerCmd);
     }
 
-    /**
-     * 获取指定镜像的最新ID
-     *
-     * @param imageName 镜像名称
-     * @return 最新镜像ID
-     */
-    public String getLatestImageId(String imageName) {
-        List<Image> images = listImages();
-        return images.stream()
-                .filter(image -> image.getRepoTags() != null && 
-                        Arrays.stream(image.getRepoTags())
-                                .anyMatch(tag -> tag.startsWith(imageName)))
-                .max((img1, img2) -> Long.compare(img1.getCreated(), img2.getCreated()))
-                .map(Image::getId)
-                .orElse(null);
-    }
+
 }
 
 

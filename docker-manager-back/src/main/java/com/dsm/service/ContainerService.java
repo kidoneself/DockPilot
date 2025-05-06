@@ -1,9 +1,9 @@
 package com.dsm.service;
 
-import com.dsm.model.dockerApi.ContainerCreateRequest;
-import com.dsm.model.dto.ContainerDTO;
-import com.dsm.model.dto.ContainerStaticInfoDTO;
-import com.dsm.model.dto.ResourceUsageDTO;
+import com.dsm.model.ContainerCreateRequest;
+import com.dsm.model.ContainerDTO;
+import com.dsm.model.ContainerStaticInfoDTO;
+import com.dsm.model.ResourceUsageDTO;
 
 import java.util.List;
 

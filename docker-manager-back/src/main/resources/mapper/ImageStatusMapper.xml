@@ -3,7 +3,7 @@
 <mapper namespace="com.dsm.mapper.ImageStatusMapper">
 
     <!-- 结果映射 -->
-    <resultMap id="BaseResultMap" type="com.dsm.pojo.entity.ImageStatus">
+    <resultMap id="BaseResultMap" type="com.dsm.model.ImageStatus">
         <id column="id" property="id"/>
         <result column="name" property="name"/>
         <result column="tag" property="tag"/>
@@ -45,13 +45,13 @@
     </select>
 
     <!-- 插入镜像状态记录 -->
-    <insert id="insert" parameterType="com.dsm.pojo.entity.ImageStatus" useGeneratedKeys="true" keyProperty="id">
+    <insert id="insert" parameterType="com.dsm.model.ImageStatus" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO image_status (name, tag, local_create_time, remote_create_time, need_update, last_checked)
         VALUES (#{name}, #{tag}, #{localCreateTime}, #{remoteCreateTime}, #{needUpdate}, #{lastChecked})
     </insert>
 
     <!-- 更新镜像状态记录 -->
-    <update id="update" parameterType="com.dsm.pojo.entity.ImageStatus">
+    <update id="update" parameterType="com.dsm.model.ImageStatus">
         UPDATE image_status
         <set>
             <if test="localCreateTime != null">local_create_time = #{localCreateTime},</if>

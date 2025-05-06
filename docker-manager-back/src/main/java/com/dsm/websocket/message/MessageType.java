@@ -73,62 +73,62 @@ public enum MessageType {
      * 容器列表
      */
     CONTAINER_LIST,
-    
+
     /**
      * 容器详情
      */
     CONTAINER_DETAIL,
-    
+
     /**
      * 容器启动
      */
     CONTAINER_START,
-    
+
     /**
      * 容器停止
      */
     CONTAINER_STOP,
-    
+
     /**
      * 容器重启
      */
     CONTAINER_RESTART,
-    
+
     /**
      * 容器删除
      */
     CONTAINER_DELETE,
-    
+
     /**
      * 容器更新
      */
     CONTAINER_UPDATE,
-    
+
     /**
      * 容器创建
      */
     CONTAINER_CREATE,
-    
+
     /**
      * 容器日志
      */
     CONTAINER_LOGS,
-    
+
     /**
      * 容器资源使用情况
      */
     CONTAINER_STATS,
-    
+
     /**
      * 容器操作结果
      */
     CONTAINER_OPERATION_RESULT,
-    
+
     /**
      * 容器状态变更
      */
     CONTAINER_STATE_CHANGE,
-    
+
     /**
      * 错误消息
      */

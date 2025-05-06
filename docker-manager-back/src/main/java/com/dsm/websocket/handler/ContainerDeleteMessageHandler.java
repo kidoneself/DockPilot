@@ -27,25 +27,12 @@ public class ContainerDeleteMessageHandler extends BaseMessageHandler {
 
     @Override
     public void handle(WebSocketSession session, Object message) {
-        try {
-            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
-            Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
-            String containerId = (String) data.get("containerId");
-
-            // 删除容器
-            containerService.removeContainer(containerId);
-
-            // 发送操作结果
-            sendOperationResult(
-                session,
-                wsMessage.getTaskId(),
-                true,
-                null,
-                "容器删除成功"
-            );
-        } catch (Exception e) {
-            log.error("处理容器删除消息时发生错误", e);
-            sendErrorMessage(session, "删除容器失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
-        }
+        DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+        Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
+        String containerId = (String) data.get("containerId");
+        // 删除容器
+        containerService.removeContainer(containerId);
+        // 发送操作结果
+        sendResponse(session, MessageType.CONTAINER_OPERATION_RESULT, wsMessage.getTaskId(), null);
     }
 } 

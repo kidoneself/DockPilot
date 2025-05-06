@@ -27,20 +27,14 @@ public class ImageUpdateMessageHandler extends BaseMessageHandler {
 
     @Override
     public void handle(WebSocketSession session, Object message) {
-        try {
-            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
-            Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
-            String image = (String) data.get("image");
-            String tag = (String) data.get("tag");
+        DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+        Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
+        String image = (String) data.get("image");
+        String tag = (String) data.get("tag");
+        // 更新镜像
+        Map<String, Object> result = imageService.updateImage(image, tag);
+        // 发送响应
+        sendResponse(session, MessageType.IMAGE_UPDATE, wsMessage.getTaskId(), result);
 
-            // 更新镜像
-            Map<String, Object> result = imageService.updateImage(image, tag);
-            
-            // 发送响应
-            sendResponse(session, MessageType.IMAGE_UPDATE, wsMessage.getTaskId(), result);
-        } catch (Exception e) {
-            log.error("处理镜像更新消息时发生错误", e);
-            sendErrorMessage(session, "更新镜像失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
-        }
     }
 } 

@@ -8,13 +8,13 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
-import java.util.UUID;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Component
 public class DockerWebSocketMessageSender {
-    
+
     /**
      * 发送消息
      *
@@ -46,23 +46,23 @@ public class DockerWebSocketMessageSender {
             log.error("发送错误消息失败", e);
         }
     }
-    
+
     /**
      * 发送日志消息
      *
      * @param session WebSocket会话
-     * @param type   日志类型
+     * @param type    日志类型
      * @param message 日志消息
      */
     public void sendLog(WebSocketSession session, String type, String message) {
         try {
             sendMessage(session, new DockerWebSocketMessage(
-                "INSTALL_LOG",
-                UUID.randomUUID().toString(),
-                Map.of(
-                    "type", type,
-                    "message", message
-                )
+                    "INSTALL_LOG",
+                    UUID.randomUUID().toString(),
+                    Map.of(
+                            "type", type,
+                            "message", message
+                    )
             ));
         } catch (Exception e) {
             log.error("发送日志消息失败", e);

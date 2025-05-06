@@ -1,7 +1,7 @@
 package com.dsm.service.impl;
 
 import com.dsm.mapper.LogMapper;
-import com.dsm.pojo.entity.Log;
+import com.dsm.model.Log;
 import com.dsm.service.LogService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

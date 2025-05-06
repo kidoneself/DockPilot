@@ -1,8 +1,5 @@
 package com.dsm.service;
 
-import com.dsm.pojo.entity.SystemSetting;
-
-import java.util.List;
 import java.util.Map;
 
 public interface SystemSettingService {

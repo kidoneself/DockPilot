@@ -1,6 +1,6 @@
 package com.dsm.utils;
 
-import com.dsm.model.dto.ResourceUsageDTO;
+import com.dsm.model.ResourceUsageDTO;
 import com.github.dockerjava.api.model.CpuStatsConfig;
 import com.github.dockerjava.api.model.MemoryStatsConfig;
 import com.github.dockerjava.api.model.StatisticNetworksConfig;
@@ -46,14 +46,14 @@ public class DockerStatsConverter {
 
     private double calculateCPUPercent(CpuStatsConfig current, CpuStatsConfig previous) {
         if (current == null || previous == null ||
-            current.getCpuUsage() == null || previous.getCpuUsage() == null) {
+                current.getCpuUsage() == null || previous.getCpuUsage() == null) {
             return 0.0;
         }
 
         long cpuDelta = getSafe(current.getCpuUsage().getTotalUsage()) -
-                        getSafe(previous.getCpuUsage().getTotalUsage());
+                getSafe(previous.getCpuUsage().getTotalUsage());
         long systemDelta = getSafe(current.getSystemCpuUsage()) -
-                           getSafe(previous.getSystemCpuUsage());
+                getSafe(previous.getSystemCpuUsage());
         long cpuCores = current.getOnlineCpus() != null ? current.getOnlineCpus() : 1;
 
         if (systemDelta > 0 && cpuDelta > 0) {
@@ -72,7 +72,8 @@ public class DockerStatsConverter {
         if (value instanceof String) {
             try {
                 return Long.parseLong((String) value);
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+            }
         }
         return 0L;
     }

@@ -1,8 +1,8 @@
 package com.dsm.websocket.handler;
 
-import com.dsm.websocket.service.DockerImageService;
 import com.dsm.websocket.message.MessageType;
 import com.dsm.websocket.model.DockerWebSocketMessage;
+import com.dsm.websocket.service.DockerImageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -25,12 +25,9 @@ public class InstallCheckImagesMessageHandler extends BaseMessageHandler {
 
     @Override
     public void handle(WebSocketSession session, Object message) {
-        try {
-            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
-            dockerImageService.handleInstallCheckImages(session, wsMessage);
-        } catch (Exception e) {
-            log.error("处理安装检查镜像消息时发生错误", e);
-            sendErrorMessage(session, "检查镜像失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
-        }
+        DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+        dockerImageService.handleInstallCheckImages(session, wsMessage);
+
+
     }
 } 

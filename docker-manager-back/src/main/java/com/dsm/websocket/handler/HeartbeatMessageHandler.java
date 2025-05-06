@@ -1,12 +1,12 @@
 package com.dsm.websocket.handler;
 
+import com.alibaba.fastjson.JSON;
 import com.dsm.websocket.message.MessageType;
 import com.dsm.websocket.model.DockerWebSocketMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.TextMessage;
-import com.alibaba.fastjson.JSON;
+import org.springframework.web.socket.WebSocketSession;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -29,11 +29,11 @@ public class HeartbeatMessageHandler implements MessageHandler {
             // 发送心跳响应
             Map<String, Object> data = new HashMap<>();
             data.put("timestamp", System.currentTimeMillis());
-            
+
             DockerWebSocketMessage response = new DockerWebSocketMessage(
-                MessageType.HEARTBEAT.name(),
-                "",
-                data
+                    MessageType.HEARTBEAT.name(),
+                    "",
+                    data
             );
             session.sendMessage(new TextMessage(JSON.toJSONString(response)));
         } catch (Exception e) {

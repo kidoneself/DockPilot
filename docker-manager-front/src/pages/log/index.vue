@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { MessagePlugin } from 'tdesign-vue-next';
-import { getLogs, cleanupLogs } from '@/api/log';
-import type { Log } from '@/types/api/log';
+import { getLogs, cleanupLogs } from '@/api/logApi';
+import type { Log } from '@/api/model/logModel';
 import { LOG_TABLE_COLUMNS } from '@/constants/tableColumns';
 
 const logs = ref<Log[]>([]);

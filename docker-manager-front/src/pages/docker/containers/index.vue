@@ -25,18 +25,7 @@
         <template #name="{ row }">
           <t-space>
             <div class="container-logo-wrapper">
-              <img
-                v-if="getContainerLogo(row.image, row.id, showInitial)"
-                :src="getContainerLogo(row.image, row.id, showInitial)"
-                :alt="row.image"
-                class="container-logo"
-                @error="handleImageError(row.id)"
-              />
-              <div
-                v-else
-                class="container-initial"
-                :style="{ backgroundColor: getStatusColor(row.state as ContainerState) }"
-              >
+              <div class="container-initial" :style="{ backgroundColor: getStatusColor(row.state as ContainerState) }">
                 {{ getContainerInitial(row.names?.[0]) }}
               </div>
             </div>
@@ -46,7 +35,7 @@
             </div>
           </t-space>
         </template>
-        
+
         <!-- 状态列 -->
         <template #state="{ row }">
           <t-tag :theme="getStatusTheme(row.state as ContainerState)" variant="light">
@@ -76,64 +65,65 @@
         <!-- 操作列 -->
         <template #op="{ row }">
           <t-space>
-            <t-button
-              :theme="row.state === 'running' ? 'warning' : 'success'"
-              size="small"
-              :loading="isContainerOperating(row.id)"
-              :disabled="isContainerOperating(row.id)"
-              @click="handleStartStopConfirm(row)"
-            >
-              <template #icon>
-                <t-icon :name="row.state === 'running' ? 'stop' : 'play'" />
-              </template>
-              {{ row.state === 'running' ? '停止' : '启动' }}
-            </t-button>
-            <t-button
-              theme="primary"
-              size="small"
-              :loading="isContainerOperating(row.id)"
-              :disabled="isContainerOperating(row.id)"
-              @click="handleRestartConfirm(row)"
-            >
-              <template #icon>
-                <t-icon name="refresh" />
-              </template>
-              重启
-            </t-button>
+            <t-popconfirm :content="getStartStopConfirmMessage(row)" @confirm="handleStartStop(row)">
+              <t-button
+                :theme="row.state === 'running' ? 'warning' : 'success'"
+                size="small"
+                :loading="isContainerOperating(row.id)"
+                :disabled="isContainerOperating(row.id)"
+              >
+                <template #icon>
+                  <t-icon :name="row.state === 'running' ? 'stop' : 'play'" />
+                </template>
+                {{ row.state === 'running' ? '停止' : '启动' }}
+              </t-button>
+            </t-popconfirm>
+            <t-popconfirm :content="getRestartConfirmMessage(row)" @confirm="handleRestartContainer(row)">
+              <t-button
+                theme="primary"
+                size="small"
+                :loading="isContainerOperating(row.id)"
+                :disabled="isContainerOperating(row.id)"
+              >
+                <template #icon>
+                  <t-icon name="refresh" />
+                </template>
+                重启
+              </t-button>
+            </t-popconfirm>
             <t-button theme="default" size="small" @click="handleShowDetails(row)">
               <template #icon>
                 <t-icon name="info-circle" />
               </template>
               详情
             </t-button>
+            <t-popconfirm v-if="row.needUpdate" :content="getUpdateConfirmMessage(row)" @confirm="handleUpdate(row)">
+              <t-button
+                theme="warning"
+                size="small"
+                :loading="isContainerOperating(row.id)"
+                :disabled="isContainerOperating(row.id)"
+              >
+                <template #icon>
+                  <t-icon name="download" />
+                </template>
+                更新
+              </t-button>
+            </t-popconfirm>
           </t-space>
         </template>
       </t-table>
     </t-card>
-
-    <!-- 操作确认对话框 -->
-    <t-dialog
-      v-model:visible="confirmDialogVisible"
-      :header="confirmDialogTitle"
-      :body="confirmDialogContent"
-      @confirm="handleConfirmOperation"
-      @close="handleCancelOperation"
-    >
-      <template #footer>
-        <t-space>
-          <t-button theme="default" @click="handleCancelOperation">取消</t-button>
-          <t-button theme="primary" @click="handleConfirmOperation" :loading="isConfirmLoading">确认</t-button>
-        </t-space>
-      </template>
-    </t-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
+// 导入表格列类型
+import type { PrimaryTableCol } from 'tdesign-vue-next';
 // 导入 TDesign 组件库的消息提示组件
 import { MessagePlugin } from 'tdesign-vue-next';
 // 导入 Vue 相关功能
-import { nextTick, onMounted, ref, watch } from 'vue';
+import { onMounted, ref } from 'vue';
 // 导入路由相关功能
 import { useRouter } from 'vue-router';
 // 导入容器相关的 API 和类型
@@ -142,13 +132,9 @@ import {
   restartContainer,
   startContainer,
   stopContainer,
-  getContainerDetail,
-  deleteContainer,
   updateContainer,
 } from '@/api/websocket/container';
-import type { Container } from '@/types/api/container.d.ts';
-// 导入容器 logo 获取函数
-import { getContainerLogo } from '@/constants/container-logos';
+import type { Container } from '@/api/model/containerModel';
 // 导入容器状态相关的工具函数
 import {
   ContainerOperationState,
@@ -158,11 +144,6 @@ import {
   getStatusTheme,
   handleContainerOperation,
 } from './utils';
-// 导入表格列类型
-import type { PrimaryTableCol } from 'tdesign-vue-next';
-import { h } from 'vue';
-import { Tooltip, Icon } from 'tdesign-vue-next';
-import { getContainerList as getWebSocketContainerList } from '@/api/websocket/container';
 
 // 获取路由实例
 const router = useRouter();
@@ -174,16 +155,7 @@ const operatingContainers = ref<ContainerOperationState>({
   stopping: new Set(), // 正在停止的容器
   restarting: new Set(), // 正在重启的容器
 });
-const showInitial = ref<Set<string>>(new Set()); // 显示首字母的容器ID集合
 const isLoading = ref(false); // 列表加载状态
-
-const confirmDialogVisible = ref(false);
-const confirmDialogTitle = ref('');
-const confirmDialogContent = ref('');
-const isConfirmLoading = ref(false);
-const currentOperationContainer = ref<Container | null>(null);
-const currentOperation = ref<'start' | 'stop' | 'restart' | null>(null);
-
 // 定义选中行
 const selectedRowKeys = ref<Array<string | number>>([]);
 
@@ -191,66 +163,22 @@ const selectedRowKeys = ref<Array<string | number>>([]);
 const columns = [
   {
     colKey: 'name',
-    title: () => h('div', { class: 'column-title' }, [
-      '容器信息',
-      h(Tooltip, {
-        content: '功能：显示容器的基本信息\n包含内容：\n• 容器名称：显示在容器列表中的名称\n• 容器镜像：容器使用的镜像名称\n• 容器图标：如果可用）或首字母标识',
-        placement: 'top',
-        showArrow: true,
-        theme: 'light',
-        trigger: 'click',
-      }, {
-        default: () => h(Icon, { name: 'help-circle', class: 'help-icon' })
-      })
-    ]),
+    title: '容器信息',
     width: 300,
   },
   {
     colKey: 'state',
-    title: () => h('div', { class: 'column-title' }, [
-      '状态',
-      h(Tooltip, {
-        content: '功能：显示容器的当前运行状态\n可能的状态：\n• 运行中（绿色）：容器正在正常运行\n• 已停止（红色）：容器已停止运行\n• 已创建（黄色）：容器已创建但未启动\n• 其他状态（灰色）：如暂停、重启中等',
-        placement: 'top',
-        showArrow: true,
-        theme: 'light',
-        trigger: 'click',
-      }, {
-        default: () => h(Icon, { name: 'help-circle', class: 'help-icon' })
-      })
-    ]),
+    title: '状态',
     width: 120,
   },
   {
     colKey: 'updateStatus',
-    title: () => h('div', { class: 'column-title' }, [
-      '更新状态',
-      h(Tooltip, {
-        content: '功能：显示容器是否需要更新\n可能的状态：\n• 最新（绿色）：容器使用最新版本\n• 需要更新（黄色）：容器有可用更新',
-        placement: 'top',
-        showArrow: true,
-        theme: 'light',
-        trigger: 'click',
-      }, {
-        default: () => h(Icon, { name: 'help-circle', class: 'help-icon' })
-      })
-    ]),
+    title: '更新状态',
     width: 120,
   },
   {
     colKey: 'op',
-    title: () => h('div', { class: 'column-title' }, [
-      '操作',
-      h(Tooltip, {
-        content: '功能：提供容器的常用操作按钮\n可用操作：\n• 启动/停止：控制容器的运行状态\n• 重启：重新启动容器\n• 详情：查看容器的详细信息',
-        placement: 'top',
-        showArrow: true,
-        theme: 'light',
-        trigger: 'click',
-      }, {
-        default: () => h(Icon, { name: 'help-circle', class: 'help-icon' })
-      })
-    ]),
+    title: '操作',
     width: 280,
     fixed: 'right' as const,
   },
@@ -272,7 +200,7 @@ const isContainerOperating = (containerId: string) => {
  */
 const getContainerInitial = (name: string) => {
   if (!name) return '?';
-  return name.charAt(0).toUpperCase();
+  return name.charAt(1).toUpperCase();
 };
 
 /**
@@ -284,21 +212,9 @@ const getStatusColor = (state: ContainerState) => {
   switch (state) {
     case 'running':
       return 'var(--td-success-color)';
-    case 'exited':
-      return 'var(--td-error-color)';
-    case 'created':
-      return 'var(--td-warning-color)';
     default:
-      return 'var(--td-text-color-disabled)';
+      return 'var(--td-error-disabled)';
   }
-};
-
-/**
- * 处理图片加载错误
- * @param containerId 容器ID
- */
-const handleImageError = (containerId: string) => {
-  showInitial.value.add(containerId);
 };
 
 /**
@@ -325,68 +241,31 @@ const handleRefresh = () => {
 };
 
 /**
- * 处理启动/停止确认
+ * 处理启动/停止
  * @param container 容器对象
  */
-const handleStartStopConfirm = (container: Container) => {
-  currentOperationContainer.value = container;
-  currentOperation.value = container.state === 'running' ? 'stop' : 'start';
-  confirmDialogTitle.value = container.state === 'running' ? '停止容器' : '启动容器';
-  confirmDialogContent.value = `确认要${container.state === 'running' ? '停止' : '启动'}容器 "${container.names?.[0]}" 吗？`;
-  confirmDialogVisible.value = true;
-};
-
-/**
- * 处理重启确认
- * @param container 容器对象
- */
-const handleRestartConfirm = (container: Container) => {
-  currentOperationContainer.value = container;
-  currentOperation.value = 'restart';
-  confirmDialogTitle.value = '重启容器';
-  confirmDialogContent.value = `确认要重启容器 "${container.names?.[0]}" 吗？`;
-  confirmDialogVisible.value = true;
-};
-
-/**
- * 处理确认操作
- */
-const handleConfirmOperation = async () => {
-  if (!currentOperationContainer.value || !currentOperation.value) return;
-  
-  isConfirmLoading.value = true;
+const handleStartStop = async (container: Container) => {
   try {
-    const container = currentOperationContainer.value;
-    switch (currentOperation.value) {
-      case 'start':
-        await handleContainerOperation(() => startContainer(container.id), container.id, operatingContainers.value.starting);
-        break;
-      case 'stop':
-        await handleContainerOperation(() => stopContainer(container.id), container.id, operatingContainers.value.stopping);
-        break;
-      case 'restart':
-        await handleContainerOperation(() => restartContainer(container.id), container.id, operatingContainers.value.restarting);
-        break;
+    if (container.state === 'running') {
+      await handleContainerOperation(
+        () => stopContainer(container.id),
+        container.id,
+        operatingContainers.value.stopping,
+      );
+      await fetchContainers();
+      MessagePlugin.success('停止成功');
+    } else {
+      await handleContainerOperation(
+        () => startContainer(container.id),
+        container.id,
+        operatingContainers.value.starting,
+      );
+      await fetchContainers();
+      MessagePlugin.success('启动成功');
     }
-    await fetchContainers();
-    MessagePlugin.success('操作成功');
   } catch (error) {
-    MessagePlugin.error('操作失败');
-  } finally {
-    isConfirmLoading.value = false;
-    confirmDialogVisible.value = false;
-    currentOperationContainer.value = null;
-    currentOperation.value = null;
+    MessagePlugin.error(error instanceof Error ? error.message : '操作失败');
   }
-};
-
-/**
- * 处理取消操作
- */
-const handleCancelOperation = () => {
-  confirmDialogVisible.value = false;
-  currentOperationContainer.value = null;
-  currentOperation.value = null;
 };
 
 /**
@@ -400,26 +279,42 @@ const handleShowDetails = (container: Container) => {
   });
 };
 
-const handleDelete = async (containerId: string) => {
+const handleRestartContainer = async (container: Container) => {
   try {
-    await deleteContainer(containerId);
-    MessagePlugin.success('删除成功');
-    fetchContainers();
+    await handleContainerOperation(
+      () => restartContainer(container.id),
+      container.id,
+      operatingContainers.value.restarting,
+    );
+    await fetchContainers();
+    MessagePlugin.success('重启成功');
   } catch (error) {
-    console.error('删除容器失败:', error);
-    MessagePlugin.error('删除容器失败');
+    MessagePlugin.error(error instanceof Error ? error.message : '操作失败');
   }
 };
 
 const handleUpdate = async (container: any) => {
   try {
-    await updateContainer(container);
+    //todo 实现容器更新，如果已经更新镜像了，就没有镜像名字了，得自己存
+    await updateContainer(container.id, {});
     MessagePlugin.success('更新成功');
     fetchContainers();
   } catch (error) {
     console.error('更新容器失败:', error);
     MessagePlugin.error('更新容器失败');
   }
+};
+
+const getStartStopConfirmMessage = (container: Container) => {
+  return `确认要${container.state === 'running' ? '停止' : '启动'}容器 ${container.names?.[0]?.replace('/', '')} 吗？`;
+};
+
+const getRestartConfirmMessage = (container: Container) => {
+  return `确认要重启容器 ${container.names?.[0]?.replace('/', '')} 吗？`;
+};
+
+const getUpdateConfirmMessage = (container: Container) => {
+  return `确认要更新容器 ${container.names?.[0]?.replace('/', '')} 吗？`;
 };
 
 // 组件挂载时获取容器列表
@@ -570,48 +465,63 @@ onMounted(() => {
 :deep(.ansi-color-black) {
   color: #000000;
 }
+
 :deep(.ansi-color-red) {
   color: #ff0000;
 }
+
 :deep(.ansi-color-green) {
   color: #00ff00;
 }
+
 :deep(.ansi-color-yellow) {
   color: #ffff00;
 }
+
 :deep(.ansi-color-blue) {
   color: #0000ff;
 }
+
 :deep(.ansi-color-magenta) {
   color: #ff00ff;
 }
+
 :deep(.ansi-color-cyan) {
   color: #00ffff;
 }
+
 :deep(.ansi-color-white) {
   color: #ffffff;
 }
+
 :deep(.ansi-color-gray) {
   color: #808080;
 }
+
 :deep(.ansi-color-light-red) {
   color: #ff8080;
 }
+
 :deep(.ansi-color-light-green) {
   color: #80ff80;
 }
+
 :deep(.ansi-color-light-yellow) {
   color: #ffff80;
 }
+
 :deep(.ansi-color-light-blue) {
   color: #8080ff;
 }
+
 :deep(.ansi-color-light-magenta) {
   color: #ff80ff;
 }
+
 :deep(.ansi-color-light-cyan) {
   color: #80ffff;
 }
+
 :deep(.ansi-color-light-white) {
   color: #ffffff;
 }

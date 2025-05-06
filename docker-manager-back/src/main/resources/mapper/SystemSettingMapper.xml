@@ -17,7 +17,7 @@
         UPDATE SET setting_value = #{value}
     </insert>
 
-    <select id="getAllSettings" resultType="com.dsm.pojo.entity.SystemSetting">
+    <select id="getAllSettings" resultType="com.dsm.model.SystemSetting">
         SELECT setting_key AS key, setting_value AS value
         FROM system_settings
     </select>

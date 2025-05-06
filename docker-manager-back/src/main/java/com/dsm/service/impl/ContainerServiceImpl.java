@@ -2,25 +2,22 @@ package com.dsm.service.impl;
 
 import com.dsm.api.DockerService;
 import com.dsm.exception.BusinessException;
-import com.dsm.model.dockerApi.ContainerCreateRequest;
-import com.dsm.model.dto.ContainerDTO;
-import com.dsm.model.dto.ContainerStaticInfoDTO;
-import com.dsm.model.dto.ResourceUsageDTO;
-import com.dsm.pojo.request.ContainerUpdateRequest;
+import com.dsm.model.ContainerCreateRequest;
+import com.dsm.model.ContainerDTO;
+import com.dsm.model.ContainerStaticInfoDTO;
+import com.dsm.model.ResourceUsageDTO;
 import com.dsm.service.ContainerService;
 import com.dsm.utils.ContainerStaticInfoConverter;
 import com.dsm.utils.LogUtil;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.model.Container;
+import com.github.dockerjava.api.model.Image;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.*;
 
 /**
  * 容器服务实现类
@@ -42,11 +39,25 @@ public class ContainerServiceImpl implements ContainerService {
     public List<ContainerDTO> listContainers() {
         // 获取 Docker 容器列表
         List<Container> containers = dockerService.listContainers();
+        // 获取所有镜像列表
+        List<Image> images = dockerService.listImages();
+        // 创建镜像ID映射
+        Map<String, String> imageIdMap = new HashMap<>();
+        for (Image image : images) {
+            if (image.getRepoTags() != null) {
+                for (String tag : image.getRepoTags()) {
+                    imageIdMap.put(tag, image.getId());
+                }
+            }
+        }
+
         List<ContainerDTO> containerDTOS = new ArrayList<>();
         for (Container container : containers) {
             ContainerDTO dto = ContainerDTO.convertToDTO(container);
-            String latestImageId = dockerService.getLatestImageId(container.getImage());
-            dto.setNeedUpdate(latestImageId != null && !latestImageId.equals(container.getImageId()));
+            String latestImageId = imageIdMap.get(container.getImage());
+//            dto.setNeedUpdate(latestImageId != null && !latestImageId.equals(container.getImageId()));
+            //暂时先设置的需要更新
+            dto.setNeedUpdate(true);
             containerDTOS.add(dto);
         }
         return containerDTOS;
@@ -137,7 +148,6 @@ public class ContainerServiceImpl implements ContainerService {
     }
 
 
-
     /**
      * 根据容器ID或名称查找容器
      *
@@ -207,6 +217,7 @@ public class ContainerServiceImpl implements ContainerService {
 
     /**
      * 判断指定名称的容器是否存在
+     *
      * @param containerName 容器名称
      * @return 存在返回 true，不存在返回 false
      */

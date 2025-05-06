@@ -1,14 +1,13 @@
 package com.dsm.mapper;
 
-import com.dsm.pojo.entity.Log;
+import com.dsm.model.Log;
 import org.apache.ibatis.annotations.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
 public interface LogMapper {
-    
+
     @Insert("INSERT INTO logs (type, level, content, create_time) VALUES (#{type}, #{level}, #{content}, datetime('now'))")
     void insert(Log log);
 
