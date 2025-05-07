@@ -30,9 +30,8 @@ public class ContainerStartMessageHandler extends BaseMessageHandler {
         DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
         Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
         String containerId = (String) data.get("containerId");
-        // 启动容器
         containerService.startContainer(containerId);
-        // 发送操作结果
-        sendResponse(session, MessageType.CONTAINER_OPERATION_RESULT, wsMessage.getTaskId(), null);
+        sendResponse(session, MessageType.OPERATION_RESULT, wsMessage.getTaskId(), null);
+
     }
 } 

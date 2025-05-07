@@ -24,7 +24,7 @@ export type WebSocketMessageType =
   | 'CONTAINER_CREATE'
   | 'CONTAINER_LOGS'
   | 'CONTAINER_STATS'
-  | 'CONTAINER_OPERATION_RESULT'
+  | 'CONTAINER_STATE_CHANGE'
   
   // 镜像相关
   | 'PULL_IMAGE'
@@ -41,7 +41,6 @@ export type WebSocketMessageType =
   | 'IMAGE_CHECK_UPDATES'
   | 'CHECK_IMAGE_UPDATES'
   | 'CHECK_UPDATES_COMPLETE'
-  | 'IMAGE_OPERATION_RESULT'
   
   // 网络相关
   | 'NETWORK_LIST'
@@ -51,9 +50,16 @@ export type WebSocketMessageType =
   
   // 安装相关
   | 'INSTALL_CHECK_IMAGES'
+  | 'INSTALL_CHECK_IMAGES_RESULT'
   | 'INSTALL_VALIDATE'
+  | 'INSTALL_VALIDATE_RESULT'
+  | 'INSTALL_START'
+  | 'INSTALL_START_RESULT'
+  | 'INSTALL_LOG'
+  | 'INSTALL_PULL_IMAGE'
   | 'IMPORT_TEMPLATE'
-  | 'IMPORT_TEMPLATE_RESULT';
+  | 'IMPORT_TEMPLATE_RESULT'
+  | 'OPERATION_RESULT';
 
 /**
  * WebSocket消息接口

@@ -33,6 +33,6 @@ public class ContainerDeleteMessageHandler extends BaseMessageHandler {
         // 删除容器
         containerService.removeContainer(containerId);
         // 发送操作结果
-        sendResponse(session, MessageType.CONTAINER_OPERATION_RESULT, wsMessage.getTaskId(), null);
+        sendResponse(session, MessageType.OPERATION_RESULT, wsMessage.getTaskId(), null);
     }
 } 

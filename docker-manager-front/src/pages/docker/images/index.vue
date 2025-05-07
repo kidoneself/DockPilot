@@ -230,8 +230,7 @@
 import { MessagePlugin } from 'tdesign-vue-next';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import type { PullImageProgress } from '@/api/docker';
-import { dockerWebSocketAPI } from '@/api/docker';
+import type { PullImageProgress } from '@/api/model/websocketModel';
 import { formatDate } from '@/utils/format';
 import {
   batchUpdateImages,
@@ -240,7 +239,10 @@ import {
   deleteImage,
   getImageList,
   updateImage,
+  pullImage,
+  getImageDetail,
 } from '@/api/websocket/container';
+import { dockerWebSocketAPI } from '@/api/docker';
 
 // ==================== 1. 响应式数据定义 ====================
 const images = ref([]);
@@ -466,7 +468,7 @@ const handleCancelPullTask = async (task: any) => {
 
       // 如果当前正在显示该任务的详情，也需要断开连接
       if (pullTaskId.value === task.taskId) {
-        dockerWebSocketAPI.disconnect();
+        // 不需要手动断开连接，pullImage 函数会处理连接管理
       }
 
       MessagePlugin.warning('已取消拉取镜像');
@@ -521,7 +523,7 @@ const onPullImageConfirm = async () => {
     logLines.value = [];
     completed.value = false;
 
-    await dockerWebSocketAPI.pullImage(
+    await pullImage(
       {
         imageName: `${pullImageFormData.value.image}:${pullImageFormData.value.tag}`,
       },
@@ -722,7 +724,7 @@ const confirmDelete = async () => {
 
 // 组件卸载时清除连接
 onUnmounted(() => {
-  dockerWebSocketAPI.disconnect();
+  // 不需要手动断开连接，pullImage 函数会处理连接管理
 });
 </script>
 

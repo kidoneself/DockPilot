@@ -25,12 +25,7 @@ public class InstallStartMessageHandler extends BaseMessageHandler {
 
     @Override
     public void handle(WebSocketSession session, Object message) {
-        try {
-            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
-            dockerInstallService.handleInstallStart(session, wsMessage);
-        } catch (Exception e) {
-            log.error("处理安装开始消息时发生错误", e);
-            sendErrorMessage(session, "开始安装失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
-        }
+        DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+        dockerInstallService.handleInstallStart(session, wsMessage);
     }
 } 

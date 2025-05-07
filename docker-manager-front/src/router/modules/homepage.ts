@@ -163,15 +163,6 @@ export default [
         },
       },
       {
-        path: 'detail/:id',
-        name: 'StoreDetail',
-        component: () => import('@/pages/store/detail.vue'),
-        meta: {
-          title: '应用详情',
-          hidden: true,
-        },
-      },
-      {
         path: 'install/:id',
         name: 'StoreInstall',
         component: () => import('@/pages/store/install.vue'),

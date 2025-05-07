@@ -52,48 +52,49 @@ const handlerStatus = ref<Record<string, number>>({});
 
 // 发送测试消息
 const sendTestMessage = async () => {
+  loading.value = true;
+  const taskId = `test_${Date.now()}`;
+  
   try {
-    loading.value = true;
-    await dockerWebSocketService.sendMessage({
-      type: 'TEST_NOTIFY',
-      taskId: String(Date.now()),
-      data: {
-        message: '这是一条测试消息',
-        timestamp: new Date().toISOString()
+    // 添加消息处理器
+    dockerWebSocketService.addMessageHandler(taskId, (message: WebSocketMessage) => {
+      if (message.type === 'TEST_NOTIFY_RESPONSE') {
+        messages.value.push({
+          time: new Date().toLocaleString(),
+          content: message.data?.message || '收到测试响应'
+        });
+        // 移除消息处理器
+        dockerWebSocketService.removeMessageHandler(taskId);
       }
     });
-    MessagePlugin.success('测试消息已发送');
+
+    // 发送测试消息
+    await dockerWebSocketService.sendMessage({
+      type: 'TEST_NOTIFY',
+      taskId,
+      data: {
+        message: '这是一条测试消息'
+      }
+    });
   } catch (error) {
-    MessagePlugin.error('发送失败：' + (error instanceof Error ? error.message : String(error)));
+    MessagePlugin.error('发送测试消息失败');
   } finally {
     loading.value = false;
   }
 };
 
-// 显示处理器状态
+// 查看处理器状态
 const showHandlerStatus = () => {
   handlerStatus.value = dockerWebSocketService.getRegisteredHandlersStatus();
 };
 
-// 接收测试消息响应
-const handleTestResponse = (message: WebSocketMessage) => {
-  // 只添加到消息记录
-  messages.value.unshift({
-    time: new Date().toLocaleTimeString(),
-    content: message.data.content || JSON.stringify(message.data)
-  });
-};
-
-// 组件挂载时注册消息监听
-onMounted(() => {
-  dockerWebSocketService.on('TEST_NOTIFY_RESPONSE', handleTestResponse);
-  // 初始显示处理器状态
-  showHandlerStatus();
-});
-
-// 组件卸载时移除消息监听
+// 组件卸载时清理
 onUnmounted(() => {
-  dockerWebSocketService.off('TEST_NOTIFY_RESPONSE', handleTestResponse);
+  // 清理所有消息处理器
+  const taskIds = [`test_${Date.now()}`];
+  taskIds.forEach(taskId => {
+    dockerWebSocketService.removeMessageHandler(taskId);
+  });
 });
 </script>
 

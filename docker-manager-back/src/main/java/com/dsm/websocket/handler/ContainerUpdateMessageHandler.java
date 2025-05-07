@@ -38,8 +38,7 @@ public class ContainerUpdateMessageHandler extends BaseMessageHandler {
         ContainerCreateRequest request = JsonContainerRequestToContainerCreateRequestConverter.convert(json);
         // 更新容器
         String newContainerId = containerService.updateContainer(containerId, request);
-        sendResponse(session, MessageType.CONTAINER_OPERATION_RESULT, wsMessage.getTaskId(), newContainerId);
-
-
+        // 发送操作结果
+        sendResponse(session, MessageType.OPERATION_RESULT, wsMessage.getTaskId(), newContainerId);
     }
 } 

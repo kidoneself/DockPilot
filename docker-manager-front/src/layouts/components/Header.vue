@@ -36,9 +36,9 @@
           <t-dropdown :min-column-width="120" trigger="click">
             <template #dropdown>
               <t-dropdown-menu>
-                <t-dropdown-item class="operations-dropdown-container-item" @click="handleNav('/user/index')">
+                <!-- <t-dropdown-item class="operations-dropdown-container-item" @click="handleNav('/user/index')">
                   <user-circle-icon />用户中心
-                </t-dropdown-item>
+                </t-dropdown-item> -->
                 <t-dropdown-item class="operations-dropdown-container-item" @click="handleLogout">
                   <poweroff-icon />退出登录
                 </t-dropdown-item>
@@ -150,13 +150,13 @@ const handleLogout = () => {
   });
 };
 
-const navToGitHub = () => {
-  window.open('https://github.com/tencent/tdesign-vue-next-starter');
-};
+// const navToGitHub = () => {
+//   window.open('https://github.com/tencent/tdesign-vue-next-starter');
+// };
 
-const navToHelper = () => {
-  window.open('http://tdesign.tencent.com/starter/docs/get-started');
-};
+// const navToHelper = () => {
+//   window.open('http://tdesign.tencent.com/starter/docs/get-started');
+// };
 </script>
 <style lang="less" scoped>
 .@{starter-prefix}-header {

@@ -39,7 +39,7 @@ public class ContainerCreateMessageHandler extends BaseMessageHandler {
         // 创建容器
         String containerId = containerService.createContainer(request);
         // 发送操作结果
-        sendResponse(session, MessageType.CONTAINER_OPERATION_RESULT, wsMessage.getTaskId(), containerId);
+        sendResponse(session, MessageType.OPERATION_RESULT, wsMessage.getTaskId(), containerId);
     }
 
 }

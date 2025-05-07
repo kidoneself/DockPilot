@@ -31,7 +31,7 @@ public class ContainerRestartMessageHandler extends BaseMessageHandler {
         Map<String, Object> data = (Map<String, Object>) wsMessage.getData();
         String containerId = (String) data.get("containerId");
         containerService.restartContainer(containerId);
-        sendResponse(session, MessageType.CONTAINER_OPERATION_RESULT, wsMessage.getTaskId(), null);
+        sendResponse(session, MessageType.OPERATION_RESULT, wsMessage.getTaskId(), null);
     }
 
 

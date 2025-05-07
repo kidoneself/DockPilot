@@ -31,7 +31,7 @@
         </t-form>
       </t-tab-panel>
 
-      <t-tab-panel value="mirror" label="镜像加速">
+      <!-- <t-tab-panel value="mirror" label="镜像加速">
         <t-alert theme="info" title="配置说明" :close="true">
           <template #message>
             <p>1. 镜像加速地址格式为：https://mirror.example.com/</p>
@@ -71,7 +71,7 @@
             </t-space>
           </div>
         </t-form>
-      </t-tab-panel>
+      </t-tab-panel> -->
     </t-tabs>
 
     <!-- 添加代理测试结果对话框 -->

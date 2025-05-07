@@ -25,12 +25,8 @@ public class InstallValidateMessageHandler extends BaseMessageHandler {
 
     @Override
     public void handle(WebSocketSession session, Object message) {
-        try {
-            DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
-            dockerValidationService.handleInstallValidate(session, wsMessage);
-        } catch (Exception e) {
-            log.error("处理安装验证消息时发生错误", e);
-            sendErrorMessage(session, "验证参数失败：" + e.getMessage(), ((DockerWebSocketMessage) message).getTaskId());
-        }
+        DockerWebSocketMessage wsMessage = (DockerWebSocketMessage) message;
+        dockerValidationService.handleInstallValidate(session, wsMessage);
+
     }
 } 

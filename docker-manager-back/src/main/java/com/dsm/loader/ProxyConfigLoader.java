@@ -25,11 +25,11 @@ public class ProxyConfigLoader {
     public void initProxy() {
         String proxyUrl = systemSettingService.get("proxy");
         JSONObject jsonObject = JSONObject.parseObject(proxyUrl);
-        if (jsonObject != null && jsonObject.containsKey("proxy")) {
+        if (jsonObject != null && jsonObject.containsKey("url")) {
             String url = jsonObject.getString("url");
             if (url != null && !url.isBlank()) {
                 appConfig.setProxyUrl(url); // ✅ 设置到全局字段
-                LogUtil.logSysInfo("已设置系统 HTTP 代理: " + proxyUrl);
+                log.info("✅已设置系统 HTTP 代理:{} ", proxyUrl);
             }
         }
     }

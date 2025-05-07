@@ -30,6 +30,11 @@ public enum MessageType {
     INSTALL_VALIDATE,
 
     /**
+     * 验证安装参数结果
+     */
+    INSTALL_VALIDATE_RESULT,
+
+    /**
      * 开始安装
      */
     INSTALL_START,
@@ -120,11 +125,6 @@ public enum MessageType {
     CONTAINER_STATS,
 
     /**
-     * 容器操作结果
-     */
-    CONTAINER_OPERATION_RESULT,
-
-    /**
      * 容器状态变更
      */
     CONTAINER_STATE_CHANGE,
@@ -133,6 +133,11 @@ public enum MessageType {
      * 错误消息
      */
     ERROR,
+
+    /**
+     * 操作结果
+     */
+    OPERATION_RESULT,
 
     /**
      * 网络列表
@@ -173,11 +178,6 @@ public enum MessageType {
      * 检查镜像更新
      */
     IMAGE_CHECK_UPDATES,
-
-    /**
-     * 镜像操作结果
-     */
-    IMAGE_OPERATION_RESULT,
 
     /**
      * 导入模板

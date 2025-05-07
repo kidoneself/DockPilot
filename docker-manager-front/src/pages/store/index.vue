@@ -89,8 +89,7 @@ import { useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { getAppList } from '@/api/appStoreApi'
 import type { AppStoreApp } from '@/api/model/appStoreModel'
-import { dockerWebSocketService } from '@/api/websocket/DockerWebSocketService'
-import type { WebSocketMessage, WebSocketMessageType } from '@/api/websocket/types'
+import { importTemplate } from '@/api/websocket/container'
 
 const router = useRouter()
 
@@ -162,8 +161,18 @@ const handleInstall = (app: AppStoreApp) => {
 }
 
 // 处理导入模板按钮点击
-const handleImportTemplate = () => {
-  showImportDialog.value = true;
+const handleImportTemplate = async () => {
+  try {
+    const result = await importTemplate('', '');
+    if (result.success) {
+      MessagePlugin.success('模板导入成功');
+      fetchAppList();
+    } else {
+      MessagePlugin.error(result.message || '模板导入失败');
+    }
+  } catch (error) {
+    MessagePlugin.error('导入失败');
+  }
 };
 
 // 处理文件选择
@@ -235,38 +244,20 @@ const handleImport = async () => {
   if (!currentFile.value || !previewContent.value) return;
 
   isImporting.value = true;
+  
   try {
-    // 发送导入请求
-    dockerWebSocketService.sendMessage({
-      type: 'IMPORT_TEMPLATE' as WebSocketMessageType,
-      taskId: generateTaskId(),
-      data: {
-        content: previewContent.value,
-        fileName: currentFile.value.name
-      }
-    });
-
-    // 注册导入结果处理器
-    dockerWebSocketService.on('IMPORT_TEMPLATE_RESULT', (message: WebSocketMessage) => {
-      const { success, message: resultMessage } = message.data as {
-        success: boolean;
-        message: string;
-      };
-
-      if (success) {
-        MessagePlugin.success('模板导入成功');
-        showImportDialog.value = false;
-        clearPreview();
-        // 刷新应用列表
-        fetchAppList();
-      } else {
-        MessagePlugin.error(resultMessage || '模板导入失败');
-      }
-      isImporting.value = false;
-    });
+    const result = await importTemplate(previewContent.value, currentFile.value.name);
+    if (result.success) {
+      MessagePlugin.success('模板导入成功');
+      showImportDialog.value = false;
+      clearPreview();
+      fetchAppList();
+    } else {
+      MessagePlugin.error(result.message || '模板导入失败');
+    }
   } catch (error) {
-    console.error('导入失败:', error);
     MessagePlugin.error('导入失败');
+  } finally {
     isImporting.value = false;
   }
 };

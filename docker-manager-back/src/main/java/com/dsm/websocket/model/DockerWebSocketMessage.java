@@ -2,6 +2,7 @@ package com.dsm.websocket.model;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import com.alibaba.fastjson.JSON;
 
 /**
  * WebSocket消息类
@@ -67,5 +68,9 @@ public class DockerWebSocketMessage {
         this.taskId = taskId;
         this.data = data;
         this.timestamp = System.currentTimeMillis();
+    }
+
+    public String toJson() {
+        return JSON.toJSONString(this);
     }
 } 

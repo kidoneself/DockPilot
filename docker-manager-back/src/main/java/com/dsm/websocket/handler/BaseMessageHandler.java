@@ -63,7 +63,7 @@ public abstract class BaseMessageHandler implements MessageHandler {
             if (data != null) {
                 result.put("data", data);
             }
-            sendResponse(session, MessageType.CONTAINER_OPERATION_RESULT, taskId, result);
+            sendResponse(session, MessageType.OPERATION_RESULT, taskId, result);
         } catch (Exception e) {
             log.error("发送操作结果响应失败", e);
         }

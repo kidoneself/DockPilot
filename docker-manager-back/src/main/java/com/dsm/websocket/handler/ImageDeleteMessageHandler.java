@@ -34,7 +34,7 @@ public class ImageDeleteMessageHandler extends BaseMessageHandler {
         // 删除镜像
         imageService.removeImage(imageId, removeStatus);
         // 发送操作结果
-        sendResponse(session, MessageType.CONTAINER_OPERATION_RESULT, wsMessage.getTaskId(), null);
+        sendResponse(session, MessageType.OPERATION_RESULT, wsMessage.getTaskId(), null);
 
     }
 } 

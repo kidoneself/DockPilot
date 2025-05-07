@@ -1,5 +1,6 @@
 package com.dsm.websocket.service;
 
+import com.dsm.websocket.message.MessageType;
 import com.dsm.websocket.model.DockerWebSocketMessage;
 import com.dsm.websocket.sender.DockerWebSocketMessageSender;
 import lombok.extern.slf4j.Slf4j;
@@ -80,10 +81,11 @@ public class DockerValidationService {
                 }
             }
 
-            messageSender.sendMessage(session, new DockerWebSocketMessage("INSTALL_VALIDATE_RESULT", message.getTaskId(), results));
+            messageSender.sendMessage(session, MessageType.OPERATION_RESULT, message.getTaskId(), results);
         } catch (Exception e) {
             log.error("Parameter validation failed", e);
-            messageSender.sendErrorMessage(session, "Parameter validation failed: " + e.getMessage());
+            messageSender.sendMessage(session, MessageType.OPERATION_RESULT, message.getTaskId(), 
+                Map.of("valid", false, "message", "Parameter validation failed: " + e.getMessage()));
         }
     }
 } 

@@ -32,7 +32,7 @@ public class ContainerStopMessageHandler extends BaseMessageHandler {
         String containerId = (String) data.get("containerId");
         // 停止容器
         containerService.stopContainer(containerId);
-        sendResponse(session, MessageType.CONTAINER_OPERATION_RESULT, wsMessage.getTaskId(), null);
-
+        // 发送操作结果
+        sendResponse(session, MessageType.OPERATION_RESULT, wsMessage.getTaskId(), null);
     }
 } 
