@@ -1,6 +1,7 @@
 <template>
   <div class="store-container">
     <div class="store-wrapper">
+      <h1 class="store-title">应用商店</h1>
       <!-- 应用列表 -->
       <div class="app-list">
         <t-row :gutter="[12, 12]">
@@ -304,15 +305,22 @@ onMounted(() => {
   flex-direction: column;
 }
 
+.store-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+  margin: 0 0 24px;
+}
+
 .app-list {
   flex: 1;
   margin-bottom: 24px;
   min-height: 0;
   overflow-y: auto;
+  padding: 4px;
 }
 
 .app-card {
-  height: 100%;
   cursor: pointer;
   transition: all 0.3s ease;
   border-radius: 8px;
@@ -321,6 +329,8 @@ onMounted(() => {
   border: 1px solid var(--td-component-stroke);
   display: flex;
   flex-direction: row;
+  position: relative;
+  z-index: 1;
 }
 
 .app-card:hover {
@@ -384,7 +394,6 @@ onMounted(() => {
 }
 
 .app-description {
-  flex: 1;
   font-size: 12px;
   color: var(--td-text-color-secondary);
   margin: 4px 0 8px;
@@ -393,6 +402,7 @@ onMounted(() => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  min-height: 34px;
 }
 
 .app-footer {

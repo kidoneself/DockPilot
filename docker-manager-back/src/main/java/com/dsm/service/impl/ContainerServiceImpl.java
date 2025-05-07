@@ -55,9 +55,9 @@ public class ContainerServiceImpl implements ContainerService {
         for (Container container : containers) {
             ContainerDTO dto = ContainerDTO.convertToDTO(container);
             String latestImageId = imageIdMap.get(container.getImage());
-//            dto.setNeedUpdate(latestImageId != null && !latestImageId.equals(container.getImageId()));
+            dto.setNeedUpdate(latestImageId != null && !latestImageId.equals(container.getImageId()));
             //暂时先设置的需要更新
-            dto.setNeedUpdate(true);
+//            dto.setNeedUpdate(true);
             containerDTOS.add(dto);
         }
         return containerDTOS;

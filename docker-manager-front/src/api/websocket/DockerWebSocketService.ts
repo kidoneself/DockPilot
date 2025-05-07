@@ -1,6 +1,5 @@
 import {ws as wsClient} from '@/utils/websocket';
 import type {
-    DockerImage,
     DockerWebSocketCallbacks,
     PullImageParams,
     WebSocketMessage
