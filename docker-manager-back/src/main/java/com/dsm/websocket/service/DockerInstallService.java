@@ -36,7 +36,7 @@ import java.util.Objects;
 @Service
 public class DockerInstallService {
 
-    public static final String MNT_HOST = "";
+    public static final String MNT_HOST = "/mnt/host";
     @Autowired
     private TemplateMapper templateMapper;
 
