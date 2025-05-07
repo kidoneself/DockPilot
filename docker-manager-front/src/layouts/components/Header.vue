@@ -36,9 +36,9 @@
           <t-dropdown :min-column-width="120" trigger="click">
             <template #dropdown>
               <t-dropdown-menu>
-                <!-- <t-dropdown-item class="operations-dropdown-container-item" @click="handleNav('/user/index')">
-                  <user-circle-icon />用户中心
-                </t-dropdown-item> -->
+                <t-dropdown-item class="operations-dropdown-container-item" @click="handleNav('/')">
+                  <user-circle-icon />导航中心
+                </t-dropdown-item>
                 <t-dropdown-item class="operations-dropdown-container-item" @click="handleLogout">
                   <poweroff-icon />退出登录
                 </t-dropdown-item>

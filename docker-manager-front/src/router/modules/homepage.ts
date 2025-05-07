@@ -173,4 +173,13 @@ export default [
       },
     ],
   },
+  {
+    path: '/',
+    name: 'home',
+    component: () => import('@/pages/home/index.vue'),
+    meta: {
+      requiresAuth: false,
+      hidden: true,
+    },
+  },
 ];
