@@ -62,8 +62,8 @@ docker run -d --privileged \
 
 Telegram 群组：https://t.me/+hGFa3joV-TNhNDc1⁠
 
-微信联系方式：
-![微信二维码](https://raw.githubusercontent.com/kidself/dockpilot/main/docs/wechat-qr.png)
+微信群：
+![微信二维码](https://raw.githubusercontent.com/kidoneself/dmc/refs/heads/feature/websocket/docs/wechat-qr.png)
 
 ## 📄 许可证
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
