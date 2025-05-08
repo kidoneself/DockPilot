@@ -1,9 +1,9 @@
-# Docker 管理平台
+# DockPilot
 
 <div align="center">
 
-[![Github](https://img.shields.io/badge/Github-123456?logo=github&labelColor=242424)](https://github.com/your-username/docker-manager)
-[![Docker](https://img.shields.io/badge/docker-123456?logo=docker&logoColor=fff&labelColor=1c7aed)](https://hub.docker.com/r/your-username/docker-manager)
+[![Github](https://img.shields.io/badge/Github-123456?logo=github&labelColor=242424)](https://github.com/your-username/dockpilot)
+[![Docker](https://img.shields.io/badge/docker-123456?logo=docker&logoColor=fff&labelColor=1c7aed)](https://hub.docker.com/r/your-username/dockpilot)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -55,7 +55,7 @@ npm run dev
 ```
 
 4. 访问系统
-打开浏览器访问：http://localhost:3000
+打开浏览器访问：http://IP:8888
 
 
 
@@ -66,4 +66,4 @@ npm run dev
 欢迎提交 Issue 和 Pull Request 来帮助改进项目。
 
 ## 📄 许可证
-待定
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
