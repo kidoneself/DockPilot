@@ -2,8 +2,8 @@
 
 <div align="center">
 
-[![Github](https://img.shields.io/badge/Github-123456?logo=github&labelColor=242424)](https://github.com/your-username/dockpilot)
-[![Docker](https://img.shields.io/badge/docker-123456?logo=docker&logoColor=fff&labelColor=1c7aed)](https://hub.docker.com/r/your-username/dockpilot)
+[![Github](https://img.shields.io/badge/Github-123456?logo=github&labelColor=242424)](https://github.com/kidoneself/dockpilot)
+[![Docker](https://img.shields.io/badge/docker-123456?logo=docker&logoColor=fff&labelColor=1c7aed)](https://hub.docker.com/r/kidself/dockpilot)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>

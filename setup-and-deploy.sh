@@ -88,7 +88,7 @@ setup_code() {
     print_message "设置代码..."
     if [ ! -d "dmc" ]; then
         print_message "克隆代码仓库..."
-        git clone https://github.com/kidoneself/dmc.git
+        git clone https://github.com/kidoneself/DockPilot.git
         if [ $? -ne 0 ]; then
             print_error "克隆代码失败"
             exit 1
