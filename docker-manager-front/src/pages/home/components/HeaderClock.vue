@@ -1,6 +1,6 @@
 <template>
   <div class="main-title-row">
-    <div class="main-title">DockPanel</div>
+    <div class="main-title">DockPilot</div>
     <div class="main-time">
       {{ currentTime }}<span class="main-date"> {{ currentDate }}</span>
     </div>

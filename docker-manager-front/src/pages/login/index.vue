@@ -5,7 +5,7 @@
     <div class="login-container">
       <div class="title-container">
         <h1 class="title margin-no">欢迎使用</h1>
-        <h1 class="title">DockerTools Starter</h1>
+        <h1 class="title">DockPilot Starter</h1>
       </div>
 
       <login />

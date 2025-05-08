@@ -63,7 +63,7 @@ const searchEngines = [
   },
 ];
 
-const STORAGE_KEY = 'dockpanel_search_engine';
+const STORAGE_KEY = 'dockpilot_search_engine';
 
 // 从 localStorage 获取保存的搜索引擎，如果没有则默认使用 Google
 const savedEngine = localStorage.getItem(STORAGE_KEY);
