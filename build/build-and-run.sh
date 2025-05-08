@@ -24,14 +24,14 @@ docker build -t dockpilot .
 docker stop dockpilot 2>/dev/null || true
 docker rm dockpilot 2>/dev/null || true
 
-## 运行新容器
-#print_message "启动新容器..."
-#docker run -d --privileged \
-#    -p 8888:80 \
-#    --name dockpilot \
-#    -v /var/run/docker.sock:/var/run/docker.sock \
-#    -v /:/mnt/host \
-#    dockpilot:latest
-#
-#print_message "容器已启动！"
-#print_message "前端访问地址: http://localhost:8888"
+# 运行新容器
+print_message "启动新容器..."
+docker run -d --privileged \
+   -p 8888:80 \
+   --name dockpilot \
+   -v /var/run/docker.sock:/var/run/docker.sock \
+   -v /:/mnt/host \
+   kidself/dockpilot:latest
+
+print_message "容器已启动！"
+print_message "前端访问地址: http://localhost:8888"
