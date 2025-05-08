@@ -28,7 +28,7 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # 不复制自定义的nginx.conf
 
 # 暴露端口
-EXPOSE 80 8080
+EXPOSE 80 
 
 # 启动命令
 CMD ["sh", "-c", "nginx -g 'daemon off;' & java -jar app.jar"]

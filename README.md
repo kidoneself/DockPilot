@@ -36,34 +36,34 @@
 - Node.js 16 或更高版本
 
 ### 安装步骤
-1. 克隆项目
-```bash
-git clone [项目地址]
-```
 
-2. 启动后端服务
 ```bash
-cd docker-manager-back
-./mvnw spring-boot:run
-```
+docker run -d --privileged \
+   -p 8888:80 \
+   --name dockpilot \
+   -v /var/run/docker.sock:/var/run/docker.sock \
+   -v /:/mnt/host \
+   kidself/dockpilot:latest
 
-3. 启动前端服务
-```bash
-cd docker-manager-front
-npm install
-npm run dev
 ```
 
 4. 访问系统
 打开浏览器访问：http://IP:8888
 
-
-
 ## 📋 开发计划
-请查看 [待办任务清单](todo.md) 了解最新的开发计划和进度。
+
+- [ ] 完善导航栏的地址添加
+- [ ] 应用商店增加接口导入
+- [ ] 自定义背景图
+- [ ] 发散中...
 
 ## 🤝 贡献指南
 欢迎提交 Issue 和 Pull Request 来帮助改进项目。
+
+Telegram 群组：https://t.me/+hGFa3joV-TNhNDc1⁠
+
+微信联系方式：
+![微信二维码](https://raw.githubusercontent.com/kidself/dockpilot/main/docs/wechat-qr.png)
 
 ## 📄 许可证
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
