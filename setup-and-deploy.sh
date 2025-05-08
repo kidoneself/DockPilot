@@ -167,13 +167,35 @@ build_docker_image() {
     cd ..
 }
 
+# 推送到DockerHub
+push_to_dockerhub() {
+    print_message "推送到DockerHub..."
+    # DockerHub信息
+    DOCKERHUB_USERNAME="kidself"  # 请替换为你的DockerHub用户名
+    DOCKERHUB_IMAGE="dockpilot"
+    
+    # 获取最新镜像ID
+    get_latest_image_id
+    
+    # 给镜像打标签
+    print_message "给镜像打标签..."
+    docker tag ${IMAGE_ID} ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest
+    
+    # 推送镜像
+    print_message "推送镜像..."
+    docker push ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest
+    
+    print_message "DockerHub镜像推送完成！"
+    print_message "镜像地址: ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest"
+}
+
 # 获取最新构建的镜像ID
 get_latest_image_id() {
     print_message "获取最新构建的镜像ID..."
-    # 获取最近构建的docker-manager镜像ID
-    IMAGE_ID=$(docker images docker-manager --format "{{.ID}}" | head -n 1)
+    # 获取最近构建的dockpilot镜像ID
+    IMAGE_ID=$(docker images dockpilot --format "{{.ID}}" | head -n 1)
     if [ -z "$IMAGE_ID" ]; then
-        print_error "未找到docker-manager镜像"
+        print_error "未找到dockpilot镜像"
         exit 1
     fi
     print_message "找到镜像ID: $IMAGE_ID"
@@ -184,7 +206,7 @@ push_to_tencent() {
     print_message "推送到腾讯云容器镜像服务..."
     # 腾讯云容器镜像服务信息
     TENCENT_REGISTRY="ccr.ccs.tencentyun.com"
-    NAMESPACE="naspt/docker-manager"
+    NAMESPACE="naspt/dockpilot"
     
     # 获取最新镜像ID
     get_latest_image_id
@@ -211,6 +233,7 @@ main() {
     copy_build_files
     build_docker_image
     push_to_tencent
+    push_to_dockerhub
     
     print_message "部署完成！"
 }
