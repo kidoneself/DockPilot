@@ -55,12 +55,15 @@ docker run -d --privileged \
 - [ ] 完善导航栏的地址添加
 - [ ] 应用商店增加接口导入
 - [ ] 自定义背景图
+- [ ] 添加分组，系统UI，APP UI
+- [ ] 备份Docker文件夹
+- [ ] 保存的文件放到data文件夹映射出来
 - [ ] 发散中...
 
 ## 🤝 贡献指南
 欢迎提交 Issue 和 Pull Request 来帮助改进项目。
 
-Telegram 群组：https://t.me/+hGFa3joV-TNhNDc1⁠
+Telegram 群组：https://t.me/+hGFa3joV-TNhNDc1
 
 微信群：
 ![微信二维码](https://raw.githubusercontent.com/kidoneself/dmc/refs/heads/feature/websocket/docs/wechat-qr.png)

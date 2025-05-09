@@ -161,18 +161,8 @@ const handleInstall = (app: AppStoreApp) => {
 }
 
 // 处理导入模板按钮点击
-const handleImportTemplate = async () => {
-  try {
-    const result = await importTemplate('', '');
-    if (result.success) {
-      MessagePlugin.success('模板导入成功');
-      fetchAppList();
-    } else {
-      MessagePlugin.error(result.message || '模板导入失败');
-    }
-  } catch (error) {
-    MessagePlugin.error('导入失败');
-  }
+const handleImportTemplate = () => {
+  showImportDialog.value = true;
 };
 
 // 处理文件选择
