@@ -96,7 +96,7 @@ setup_code() {
         cd DockPilot
     else
         print_message "更新代码仓库..."
-        cd DockPilot
+        rm-rf DockPilot
         git fetch origin
         if [ $? -ne 0 ]; then
             print_error "获取远程代码失败"
