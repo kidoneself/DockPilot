@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dsm.mapper.WebServerMapper">
+    <!-- 基础列 -->
+    <sql id="Base_Column_List">
+        id, name, icon, internal_url, external_url, description, category, item_sort,
+        created_at, updated_at
+    </sql>
+
+    <!-- 新增服务器 -->
+    <insert id="insert" parameterType="com.dsm.entity.WebServer">
+        INSERT INTO web_servers (
+            id, name, icon, internal_url, external_url, description, category, item_sort,
+            created_at, updated_at
+        ) VALUES (
+            #{id}, #{name}, #{icon}, #{internalUrl}, #{externalUrl}, #{description}, #{category},
+            #{itemSort}, datetime('now'), datetime('now')
+        )
+    </insert>
+
+    <!-- 根据ID删除服务器 -->
+    <delete id="deleteById">
+        DELETE FROM web_servers WHERE id = #{id}
+    </delete>
+
+    <!-- 更新服务器信息 -->
+    <update id="update" parameterType="com.dsm.entity.WebServer">
+        UPDATE web_servers
+        SET name = #{name},
+            icon = #{icon},
+            internal_url = #{internalUrl},
+            external_url = #{externalUrl},
+            description = #{description},
+            category = #{category},
+            item_sort = #{itemSort},
+            updated_at = datetime('now')
+        WHERE id = #{id}
+    </update>
+
+    <!-- 根据ID查询服务器 -->
+    <select id="selectById" resultType="com.dsm.entity.WebServer">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM web_servers
+        WHERE id = #{id}
+    </select>
+
+    <!-- 查询所有服务器 -->
+    <select id="selectAll" resultType="com.dsm.entity.WebServer">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM web_servers
+        ORDER BY item_sort
+    </select>
+
+    <!-- 获取所有分类 -->
+    <select id="selectAllCategories" resultType="java.lang.String">
+        SELECT DISTINCT category
+        FROM web_servers
+        ORDER BY category
+    </select>
+
+    <!-- 根据分类查询服务器 -->
+    <select id="selectByCategory" resultType="com.dsm.entity.WebServer">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM web_servers
+        WHERE category = #{category}
+        ORDER BY item_sort
+    </select>
+
+    <!-- 更新服务器排序 -->
+    <update id="updateSort">
+        UPDATE web_servers
+        SET item_sort = #{itemSort},
+            updated_at = datetime('now')
+        WHERE id = #{id}
+    </update>
+
+    <!-- 批量更新服务器排序 -->
+    <update id="batchUpdateSort">
+        UPDATE web_servers
+        SET item_sort = CASE id
+            <foreach collection="servers" item="server">
+                WHEN #{server.id} THEN #{server.itemSort}
+            </foreach>
+        END,
+        updated_at = datetime('now')
+        WHERE id IN
+        <foreach collection="servers" item="server" open="(" separator="," close=")">
+            #{server.id}
+        </foreach>
+    </update>
+</mapper> 

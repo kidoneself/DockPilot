@@ -32,7 +32,9 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue';
+import { defineProps } from 'vue';
+import { useHomeStore } from '@/store/modules/home';
+import type { AppItem } from '@/store/modules/home';
 
 // 定义组件属性
 const props = defineProps({
@@ -45,23 +47,23 @@ const props = defineProps({
     default: () => ({})
   },
   contextItem: {
-    type: Object,
+    type: Object as () => AppItem | null,
     default: null
   }
 });
 
-// 定义组件事件
-const emit = defineEmits(['open-app', 'menu-click']);
+// 初始化 store
+const homeStore = useHomeStore();
 
 // 处理打开应用
 function handleOpenApp(type: 'internal' | 'external') {
   if (!props.contextItem) return;
-  emit('open-app', { type, item: props.contextItem });
+  homeStore.handleOpenAppFromMenu({ type, item: props.contextItem as AppItem });
 }
 
 // 处理菜单点击
 function handleMenuClick(action: string) {
-  emit('menu-click', { action, item: props.contextItem });
+  homeStore.handleContextMenuClick({ action, item: props.contextItem as AppItem | null });
 }
 </script>
 

@@ -86,17 +86,17 @@ check_requirements() {
 # 克隆或更新代码
 setup_code() {
     print_message "设置代码..."
-    if [ ! -d "dmc" ]; then
+    if [ ! -d "DockPilot" ]; then
         print_message "克隆代码仓库..."
         git clone https://github.com/kidoneself/DockPilot.git
         if [ $? -ne 0 ]; then
             print_error "克隆代码失败"
             exit 1
         fi
-        cd dmc
+        cd DockPilot
     else
         print_message "更新代码仓库..."
-        cd dmc
+        cd DockPilot
         git fetch origin
         if [ $? -ne 0 ]; then
             print_error "获取远程代码失败"
@@ -151,10 +151,10 @@ copy_build_files() {
     print_message "复制构建文件到build目录..."
     rm -rf build/dist
     rm -rf build/*.jar
-    
+
     # 复制前端构建文件
     cp -r docker-manager-front/dist build/
-    
+
     # 复制后端jar文件
     cp docker-manager-back/target/*.jar build/
 }
@@ -173,18 +173,18 @@ push_to_dockerhub() {
     # DockerHub信息
     DOCKERHUB_USERNAME="kidself"  # 请替换为你的DockerHub用户名
     DOCKERHUB_IMAGE="dockpilot"
-    
+
     # 获取最新镜像ID
     get_latest_image_id
-    
+
     # 给镜像打标签
     print_message "给镜像打标签..."
     docker tag ${IMAGE_ID} ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest
-    
+
     # 推送镜像
     print_message "推送镜像..."
     docker push ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest
-    
+
     print_message "DockerHub镜像推送完成！"
     print_message "镜像地址: ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest"
 }

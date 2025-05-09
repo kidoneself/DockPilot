@@ -1,41 +1,41 @@
 <template>
   <div class="fixed-buttons">
     <div class="button-group">
-      <t-tooltip content="添加应用" placement="left">
-        <t-button theme="primary" @click="$emit('addApp')" class="action-btn">
+      <t-tooltip content="添加服务" placement="left">
+        <t-button theme="primary" @click="homeStore.handleAddApp()" class="action-btn">
           <template #icon>
             <t-icon name="add" />
           </template>
         </t-button>
       </t-tooltip>
       <t-tooltip content="进入后台" placement="left">
-        <t-button theme="primary" @click="$emit('openSettings')" class="action-btn">
+        <t-button theme="primary" @click="homeStore.openSettings()" class="action-btn">
           <template #icon>
             <t-icon name="setting" />
           </template>
         </t-button>
       </t-tooltip>
-      <t-tooltip :content="currentTab === 'dashboard' ? '应用' : '仪表盘'" placement="left">
+      <t-tooltip :content="homeStore.currentTab === 'dashboard' ? '应用' : '仪表盘'" placement="left">
         <t-button 
           theme="primary" 
-          @click="$emit('toggleView')" 
+          @click="homeStore.toggleView()" 
           class="action-btn view-btn"
-          :class="{ 'is-dashboard': currentTab === 'dashboard' }"
+          :class="{ 'is-dashboard': homeStore.currentTab === 'dashboard' }"
         >
           <template #icon>
-            <t-icon :name="currentTab === 'dashboard' ? 'app' : 'dashboard'" />
+            <t-icon :name="homeStore.currentTab === 'dashboard' ? 'app' : 'dashboard'" />
           </template>
         </t-button>
       </t-tooltip>
-      <t-tooltip :content="isInternalNetwork ? '当前：内网模式' : '当前：外网模式'" placement="left">
+      <t-tooltip :content="homeStore.isInternalNetwork ? '当前：内网模式' : '当前：外网模式'" placement="left">
         <t-button 
           theme="primary" 
-          @click="$emit('toggleNetworkMode')" 
+          @click="homeStore.toggleNetworkMode()" 
           class="action-btn network-btn"
-          :class="{ 'is-external': !isInternalNetwork }"
+          :class="{ 'is-external': !homeStore.isInternalNetwork }"
         >
           <template #icon>
-            <t-icon :name="isInternalNetwork ? 'cloud-download' : 'cloud-upload'" />
+            <t-icon :name="homeStore.isInternalNetwork ? 'cloud-download' : 'cloud-upload'" />
           </template>
         </t-button>
       </t-tooltip>
@@ -44,22 +44,10 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue';
+import { useHomeStore } from '@/store/modules/home';
 
-// 定义组件属性
-const props = defineProps({
-  currentTab: {
-    type: String,
-    required: true
-  },
-  isInternalNetwork: {
-    type: Boolean,
-    default: true
-  }
-});
-
-// 定义组件事件
-defineEmits(['addApp', 'openSettings', 'toggleView', 'toggleNetworkMode']);
+// 初始化 store
+const homeStore = useHomeStore();
 </script>
 
 <style scoped>

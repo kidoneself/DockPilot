@@ -108,3 +108,17 @@ VALUES ('2fe73d6b-6f82-4e19-b90b-1ed3b8b305ae', '家庭影院', '媒体', '1.0',
 
 INSERT OR IGNORE INTO application_templates (id, name, category, version, description, icon_url, template, created_at, updated_at, sort_weight) 
 VALUES ('2b6f4520-975e-404d-8770-7b1d8c66ec29', '代理工具', '工具', '1.0', 'clash代理工具，提供强大的留学功能', 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRqJzLuADqLVH5nVeqZkZmQ1Pke3tmN_n32wQ&s', '{"services":[{"id":"clash","name":"clash","template":{"name":"naspt-clash","image":"ccr.ccs.tencentyun.com/naspt/clash-and-dashboard:latest","env":{"PUID":"0","PGID":"0","UMASK":"022","PATH":"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},"ports":{"7890/tcp":"{{PROXY_PORT}}","8080/tcp":"{{CLASH_PORT}}"},"volumes":{"{{DOCKER_PATH}}/clash":"/root/.config/clash"},"restartPolicy":"always"}}],"parameters":[{"key":"DOCKER_PATH","name":"Docker配置路径","value":"/volume1/docker"},{"key":"CLASH_PORT","name":"WEB端口","value":"9999"},{"key":"PROXY_PORT","name":"代理端口","value":"7890"}],"configs":[{"target":"{{DOCKER_PATH}}","urls":["https://docker-template.oss-cn-shanghai.aliyuncs.com/Downloads/naspt-cl.tgz"]}]}', '2025-05-05T21:23:36.695338', '2025-05-05T21:23:36.695398', 0);
+
+-- Web服务表
+CREATE TABLE IF NOT EXISTS web_servers (
+    id TEXT PRIMARY KEY,                   -- UUID 主键
+    name VARCHAR(100) NOT NULL,            -- 服务器名称
+    icon TEXT,                             -- 图标URL
+    internal_url TEXT,                     -- 内网访问地址
+    external_url TEXT,                     -- 外网访问地址
+    description TEXT,                      -- 描述信息
+    category TEXT DEFAULT '默认分类',        -- 分类名称
+    item_sort INTEGER DEFAULT 0,           -- 应用排序
+    created_at TEXT DEFAULT (datetime('now')),  -- 创建时间
+    updated_at TEXT DEFAULT (datetime('now'))   -- 更新时间
+);

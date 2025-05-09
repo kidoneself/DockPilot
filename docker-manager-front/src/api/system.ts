@@ -2,10 +2,10 @@ import type { AxiosRequestConfig } from 'axios';
 
 import { request } from '@/utils/request';
 
-export interface SystemSettingResponse {
-  data: string;
+export interface SettingResponse {
   code: number;
   message: string;
+  data: any;
 }
 
 /**
@@ -13,7 +13,7 @@ export interface SystemSettingResponse {
  * @param key 设置项的键
  */
 export function getSystemSetting(key: string) {
-  return request.get<SystemSettingResponse>({
+  return request.get<SettingResponse>({
     url: `/system/settings?key=${key}`,
   } as AxiosRequestConfig);
 }
@@ -24,7 +24,7 @@ export function getSystemSetting(key: string) {
  * @param value 设置项的值
  */
 export function setSystemSetting(key: string, value: string) {
-  return request.post<SystemSettingResponse>({
+  return request.post<SettingResponse>({
     url: '/system/settings',
     data: {
       key,
@@ -39,7 +39,7 @@ export function setSystemSetting(key: string, value: string) {
  * @param value 设置项的值
  */
 export function updateSystemSetting(key: string, value: string) {
-  return request.put<SystemSettingResponse>({
+  return request.put<SettingResponse>({
     url: '/system/settings',
     data: {
       key,
@@ -53,7 +53,7 @@ export function updateSystemSetting(key: string, value: string) {
  * @param key 设置项的键
  */
 export function deleteSystemSetting(key: string) {
-  return request.delete<SystemSettingResponse>({
+  return request.delete<SettingResponse>({
     url: `/system/settings?key=${key}`,
   } as AxiosRequestConfig);
 }
@@ -68,12 +68,6 @@ export interface MirrorSettingRequest {
     url: string;
     enabled: boolean;
   }[];
-}
-
-export interface SettingResponse {
-  code: number;
-  message: string;
-  data: any;
 }
 
 export function setProxySetting(data: ProxySettingRequest) {
@@ -107,4 +101,15 @@ export function testProxyLatency() {
   return request.get<SettingResponse>({
     url: '/system/proxy/test',
   });
+}
+
+/**
+ * 获取网站favicon
+ * @param url 网站URL
+ * @returns favicon的URL
+ */
+export function getFavicon(url: string) {
+  return request.get<SettingResponse>({
+    url: `/system/favicon?url=${encodeURIComponent(url)}`,
+  } as AxiosRequestConfig);
 }

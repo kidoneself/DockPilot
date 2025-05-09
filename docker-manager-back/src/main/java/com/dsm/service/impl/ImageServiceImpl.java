@@ -83,11 +83,8 @@ public class ImageServiceImpl implements ImageService {
         try {
             // 首先同步宿主机所有镜像到数据库
             syncAllLocalImagesToDb();
-
             // 然后查询所有镜像记录进行更新检查
             List<ImageStatus> imageRecords = imageStatusMapper.selectAll();
-
-            LogUtil.logSysInfo("找到 " + imageRecords.size() + " 条镜像记录需要检查");
             for (ImageStatus record : imageRecords) {
                 try {
                     String name = record.getName();
@@ -97,20 +94,15 @@ public class ImageServiceImpl implements ImageService {
                     String remoteCreateTime = dockerService.getRemoteImageCreateTime(name, tag);
                     Instant localInstant = Instant.parse(storedLocalCreateTime);
                     Instant remoteInstant = Instant.parse(remoteCreateTime);
-
-                    LogUtil.logSysInfo("通过HTTP获取到远程镜像创建时间: " + remoteCreateTime);
-                    LogUtil.logSysInfo("通过DOKCER取到本地镜像创建时间: " + storedLocalCreateTime);
                     // 如果远程时间晚于本地时间，说明需要更新
                     boolean needUpdate = remoteInstant.isAfter(localInstant);
                     // 更新数据库记录 - 使用ISO格式日期
                     String currentTime = getCurrentIsoDateTime();
                     imageStatusMapper.updateRemoteCreateTime(id, remoteCreateTime, needUpdate, currentTime);
-                    LogUtil.logSysInfo("镜像 " + name + ":" + tag + " 检查完成 - 需要更新: " + needUpdate);
                 } catch (Exception e) {
                     LogUtil.logSysError("检查镜像状态异常: " + record.getName() + ":" + record.getTag() + ", 错误: " + e.getMessage());
                 }
             }
-            LogUtil.logSysInfo("所有镜像更新状态检查完成");
         } catch (Exception e) {
             LogUtil.logSysError("检查镜像更新状态失败: " + e.getMessage());
         }

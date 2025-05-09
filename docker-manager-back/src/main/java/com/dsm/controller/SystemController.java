@@ -4,6 +4,7 @@ import com.dsm.model.Route;
 import com.dsm.model.SystemSetting;
 import com.dsm.service.SystemSettingService;
 import com.dsm.utils.ApiResponse;
+import com.dsm.utils.FaviconFetcher;
 import com.dsm.utils.LogUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -71,5 +72,13 @@ public class SystemController {
     @GetMapping("/proxy/test")
     public ApiResponse<Map<String, Long>> testProxyLatency() {
         return ApiResponse.success(systemSettingService.testProxyLatency());
+    }
+
+    @Operation(summary = "获取网站Logo", description = "获取指定网站的favicon图标URL")
+    @GetMapping("/favicon")
+    public ApiResponse<String> getFavicon(@RequestParam String url) {
+        String faviconUrl = FaviconFetcher.getFavicon(url);
+        return ApiResponse.success(faviconUrl);
+
     }
 }

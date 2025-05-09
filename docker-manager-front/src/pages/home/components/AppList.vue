@@ -1,10 +1,10 @@
 <template>
   <div class="app-grid new-app-grid" :class="{ 'animate-in': animateIn }">
     <div
-      v-for="(item, index) in appList"
+      v-for="(item, index) in homeStore.webServerList"
       :key="index"
       class="app-item new-app-item"
-      @click="handleAppClick(item)"
+      @click="homeStore.handleAppClick(item)"
       @contextmenu.prevent="handleContextMenu($event, item)"
       :style="{ 'animation-delay': `${index * 0.05}s` }"
     >
@@ -16,16 +16,16 @@
           :class="{ 'image-error': imageErrorMap.get(item.icon) }"
         />
         <div v-if="imageErrorMap.get(item.icon)" class="fallback-icon">
-          <t-icon name="app" />
+          <t-icon name="browser" />
         </div>
       </div>
       <div class="app-info">
         <div class="app-name new-app-name">{{ item.name }}</div>
-        <div class="app-desc">{{ item.desc }}</div>
+        <div class="app-desc">{{ item.description }}</div>
       </div>
     </div>
-    <div class="app-item add-item new-app-item" @click="addApp"
-         :style="{ 'animation-delay': `${appList.length * 0.05}s` }">
+    <div class="app-item add-item new-app-item" @click="homeStore.handleAddApp()"
+         :style="{ 'animation-delay': `${homeStore.webServerList.length * 0.05}s` }">
       <div class="new-app-icon">
         <t-icon name="add" />
       </div>
@@ -38,53 +38,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineProps, defineEmits } from 'vue';
-import { MessagePlugin } from 'tdesign-vue-next';
-
-// 定义应用项接口
-interface AppItem {
-  name: string;
-  icon: string;
-  internalUrl: string;
-  externalUrl: string;
-  desc: string;
-}
+import { ref, defineProps } from 'vue';
+import { useHomeStore } from '@/store/modules/home';
+import type { AppItem } from '@/store/modules/home';
 
 // 定义组件属性
 const props = defineProps({
-  appList: {
-    type: Array as () => AppItem[],
-    required: true
-  },
-  isInternalNetwork: {
-    type: Boolean,
-    default: true
-  },
   animateIn: {
     type: Boolean,
     default: true
   }
 });
 
-// 定义组件事件
-const emit = defineEmits(['openApp', 'addApp', 'contextMenu']);
+// 初始化 store
+const homeStore = useHomeStore();
 
 // 使用 Map 来管理图片错误状态
 const imageErrorMap = new Map<string, boolean>();
 
-// 处理应用点击
-function handleAppClick(item: AppItem) {
-  emit('openApp', item);
-}
-
 // 处理右键菜单
 function handleContextMenu(event: MouseEvent, item: AppItem) {
-  emit('contextMenu', { event, item });
-}
-
-// 添加应用
-function addApp() {
-  emit('addApp');
+  homeStore.handleContextMenu({ event, item });
 }
 
 // 处理图片加载失败
@@ -116,11 +90,11 @@ function handleImageError(event: Event, item: AppItem) {
   display: flex;
   align-items: center;
   background: rgba(20, 20, 40, 0.55);
-  border-radius: 12px;
+  border-radius: 10px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  padding: 0.8rem 1rem;
-  min-width: 200px;
-  min-height: 60px;
+  padding: 0.6rem 0.6rem;
+  min-width: 180px;
+  min-height: 50px;
   transition:
     background 0.2s,
     box-shadow 0.2s,
@@ -134,16 +108,16 @@ function handleImageError(event: Event, item: AppItem) {
 }
 
 .new-app-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 8px;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 6px;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  margin-right: 0.8rem;
+  margin-right: 0.6rem;
   position: relative;
 }
 
@@ -179,20 +153,28 @@ function handleImageError(event: Event, item: AppItem) {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  flex: 1;
 }
 
 .new-app-name {
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 700;
-  margin-bottom: 0.1rem;
+  margin-bottom: 0.05rem;
 }
 
 .app-desc {
   color: #cbd5e1;
-  font-size: 0.85rem;
+  font-size: 0.7rem;
   font-weight: 400;
   opacity: 0.85;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.1;
 }
 
 /* 应用列表动画 */
