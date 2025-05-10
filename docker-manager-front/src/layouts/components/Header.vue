@@ -2,7 +2,7 @@
   <div :class="layoutCls">
     <t-head-menu :class="menuCls" :theme="menuTheme" expand-type="popup" :value="active">
       <template #logo>
-        <span v-if="showLogo" class="header-logo-container" @click="handleNav('/dashboard/base')">
+        <span v-if="showLogo" class="header-logo-container" @click="handleNav('/')">
           <logo-full class="t-logo" />
         </span>
         <div v-else class="header-operate-left">
@@ -39,6 +39,9 @@
                 <t-dropdown-item class="operations-dropdown-container-item" @click="handleNav('/')">
                   <user-circle-icon />导航中心
                 </t-dropdown-item>
+                <t-dropdown-item class="operations-dropdown-container-item" @click="showChangePasswordDialog">
+                  <lock-on-icon />修改密码
+                </t-dropdown-item>
                 <t-dropdown-item class="operations-dropdown-container-item" @click="handleLogout">
                   <poweroff-icon />退出登录
                 </t-dropdown-item>
@@ -48,7 +51,7 @@
               <template #icon>
                 <t-icon class="header-user-avatar" name="user-circle" />
               </template>
-              <div class="header-user-account">{{ user.userInfo.name }}</div>
+              <div class="header-user-account">{{ user.userInfo?.username || '未登录' }}</div>
               <template #suffix><chevron-down-icon /></template>
             </t-button>
           </t-dropdown>
@@ -60,13 +63,19 @@
         </div>
       </template>
     </t-head-menu>
+
+    <!-- 修改密码对话框 -->
+    <change-password-dialog
+      v-model:visible="changePasswordVisible"
+      @success="handlePasswordChangeSuccess"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ChevronDownIcon, PoweroffIcon, SettingIcon, UserCircleIcon } from 'tdesign-icons-vue-next';
+import { ChevronDownIcon, PoweroffIcon, SettingIcon, UserCircleIcon, LockOnIcon } from 'tdesign-icons-vue-next';
 import type { PropType } from 'vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import LogoFull from '@/assets/assets-logo-full.svg?component';
@@ -79,6 +88,8 @@ import type { MenuRoute, ModeType } from '@/types/interface';
 import MenuContent from './MenuContent.vue';
 import Notice from './Notice.vue';
 import Search from './Search.vue';
+import ChangePasswordDialog from '@/components/ChangePasswordDialog.vue';
+import { MessagePlugin } from 'tdesign-vue-next';
 
 const { theme, layout, showLogo, menu, isFixed, isCompact } = defineProps({
   theme: {
@@ -110,6 +121,7 @@ const { theme, layout, showLogo, menu, isFixed, isCompact } = defineProps({
 const router = useRouter();
 const settingStore = useSettingStore();
 const user = useUserStore();
+const changePasswordVisible = ref(false);
 
 const toggleSettingPanel = () => {
   settingStore.updateConfig({
@@ -143,11 +155,27 @@ const handleNav = (url: string) => {
   router.push(url);
 };
 
-const handleLogout = () => {
-  router.push({
-    path: '/login',
-    query: { redirect: encodeURIComponent(router.currentRoute.value.fullPath) },
-  });
+const handleLogout = async () => {
+  try {
+    await user.logout();
+    router.push({
+      path: '/login',
+      query: { redirect: encodeURIComponent(router.currentRoute.value.fullPath) },
+    });
+  } catch (error) {
+    console.error('退出登录失败:', error);
+  }
+};
+
+const showChangePasswordDialog = () => {
+  changePasswordVisible.value = true;
+};
+
+const handlePasswordChangeSuccess = () => {
+  // 密码修改成功后的处理
+  MessagePlugin.success('密码修改成功，请重新登录');
+  user.logout();
+  router.push('/login');
 };
 
 // const navToGitHub = () => {

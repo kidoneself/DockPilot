@@ -7,6 +7,8 @@ spring:
   datasource:
     url: jdbc:sqlite:docker-manager.db
     driver-class-name: org.sqlite.JDBC
+  main:
+    allow-circular-references: true
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
@@ -21,6 +23,9 @@ docker:
   response-timeout: 45000
   max-connections: 100
 
+jwt:
+  secret: DockPilot
+  expiration: 86400
 
 ## 文件下载配置
 #file:

@@ -4,8 +4,8 @@
     <div class="result-success-describe">请核对并修改以下信息后，再重新提交。</div>
     <template #actions>
       <t-space>
-        <t-button theme="default" @click="() => $router.push('/dashboard/base')">返回首页</t-button>
-        <t-button @click="() => $router.push('/dashboard/base')">修改</t-button>
+        <t-button theme="default" @click="() => $router.push('/docker/containers')">返回首页</t-button>
+        <t-button @click="() => $router.push('/docker/containers')">修改</t-button>
       </t-space>
     </template>
   </result>

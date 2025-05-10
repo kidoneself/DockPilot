@@ -1,12 +1,12 @@
-package com.dsm.entity;
+package com.dsm.model.vo;
 
 import lombok.Data;
 
 /**
- * Web服务实体类
+ * Web服务视图对象
  */
 @Data
-public class WebServer {
+public class WebServerVO {
     /**
      * 主键ID（UUID）
      */

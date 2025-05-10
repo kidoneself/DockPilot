@@ -8,6 +8,7 @@ import com.dsm.service.AppStoreService;
 import com.dsm.utils.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/app-store/apps")
 @Tag(name = "应用商店", description = "Docker应用商店管理接口")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "JWT")
 public class AppStoreController {
 
     @Autowired

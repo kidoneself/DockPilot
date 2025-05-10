@@ -3,7 +3,7 @@ import { WebServer, ApiResponse, CreateWebServerRequest } from './model/webServe
 
 /**
  * 获取所有 Web 服务器列表
- * @returns Promise<ApiResponse<WebServer[]>>
+ * @returns Promise<WebServer[]>
  */
 export const getWebServerListApi = () => {
   return request.get<ApiResponse<WebServer[]>>({

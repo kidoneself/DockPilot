@@ -1,7 +1,7 @@
 package com.dsm.service;
 
-import com.dsm.dto.WebServerDTO;
-import com.dsm.vo.WebServerVO;
+import com.dsm.model.dto.WebServerDTO;
+import com.dsm.model.vo.WebServerVO;
 
 import java.util.List;
 

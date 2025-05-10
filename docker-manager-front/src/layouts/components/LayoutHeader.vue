@@ -11,16 +11,17 @@
 </template>
 
 <script setup lang="ts">
+import { usePermissionStore, useSettingStore } from '@/store';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
-
-import { usePermissionStore, useSettingStore } from '@/store';
+import { useRoute } from 'vue-router';
 
 import LHeader from './Header.vue';
 
-const permissionStore = usePermissionStore();
 const settingStore = useSettingStore();
+const permissionStore = usePermissionStore();
 const { routers: menuRouters } = storeToRefs(permissionStore);
+
 const headerMenu = computed(() => {
   if (settingStore.layout === 'mix') {
     if (settingStore.splitMenu) {

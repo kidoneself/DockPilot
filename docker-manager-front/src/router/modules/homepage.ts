@@ -35,6 +35,7 @@ export default [
     meta: {
       title: '容器管理',
       icon: 'server',
+      requiresAuth: true,
     },
     children: [
       {
@@ -43,6 +44,7 @@ export default [
         component: () => import('@/pages/docker/containers/index.vue'),
         meta: {
           title: '容器列表',
+          requiresAuth: true,
         },
       },
       {
@@ -51,7 +53,7 @@ export default [
         component: () => import('@/pages/docker/containers/container-create/index.vue'),
         meta: {
           title: '创建容器',
-          // hidden: true,
+          requiresAuth: true,
         },
       },
       {
@@ -61,6 +63,7 @@ export default [
         meta: {
           title: '编辑容器',
           hidden: true,
+          requiresAuth: true,
         },
       },
       {
@@ -70,6 +73,7 @@ export default [
         meta: {
           title: '容器详情',
           hidden: true,
+          requiresAuth: true,
         },
       },
       {
@@ -78,6 +82,7 @@ export default [
         component: () => import('@/pages/docker/images/index.vue'),
         meta: {
           title: '镜像列表',
+          requiresAuth: true,
         },
       },
     ],
@@ -90,6 +95,8 @@ export default [
     meta: {
       title: '系统设置',
       icon: 'system-setting',
+      requiresAuth: true,
+      // requiresPro: true,
     },
     children: [
       {
@@ -98,6 +105,8 @@ export default [
         component: () => import('@/pages/system/proxy.vue'),
         meta: {
           title: '加速设置',
+          requiresAuth: true,
+          // requiresPro: true,
         },
       },
     ],

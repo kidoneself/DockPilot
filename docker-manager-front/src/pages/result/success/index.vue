@@ -4,10 +4,10 @@
     <div class="result-success-title">操作成功</div>
     <div class="result-success-describe">您的操作已经成功完成</div>
     <div>
-      <t-button theme="default" @click="() => $router.push('/dashboard/base')">
+      <t-button theme="default" @click="() => $router.push('/docker/containers')">
         查看进度
       </t-button>
-      <t-button @click="() => $router.push('/dashboard/base')">返回首页</t-button>
+      <t-button @click="() => $router.push('/docker/containers')">返回首页</t-button>
     </div>
   </div>
 </template>

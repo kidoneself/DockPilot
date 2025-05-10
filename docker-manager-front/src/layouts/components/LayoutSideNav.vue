@@ -11,11 +11,11 @@
 </template>
 
 <script setup lang="ts">
+import { usePermissionStore, useSettingStore } from '@/store';
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
-import { usePermissionStore, useSettingStore } from '@/store';
 import type { MenuRoute } from '@/types/interface';
 
 import LSideNav from './SideNav.vue';

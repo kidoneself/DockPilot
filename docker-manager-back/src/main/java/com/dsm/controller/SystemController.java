@@ -7,6 +7,7 @@ import com.dsm.utils.ApiResponse;
 import com.dsm.utils.FaviconFetcher;
 import com.dsm.utils.LogUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +19,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/system")
 @Tag(name = "系统管理", description = "系统状态和监控接口")
+@SecurityRequirement(name = "JWT")
 public class SystemController {
 
     @Autowired

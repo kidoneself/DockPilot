@@ -1,10 +1,10 @@
 package com.dsm.service.impl;
 
-import com.dsm.dto.WebServerDTO;
-import com.dsm.entity.WebServer;
+import com.dsm.model.dto.WebServerDTO;
+import com.dsm.model.entity.WebServer;
 import com.dsm.mapper.WebServerMapper;
 import com.dsm.service.WebServerService;
-import com.dsm.vo.WebServerVO;
+import com.dsm.model.vo.WebServerVO;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

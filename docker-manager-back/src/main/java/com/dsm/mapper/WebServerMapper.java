@@ -1,6 +1,6 @@
 package com.dsm.mapper;
 
-import com.dsm.entity.WebServer;
+import com.dsm.model.entity.WebServer;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

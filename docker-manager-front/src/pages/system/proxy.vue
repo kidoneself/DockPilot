@@ -254,17 +254,45 @@ const loadSettings = async () => {
   try {
     // 获取代理设置
     const proxyResult = await getSystemSetting('proxy');
-    if (proxyResult.code === 0 && proxyResult.data) {
-      const proxyData = JSON.parse(proxyResult.data);
-      formData.value.proxyEnabled = proxyData.enabled;
-      formData.value.proxyUrl = proxyData.url;
+    console.log('代理设置原始返回:', proxyResult);
+    if (proxyResult.code === 0) {
+      console.log('代理设置 data:', proxyResult.data);
+      if (proxyResult.data) {
+        try {
+          const proxyData = JSON.parse(proxyResult.data);
+          console.log('解析后的代理设置:', proxyData);
+          formData.value.proxyEnabled = proxyData.enabled;
+          formData.value.proxyUrl = proxyData.url;
+        } catch (e) {
+          console.warn('解析代理设置失败:', e);
+          formData.value.proxyEnabled = false;
+          formData.value.proxyUrl = '';
+        }
+      } else {
+        console.log('代理设置为空，使用默认值');
+        formData.value.proxyEnabled = false;
+        formData.value.proxyUrl = '';
+      }
     }
 
     // 获取镜像设置
     const mirrorResult = await getSystemSetting('mirror');
-    if (mirrorResult.code === 0 && mirrorResult.data) {
-      const mirrorData = JSON.parse(mirrorResult.data);
-      formData.value.mirrorUrls = mirrorData;
+    console.log('镜像设置原始返回:', mirrorResult);
+    if (mirrorResult.code === 0) {
+      console.log('镜像设置 data:', mirrorResult.data);
+      if (mirrorResult.data) {
+        try {
+          const mirrorData = JSON.parse(mirrorResult.data);
+          console.log('解析后的镜像设置:', mirrorData);
+          formData.value.mirrorUrls = mirrorData;
+        } catch (e) {
+          console.warn('解析镜像设置失败:', e);
+          formData.value.mirrorUrls = [{ url: '', enabled: false }];
+        }
+      } else {
+        console.log('镜像设置为空，使用默认值');
+        formData.value.mirrorUrls = [{ url: '', enabled: false }];
+      }
     }
   } catch (error) {
     console.error('加载设置失败:', error);

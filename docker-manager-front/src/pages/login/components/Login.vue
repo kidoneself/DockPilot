@@ -8,8 +8,8 @@
     @submit="onSubmit"
   >
     <template v-if="type == 'password'">
-      <t-form-item name="account">
-        <t-input v-model="formData.account" size="large" placeholder="请输入账号：admin">
+      <t-form-item name="username">
+        <t-input v-model="formData.username" size="large" placeholder="请输入账号：admin">
           <template #prefix-icon>
             <t-icon name="user" />
           </template>
@@ -22,7 +22,7 @@
           size="large"
           :type="showPsw ? 'text' : 'password'"
           clearable
-          placeholder="请输入密码：admin"
+          placeholder="请输入密码：123456"
         >
           <template #prefix-icon>
             <t-icon name="lock-on" />
@@ -90,18 +90,13 @@ import { useUserStore } from '@/store';
 const userStore = useUserStore();
 
 const INITIAL_DATA = {
-  phone: '',
-  account: 'admin',
-  password: 'admin',
-  verifyCode: '',
-  checked: false,
+  username: 'admin',
+  password: '123456',
 };
 
 const FORM_RULES: Record<string, FormRule[]> = {
-  // phone: [{ required: true, message: '请输入手机号', type: 'error' }],
-  account: [{ required: true, message: '请输入账号', type: 'error' }],
+  username: [{ required: true, message: '请输入用户名', type: 'error' }],
   password: [{ required: true, message: '请输入密码', type: 'error' }],
-  // verifyCode: [{ required: true, message: '请输入验证码', type: 'error' }],
 };
 
 const type = ref('password');
@@ -112,35 +107,41 @@ const showPsw = ref(false);
 
 const [countDown, handleCounter] = useCounter();
 
+const router = useRouter();
+const route = useRoute();
+
 const switchType = (val: string) => {
   type.value = val;
 };
 
-const router = useRouter();
-const route = useRoute();
-
-/**
- * 发送验证码
- */
-const sendCode = () => {
-  form.value.validate({ fields: ['phone'] }).then((e) => {
-    if (e === true) {
-      handleCounter();
-    }
-  });
-};
+// /**
+//  * 发送验证码
+//  */
+// const sendCode = () => {
+//   form.value.validate({ fields: ['phone'] }).then((e) => {
+//     if (e === true) {
+//       handleCounter();
+//     }
+//   });
+// };
 
 const onSubmit = async (ctx: SubmitContext) => {
   if (ctx.validateResult === true) {
     try {
-      await userStore.login(formData.value);
+      await userStore.login({
+        username: formData.value.username,
+        password: formData.value.password,
+      });
+      
+      // 登录成功后获取用户信息
+      await userStore.getUserInfo();
 
       MessagePlugin.success('登录成功');
       const redirect = route.query.redirect as string;
-      const redirectUrl = redirect ? decodeURIComponent(redirect) : '/dashboard';
+      const redirectUrl = redirect ? decodeURIComponent(redirect) : '/';
       router.push(redirectUrl);
     } catch (e) {
-      MessagePlugin.error(e.message);
+      MessagePlugin.error(e.message || '登录失败');
     }
   }
 };

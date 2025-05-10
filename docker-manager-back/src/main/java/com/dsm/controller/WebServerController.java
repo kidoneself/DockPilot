@@ -1,9 +1,10 @@
 package com.dsm.controller;
 
-import com.dsm.dto.WebServerDTO;
+import com.dsm.annotation.Anonymous;
+import com.dsm.model.dto.WebServerDTO;
 import com.dsm.service.WebServerService;
 import com.dsm.utils.ApiResponse;
-import com.dsm.vo.WebServerVO;
+import com.dsm.model.vo.WebServerVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,7 +41,7 @@ public class WebServerController {
         return ApiResponse.success();
     }
 
-        @Operation(summary = "更新Web服务")
+    @Operation(summary = "更新Web服务")
     @PutMapping("/{id}")
     public ApiResponse<Void> update(
             @Parameter(description = "服务ID") @PathVariable String id,
@@ -56,6 +57,7 @@ public class WebServerController {
         return vo != null ? ApiResponse.success(vo) : ApiResponse.error("服务不存在");
     }
 
+    @Anonymous
     @Operation(summary = "获取所有Web服务")
     @GetMapping
     public ApiResponse<List<WebServerVO>> listAll() {

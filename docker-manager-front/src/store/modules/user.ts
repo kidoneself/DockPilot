@@ -1,85 +1,71 @@
 import { defineStore } from 'pinia';
-
 import { usePermissionStore } from '@/store';
-import type { UserInfo } from '@/types/interface';
+import { login, getUserInfo } from '@/api/userApi';
+import type { UserInfo } from '@/api/model/userModel';
+import { ws as wsClient } from '@/utils/websocket';
 
 const InitUserInfo: UserInfo = {
-  name: '', // 用户名，用于展示在页面右上角头像处
-  roles: [], // 前端权限模型使用 如果使用请配置modules/permission-fe.ts使用
+  id: 0,
+  username: '',
+  level: 'free',
+  createdAt: '',
+  updatedAt: '',
 };
 
 export const useUserStore = defineStore('user', {
   state: () => ({
-    token: 'main_token', // 默认token不走权限
+    token: '', // JWT token
     userInfo: { ...InitUserInfo },
   }),
   getters: {
-    roles: (state) => {
-      return state.userInfo?.roles;
-    },
+    isPro: (state) => state.userInfo?.level === 'pro',
   },
   actions: {
-    async login(userInfo: Record<string, unknown>) {
-      const mockLogin = async (userInfo: Record<string, unknown>) => {
-        // 登录请求流程
-        // const { account, password } = userInfo;
-        // if (account !== 'td') {
-        //   return {
-        //     code: 401,
-        //     message: '账号不存在',
-        //   };
-        // }
-        // if (['main_', 'dev_'].indexOf(password) === -1) {
-        //   return {
-        //     code: 401,
-        //     message: '密码错误',
-        //   };
-        // }
-        // const token = {
-        //   main_: 'main_token',
-        //   dev_: 'dev_token',
-        // }[password];
-        return {
-          code: 200,
-          message: '登录成功',
-          data: 'main_token',
-        };
-      };
-
-      const res = await mockLogin(userInfo);
-      if (res.code === 200) {
-        this.token = res.data;
-      } else {
-        throw res;
+    async login(userInfo: { username: string; password: string }) {
+      try {
+        const response = await login(userInfo);
+        if (response.code !== 0) {
+          throw new Error(response.message || '登录失败');
+        }
+        this.token = response.data;
+        // 登录成功后获取用户信息
+        await this.getUserInfo();
+        // 初始化WebSocket连接
+        try {
+          await wsClient.connect();
+        } catch (error) {
+          console.error('WebSocket 连接失败:', error);
+        }
+        return response.data;
+      } catch (error) {
+        console.error('登录或获取用户信息失败:', error);
+        throw error;
       }
     },
     async getUserInfo() {
-      const mockRemoteUserInfo = async (token: string) => {
-        if (token === 'main_token') {
-          return {
-            name: 'admin',
-            roles: ['all'], // 前端权限模型使用 如果使用请配置modules/permission-fe.ts使用
-          };
+      try {
+        const response = await getUserInfo();
+        if (!response.data) {
+          throw new Error('获取用户信息失败');
         }
-        return {
-          name: 'td_dev',
-          roles: ['UserIndex', 'DashboardBase', 'login'], // 前端权限模型使用 如果使用请配置modules/permission-fe.ts使用
-        };
-      };
-      const res = await mockRemoteUserInfo(this.token);
-
-      this.userInfo = res;
+        this.userInfo = response.data;
+        // 获取用户信息后初始化路由
+        const permissionStore = usePermissionStore();
+        permissionStore.initRoutes();
+        return response.data;
+      } catch (error) {
+        console.error('获取用户信息失败:', error);
+        throw error;
+      }
     },
     async logout() {
       this.token = '';
       this.userInfo = { ...InitUserInfo };
+      // 断开WebSocket连接
+      wsClient.disconnect();
     },
   },
   persist: {
-    afterRestore: () => {
-      const permissionStore = usePermissionStore();
-      permissionStore.initRoutes();
-    },
     key: 'user',
     paths: ['token'],
   },

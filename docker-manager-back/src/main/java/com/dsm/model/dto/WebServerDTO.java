@@ -1,4 +1,4 @@
-package com.dsm.dto;
+package com.dsm.model.dto;
 
 import lombok.Data;
 import javax.validation.constraints.NotBlank;

@@ -3,6 +3,7 @@ package com.dsm.exception;
 import com.dsm.utils.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -26,6 +27,15 @@ public class GlobalExceptionHandler {
     public ApiResponse<?> handleBusinessException(BusinessException e) {
         log.error("业务异常: {}", e.getMessage(), e);
         return ApiResponse.success(null, e.getMessage());
+    }
+
+    /**
+     * 处理权限不足异常
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse<?> handleAccessDeniedException(AccessDeniedException e) {
+        return ApiResponse.success(null, "该功能需要专业版权限，请升级到专业版");
     }
 
     /**
