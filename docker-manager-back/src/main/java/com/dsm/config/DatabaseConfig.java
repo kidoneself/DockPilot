@@ -15,10 +15,8 @@ public class DatabaseConfig {
 
     @Bean
     public DataSource dataSource() {
-        // 获取项目根目录
-        String projectRoot = System.getProperty("user.dir");
-        // 创建数据库文件路径
-        String dbPath = projectRoot + File.separator + "data.db";
+        // 使用固定的配置目录
+        String dbPath = "/dockpilot/data/data.db";
 
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName("org.sqlite.JDBC");

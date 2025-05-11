@@ -62,7 +62,7 @@ onMounted(() => {
             <t-option value="WARN" label="WARN" />
           </t-select>
           <t-button theme="primary" @click="fetchLogs">查询</t-button>
-          <t-button theme="danger" @click="handleCleanup(30)">清理30天前日志</t-button>
+          <t-button theme="danger" @click="handleCleanup(3)">清理3天前日志</t-button>
         </t-space>
       </template>
 

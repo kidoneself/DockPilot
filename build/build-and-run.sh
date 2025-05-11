@@ -27,10 +27,11 @@ docker rm dockpilot 2>/dev/null || true
 # 运行新容器
 print_message "启动新容器..."
 docker run -d --privileged \
-   -p 8888:80 \
+   -p 8888:8888 \
    --name dockpilot \
    -v /var/run/docker.sock:/var/run/docker.sock \
    -v /:/mnt/host \
+  -v $(pwd)/dockpilot:/dockpilot \
    kidself/dockpilot:latest
 
 print_message "容器已启动！"
