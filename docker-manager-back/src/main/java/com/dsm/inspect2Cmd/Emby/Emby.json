@@ -1,0 +1,59 @@
+{
+  "name" : "Emby",
+  "category" : "媒体",
+  "version" : "1.0",
+  "description" : "一个强大的媒体管理应用",
+  "iconUrl" : "https://example.com/icon.jpg",
+  "services" : [ {
+    "id" : "naspt-emby",
+    "name" : "naspt-emby",
+    "template" : {
+      "name" : "naspt-emby",
+      "image" : "ccr.ccs.tencentyun.com/naspt/embyserver:latest",
+      "env" : {
+        "UID" : "0",
+        "GID" : "0",
+        "UMASK" : "022",
+        "PATH" : "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "LANG" : "en_US.UTF-8",
+        "HOME" : "/tmp",
+        "AMDGPU_IDS" : "/share/libdrm/amdgpu.ids",
+        "FONTCONFIG_PATH" : "/etc/fonts",
+        "LD_LIBRARY_PATH" : "/lib:/system",
+        "LIBVA_DRIVERS_PATH" : "/lib/dri",
+        "OCL_ICD_VENDORS" : "/etc/OpenCL/vendors",
+        "PCI_IDS_PATH" : "/share/hwdata/pci.ids",
+        "SSL_CERT_FILE" : "/etc/ssl/certs/ca-certificates.crt",
+        "GIDLIST" : "0",
+        "NVIDIA_VISIBLE_DEVICES" : "all",
+        "NVIDIA_DRIVER_CAPABILITIES" : "compute,video,utility",
+        "IGNORE_VAAPI_ENABLED_FLAG" : "false",
+        "XDG_CACHE_HOME" : "/config/cache"
+      },
+      "ports" : {
+        "1900/udp" : "1900/udp",
+        "7359/udp" : "7359/udp",
+        "8096/tcp" : "8096",
+        "8920/tcp" : "8920"
+      },
+      "volumes" : {
+        "/volume1/media" : "/media",
+        "/volume1/docker/naspt-emby/config" : "/config"
+      },
+      "restartPolicy" : "always"
+    }
+  } ],
+  "parameters" : [ {
+    "key" : "DOCKER_PATH",
+    "name" : "Docker配置路径",
+    "value" : "/volume1/docker"
+  }, {
+    "key" : "MEDIA_PATH",
+    "name" : "媒体文件路径",
+    "value" : "/volume2/media"
+  } ],
+  "configs" : [ {
+    "target" : "{{DOCKER_PATH}}",
+    "urls" : [ "https://example.com/config1.tgz", "https://example.com/config2.tgz" ]
+  } ]
+}
