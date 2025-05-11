@@ -2,13 +2,36 @@ package com.dsm.inspect2Cmd;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import java.io.File;
+import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.Map;
 
 public class DockerInspectToJson {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
+
+
+    public static void main(String[] args) {
+        try {
+            // 获取当前类文件所在的目录
+            String currentDir = "/Users/lizhiqiang/coding-my/docker/docker-manager-back/src/main/java/com/dsm/inspect2Cmd";
+
+            // 只使用一个参数，同时作为文件夹名和模板名
+            String name = "Emby";
+            String folderPath = currentDir + File.separator + name;
+            System.out.println("正在处理文件夹: " + folderPath);
+
+            generateTemplateFromFolder(folderPath, name);
+        } catch (Exception e) {
+            System.err.println("生成模板失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
 
     public static String convertToJson(String dockerInspectJson) throws Exception {
         JsonNode rootNode = objectMapper.readTree(dockerInspectJson);
@@ -81,53 +104,74 @@ public class DockerInspectToJson {
     }
 
     /**
-     * 主方法：读取 inspect2.json，生成简化版 json 并以容器名命名保存
-     * 步骤：
-     * 1. 读取 inspect2.json 文件内容为字符串
-     * 2. 调用 convertToJson 方法生成简化 json 字符串
-     * 3. 解析容器名，去除前缀 / 作为文件名
-     * 4. 将简化 json 写入以容器名命名的新文件（如 naspt-mpv2.json）
-     * 5. 错误处理：文件不存在、json 解析失败等
+     * 处理指定文件夹下的所有inspect文件并生成模板
+     *
+     * @param folderPath   包含inspect文件的文件夹路径
+     * @param templateName 生成的模板名称
      */
-    public static void main(String[] args) {
-        // 1. 读取 inspect2.json 文件内容为字符串
-        String jsonStr = null;
-        try {
-            java.nio.file.Path path = java.nio.file.Paths.get("/Users/lizhiqiang/coding-my/docker/docker-manager-back/src/main/java/com/dsm/inspect2Cmd/embyInspect.json");
-            jsonStr = java.nio.file.Files.readString(path);
-            System.out.println("inspect2.json 读取成功，内容长度：" + jsonStr.length()); // 调试输出
-        } catch (Exception e) {
-            System.err.println("读取 inspect2.json 失败: " + e.getMessage());
-            return;
+    public static void generateTemplateFromFolder(String folderPath, String templateName) throws Exception {
+        File folder = new File(folderPath);
+        if (!folder.exists() || !folder.isDirectory()) {
+            throw new IllegalArgumentException("指定的路径不是有效的文件夹: " + folderPath);
         }
 
-        // 2. 调用 convertToJson 方法生成简化 json 字符串
-        String simpleJson = null;
-        String containerName = null;
-        try {
-            simpleJson = convertToJson(jsonStr);
-            // 额外解析容器名用于命名输出文件
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode = mapper.readTree(jsonStr);
-            JsonNode containerNode = rootNode.get(0);
-            containerName = containerNode.get("Name").asText().replaceAll("/", "");
-            System.out.println("容器名: " + containerName);
-        } catch (Exception e) {
-            System.err.println("生成简化 json 失败: " + e.getMessage());
-            return;
-        }
-        if (simpleJson == null || containerName == null) {
-            System.err.println("简化 json 或容器名为空，终止输出。");
-            return;
+        // 创建模板的基本结构
+        ObjectNode templateNode = objectMapper.createObjectNode();
+        templateNode.put("name", templateName);
+        templateNode.put("category", "媒体");
+        templateNode.put("version", "1.0");
+        templateNode.put("description", "一个强大的媒体管理应用");
+        templateNode.put("iconUrl", "https://example.com/icon.jpg");
+        
+        ArrayNode servicesNode = templateNode.putArray("services");
+
+        // 处理文件夹下的所有inspect文件
+        File[] files = folder.listFiles((dir, name) -> name.endsWith("Inspect.json"));
+        if (files == null || files.length == 0) {
+            throw new IllegalArgumentException("文件夹中没有找到inspect文件: " + folderPath);
         }
 
-        // 3. 将简化 json 写入以容器名命名的新文件（如 naspt-mpv2.json）
-        String outFileName = "/Users/lizhiqiang/coding-my/docker/docker-manager-back/src/main/java/com/dsm/inspect2Cmd/" + containerName + ".json";
-        try {
-            java.nio.file.Files.writeString(java.nio.file.Paths.get(outFileName), simpleJson);
-            System.out.println("简化 json 已写入文件: " + outFileName);
-        } catch (Exception e) {
-            System.err.println("写入简化 json 文件失败: " + e.getMessage());
+        for (File file : files) {
+            String jsonStr = Files.readString(file.toPath());
+            String simpleJson = convertToJson(jsonStr);
+            JsonNode serviceNode = objectMapper.readTree(simpleJson);
+            
+            // 创建服务对象
+            ObjectNode service = objectMapper.createObjectNode();
+            service.put("id", serviceNode.get("name").asText());
+            service.put("name", serviceNode.get("name").asText());
+            service.set("template", serviceNode);
+            
+            servicesNode.add(service);
         }
+
+        // 添加parameters
+        ArrayNode parametersNode = templateNode.putArray("parameters");
+        ObjectNode param1 = objectMapper.createObjectNode();
+        param1.put("key", "DOCKER_PATH");
+        param1.put("name", "Docker配置路径");
+        param1.put("value", "/volume1/docker");
+        parametersNode.add(param1);
+
+        ObjectNode param2 = objectMapper.createObjectNode();
+        param2.put("key", "MEDIA_PATH");
+        param2.put("name", "媒体文件路径");
+        param2.put("value", "/volume2/media");
+        parametersNode.add(param2);
+
+        // 添加configs
+        ArrayNode configsNode = templateNode.putArray("configs");
+        ObjectNode config = objectMapper.createObjectNode();
+        config.put("target", "{{DOCKER_PATH}}");
+        ArrayNode urlsNode = config.putArray("urls");
+        urlsNode.add("https://example.com/config1.tgz");
+        urlsNode.add("https://example.com/config2.tgz");
+        configsNode.add(config);
+
+        // 保存模板文件
+        String outputPath = folderPath + "/" + templateName + ".json";
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(new File(outputPath), templateNode);
+        System.out.println("模板已生成: " + outputPath);
     }
+
 }

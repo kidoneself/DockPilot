@@ -471,7 +471,7 @@ public class ImageServiceImpl implements ImageService {
     public String getDockerApiCreateTime(String imageName) {
         DockerClient dockerClient = DockerClientBuilder.getInstance().build();
         List<Image> images = dockerClient.listImagesCmd().exec();
-
+        dockerClient.createContainerCmd(imageName).exec();
         String targetRepo = imageName.split(":")[0];
         for (Image image : images) {
             String[] repoDigests = image.getRepoDigests();

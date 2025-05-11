@@ -77,9 +77,8 @@ public class ContainerStaticInfoConverter {
                         .collect(Collectors.toList())
         );
         // 端口映射
-        // 端口映射
-        Ports ports = Optional.ofNullable(container.getNetworkSettings())
-                .map(NetworkSettings::getPorts)
+        Ports ports = Optional.ofNullable(container.getHostConfig())
+                .map(HostConfig::getPortBindings)
                 .orElse(null);
 
         if (ports != null) {

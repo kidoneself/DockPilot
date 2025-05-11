@@ -55,7 +55,10 @@ public class ContainerServiceImpl implements ContainerService {
         for (Container container : containers) {
             ContainerDTO dto = ContainerDTO.convertToDTO(container);
             String latestImageId = imageIdMap.get(container.getImage());
-            dto.setNeedUpdate(latestImageId != null && !latestImageId.equals(container.getImageId()));
+
+            //这里如果没获取到镜像名字，可能是镜像被强制删除了，或者镜像更新了，要么通过为null直接判断容器需要更新
+            //另外一种方式，是通过容器的镜像ID去获取镜像名字，如果不存在说明容器使用的镜像已经老了
+            dto.setNeedUpdate(latestImageId == null/* && !latestImageId.equals(container.getImageId())*/);
             //暂时先设置的需要更新
 //            dto.setNeedUpdate(true);
             containerDTOS.add(dto);
@@ -101,10 +104,17 @@ public class ContainerServiceImpl implements ContainerService {
         ContainerStaticInfoDTO originalConfig = null;
         String newContainerId = null;
         String backupContainerName = null;
+        String originalState = null;
 
         try {
-            // 1. 停止原容器
-            stopContainer(containerId);
+            // 1. 检查容器状态
+            Container container = findContainerByIdOrName(containerId);
+            if (container != null) {
+                originalState = container.getState();
+                if ("running".equalsIgnoreCase(originalState)) {
+                    stopContainer(containerId);
+                }
+            }
 
             // 2. 获取原容器配置
             originalConfig = getContainerConfig(containerId);
@@ -117,32 +127,49 @@ public class ContainerServiceImpl implements ContainerService {
             newContainerId = createContainer(request);
 
             // 5. 验证新容器状态
-            if (!isContainerRunning(newContainerId)) {
-                throw new BusinessException("新容器未正常启动");
+            boolean isValid = false;
+            try {
+                // 只有原容器是running状态时才验证新容器的运行状态
+                if ("running".equalsIgnoreCase(originalState)) {
+                    if (!isContainerRunning(newContainerId)) {
+                        throw new BusinessException("新容器未正常启动");
+                    }
+                }
+                isValid = true;
+            } catch (Exception e) {
+                LogUtil.logSysError("新容器状态验证失败: " + e.getMessage());
+                // 如果验证失败，删除新容器
+                if (newContainerId != null) {
+                    try {
+                        removeContainer(newContainerId);
+                        LogUtil.logSysInfo("验证失败的新容器已删除: " + newContainerId);
+                    } catch (Exception ex) {
+                        LogUtil.logSysError("删除验证失败的新容器时出错: " + ex.getMessage());
+                    }
+                }
+                throw e;
             }
 
-            // 6. 删除原容器
-            removeContainer(containerId);
-            LogUtil.logSysInfo("原容器已删除: " + containerId);
+            // 6. 只有在验证通过后才删除原容器
+            if (isValid) {
+                removeContainer(containerId);
+                LogUtil.logSysInfo("原容器已删除: " + containerId);
+            }
 
             // 7. 返回新容器ID
             return newContainerId;
 
         } catch (Exception e) {
             LogUtil.logSysError("更新容器失败: " + e.getMessage());
-            if (newContainerId != null) {
-                try {
-                    removeContainer(newContainerId);
-                    LogUtil.logSysInfo("失败的新容器已删除: " + newContainerId);
-                } catch (Exception ex) {
-                    LogUtil.logSysError("删除失败的新容器时出错: " + ex.getMessage());
-                }
-            }
             throw new RuntimeException("更新容器失败: " + e.getMessage());
         } finally {
             // 恢复原容器状态（如果已重命名）
             if (originalConfig != null && backupContainerName != null) {
                 restoreOriginalContainerByName(backupContainerName, originalConfig.getContainerName());
+                // 如果原容器之前是运行状态，则启动它
+                if ("running".equalsIgnoreCase(originalState)) {
+                    startContainer(backupContainerName);
+                }
             }
         }
     }

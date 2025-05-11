@@ -13,6 +13,12 @@
       </div>
       <div class="action-buttons">
         <t-space>
+          <t-button theme="default" @click="handleRefresh" :loading="loading">
+            <template #icon>
+              <t-icon name="refresh" />
+            </template>
+            刷新
+          </t-button>
           <t-popconfirm
             content="确认启动该容器吗？"
             @confirm="handleStart"
@@ -421,6 +427,9 @@ const statsTimer = ref<number | null>(null);
 // 操作相关状态
 const isOperating = ref(false);
 
+// 自动刷新相关
+const detailTimer = ref<number | null>(null);
+
 // 获取容器状态主题
 const getStatusTheme = (state: string) => {
   switch (state) {
@@ -778,16 +787,36 @@ const stopLogPolling = () => {
   }
 };
 
+// 开始自动刷新
+const startDetailPolling = () => {
+  // 先停止之前的轮询
+  stopDetailPolling();
+  // 设置轮询
+  detailTimer.value = window.setInterval(fetchContainerDetail, 30000); // 每30秒刷新一次
+};
+
+// 停止自动刷新
+const stopDetailPolling = () => {
+  if (detailTimer.value) {
+    clearInterval(detailTimer.value);
+    detailTimer.value = null;
+  }
+};
+
 // 组件卸载时清理
 onUnmounted(() => {
   stopStatsPolling();
   stopLogPolling();
+  stopDetailPolling(); // 停止自动刷新
 });
 
 // 页面加载时获取容器详情和资源监控数据
-onMounted(() => {
+onMounted(async () => {
   if (route.query.id) {
-    fetchContainerDetail();
+    // 立即获取容器详情
+    await fetchContainerDetail();
+    // 开始自动刷新
+    startDetailPolling();
     // 如果当前是资源监控标签页，则开始轮询
     if (activeTab.value === 'monitor') {
       startStatsPolling();
@@ -808,6 +837,60 @@ const formatBytes = (bytes: number) => {
 const formatPercent = (value: number) => {
   return value.toFixed(2);
 };
+
+// 处理刷新
+const handleRefresh = async () => {
+  await fetchContainerDetail();
+  // 如果当前是资源监控标签页，则重新开始轮询
+  if (activeTab.value === 'monitor') {
+    startStatsPolling();
+  }
+  // 重新开始自动刷新
+  startDetailPolling();
+};
+
+// 添加路由守卫
+const beforeRouteEnter = async (to: any, from: any, next: any) => {
+  if (to.query.id) {
+    try {
+      const res = await getContainerDetail(to.query.id);
+      next((vm: any) => {
+        vm.containerDetail = res.data;
+        vm.startDetailPolling();
+        if (vm.activeTab === 'monitor') {
+          vm.startStatsPolling();
+        }
+      });
+    } catch (error) {
+      next();
+    }
+  } else {
+    next();
+  }
+};
+
+// 添加路由更新守卫
+const beforeRouteUpdate = async (to: any, from: any, next: any) => {
+  if (to.query.id !== from.query.id) {
+    try {
+      const res = await getContainerDetail(to.query.id);
+      containerDetail.value = res.data;
+      startDetailPolling();
+      if (activeTab.value === 'monitor') {
+        startStatsPolling();
+      }
+    } catch (error) {
+      console.error('获取容器详情失败:', error);
+    }
+  }
+  next();
+};
+
+// 导出路由守卫
+defineExpose({
+  beforeRouteEnter,
+  beforeRouteUpdate,
+});
 </script>
 
 <style lang="less" scoped>
