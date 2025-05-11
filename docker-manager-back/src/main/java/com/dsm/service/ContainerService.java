@@ -67,6 +67,14 @@ public interface ContainerService {
      */
     String updateContainer(String containerId, ContainerCreateRequest request);
 
+    /**
+     * 更新容器镜像
+     *
+     * @param containerId 容器ID
+     * @return 新容器的ID
+     */
+    String updateContainerImage(String containerId);
+
 
     void restartContainer(String id);
 

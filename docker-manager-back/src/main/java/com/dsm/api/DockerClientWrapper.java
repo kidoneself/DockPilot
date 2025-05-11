@@ -167,8 +167,14 @@ public class DockerClientWrapper {
         return executeDockerCommandWithResult(cmd::exec, "创建容器", cmd.getName());
     }
 
-    public CreateContainerCmd createContainerCmd(String imageName) {
-        return dockerClient.createContainerCmd(imageName);
+    /**
+     * 创建容器命令
+     *
+     * @param image 镜像名称
+     * @return 创建容器命令对象
+     */
+    public CreateContainerCmd createContainerCmd(String image) {
+        return dockerClient.createContainerCmd(image);
     }
 
     public PullImageCmd pullImageCmd(String image) {

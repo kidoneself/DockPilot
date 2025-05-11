@@ -9,9 +9,12 @@ import com.dsm.model.ResourceUsageDTO;
 import com.dsm.service.ContainerService;
 import com.dsm.utils.ContainerStaticInfoConverter;
 import com.dsm.utils.LogUtil;
+import com.github.dockerjava.api.command.CreateContainerCmd;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.model.Container;
+import com.github.dockerjava.api.model.ContainerConfig;
+import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.Image;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -104,9 +107,10 @@ public class ContainerServiceImpl implements ContainerService {
         ContainerStaticInfoDTO originalConfig = null;
         String newContainerId = null;
         String backupContainerName = null;
-        String originalState = null;
+        String originalState;
 
         try {
+            // 1. 停止原容器
             // 1. 检查容器状态
             Container container = findContainerByIdOrName(containerId);
             if (container != null) {
@@ -127,53 +131,191 @@ public class ContainerServiceImpl implements ContainerService {
             newContainerId = createContainer(request);
 
             // 5. 验证新容器状态
-            boolean isValid = false;
-            try {
-                // 只有原容器是running状态时才验证新容器的运行状态
-                if ("running".equalsIgnoreCase(originalState)) {
-                    if (!isContainerRunning(newContainerId)) {
-                        throw new BusinessException("新容器未正常启动");
-                    }
-                }
-                isValid = true;
-            } catch (Exception e) {
-                LogUtil.logSysError("新容器状态验证失败: " + e.getMessage());
-                // 如果验证失败，删除新容器
-                if (newContainerId != null) {
-                    try {
-                        removeContainer(newContainerId);
-                        LogUtil.logSysInfo("验证失败的新容器已删除: " + newContainerId);
-                    } catch (Exception ex) {
-                        LogUtil.logSysError("删除验证失败的新容器时出错: " + ex.getMessage());
-                    }
-                }
-                throw e;
+            if (!isContainerRunning(newContainerId)) {
+                throw new BusinessException("新容器未正常启动");
             }
 
-            // 6. 只有在验证通过后才删除原容器
-            if (isValid) {
-                removeContainer(containerId);
-                LogUtil.logSysInfo("原容器已删除: " + containerId);
-            }
+            // 6. 删除原容器
+            removeContainer(containerId);
+            LogUtil.logSysInfo("原容器已删除: " + containerId);
 
             // 7. 返回新容器ID
             return newContainerId;
 
         } catch (Exception e) {
             LogUtil.logSysError("更新容器失败: " + e.getMessage());
+            if (newContainerId != null) {
+                try {
+                    removeContainer(newContainerId);
+                    LogUtil.logSysInfo("失败的新容器已删除: " + newContainerId);
+                } catch (Exception ex) {
+                    LogUtil.logSysError("删除失败的新容器时出错: " + ex.getMessage());
+                }
+            }
             throw new RuntimeException("更新容器失败: " + e.getMessage());
         } finally {
             // 恢复原容器状态（如果已重命名）
             if (originalConfig != null && backupContainerName != null) {
                 restoreOriginalContainerByName(backupContainerName, originalConfig.getContainerName());
-                // 如果原容器之前是运行状态，则启动它
-                if ("running".equalsIgnoreCase(originalState)) {
-                    startContainer(backupContainerName);
-                }
             }
         }
     }
 
+    @Override
+    public String updateContainerImage(String containerId) {
+        // 1. 检查容器状态
+        InspectContainerResponse originalConfig = dockerService.inspectContainerCmd(containerId);
+        boolean wasRunning = "running".equals(originalConfig.getState().getStatus());
+
+        if (wasRunning) {
+            dockerService.stopContainer(containerId);
+        }
+
+        // 2. 获取原容器配置
+        String originalImageName = originalConfig.getConfig().getImage();
+
+        // 3. 生成备份名称
+        String backupName = originalConfig.getName() + "_backup_" + System.currentTimeMillis();
+
+        // 4. 重命名原容器
+        dockerService.renameContainer(containerId, backupName);
+
+        try {
+            // 5. 创建新容器请求
+            CreateContainerCmd createContainerCmd = dockerService.createContainerCmd(originalImageName).withName(originalConfig.getName());
+
+            // 6. 复制主机配置
+            HostConfig hostConfig = originalConfig.getHostConfig();
+            if (hostConfig != null) {
+                createContainerCmd.withHostConfig(hostConfig);
+            }
+
+            // 7. 复制基本配置
+            ContainerConfig config = originalConfig.getConfig();
+            if (config != null) {
+                if (config.getEnv() != null) {
+                    createContainerCmd.withEnv(config.getEnv());
+                }
+                if (config.getCmd() != null) {
+                    createContainerCmd.withCmd(config.getCmd());
+                }
+                if (config.getEntrypoint() != null) {
+                    createContainerCmd.withEntrypoint(config.getEntrypoint());
+                }
+                if (config.getWorkingDir() != null) {
+                    createContainerCmd.withWorkingDir(config.getWorkingDir());
+                }
+                if (config.getLabels() != null) {
+                    createContainerCmd.withLabels(config.getLabels());
+                }
+                if (config.getExposedPorts() != null) {
+                    createContainerCmd.withExposedPorts(config.getExposedPorts());
+                }
+                if (config.getUser() != null) {
+                    createContainerCmd.withUser(config.getUser());
+                }
+                if (config.getTty() != null) {
+                    createContainerCmd.withTty(config.getTty());
+                }
+                if (config.getAttachStdout() != null) {
+                    createContainerCmd.withAttachStdout(config.getAttachStdout());
+                }
+                if (config.getAttachStderr() != null) {
+                    createContainerCmd.withAttachStderr(config.getAttachStderr());
+                }
+                if (config.getStdinOpen() != null) {
+                    createContainerCmd.withStdinOpen(config.getStdinOpen());
+                }
+                if (config.getHealthcheck() != null) {
+                    createContainerCmd.withHealthcheck(config.getHealthcheck());
+                }
+            }
+
+            // 8. 复制高级配置
+            if (hostConfig != null) {
+                // 设备相关
+                if (hostConfig.getDevices() != null) {
+                    createContainerCmd.withDevices(hostConfig.getDevices());
+                }
+
+                // 资源限制相关
+                if (hostConfig.getMemorySwap() != null) {
+                    createContainerCmd.withMemorySwap(hostConfig.getMemorySwap());
+                }
+                if (hostConfig.getCpusetCpus() != null) {
+                    createContainerCmd.withCpusetCpus(hostConfig.getCpusetCpus());
+                }
+                if (hostConfig.getCpusetMems() != null) {
+                    createContainerCmd.withCpusetMems(hostConfig.getCpusetMems());
+                }
+
+                // 网络相关
+                if (hostConfig.getDns() != null) {
+                    createContainerCmd.withDns(hostConfig.getDns());
+                }
+                if (hostConfig.getDnsSearch() != null) {
+                    createContainerCmd.withDnsSearch(hostConfig.getDnsSearch());
+                }
+                if (hostConfig.getExtraHosts() != null) {
+                    createContainerCmd.withExtraHosts(hostConfig.getExtraHosts());
+                }
+                if (hostConfig.getLinks() != null) {
+                    createContainerCmd.withLinks(hostConfig.getLinks());
+                }
+
+                // 安全相关
+                if (hostConfig.getCapAdd() != null) {
+                    createContainerCmd.withCapAdd(hostConfig.getCapAdd());
+                }
+                if (hostConfig.getCapDrop() != null) {
+                    createContainerCmd.withCapDrop(hostConfig.getCapDrop());
+                }
+                if (hostConfig.getPrivileged() != null) {
+                    createContainerCmd.withPrivileged(hostConfig.getPrivileged());
+                }
+                if (hostConfig.getReadonlyRootfs() != null) {
+                    createContainerCmd.withReadonlyRootfs(hostConfig.getReadonlyRootfs());
+                }
+
+                // 其他
+                if (hostConfig.getUlimits() != null) {
+                    createContainerCmd.withUlimits(hostConfig.getUlimits());
+                }
+                if (hostConfig.getOomKillDisable() != null) {
+                    createContainerCmd.withOomKillDisable(hostConfig.getOomKillDisable());
+                }
+                if (hostConfig.getPublishAllPorts() != null) {
+                    createContainerCmd.withPublishAllPorts(hostConfig.getPublishAllPorts());
+                }
+            }
+
+            // 9. 创建新容器
+            CreateContainerResponse response = createContainerCmd.exec();
+            String newContainerId = response.getId();
+
+            // 10. 验证新容器状态
+            if (newContainerId != null) {
+                // 11. 如果原容器在运行，启动新容器
+                if (wasRunning) {
+                    dockerService.startContainer(newContainerId);
+                }
+
+                // 12. 删除原容器
+                dockerService.removeContainer(backupName);
+
+                return newContainerId;
+            } else {
+                throw new RuntimeException("Failed to create new container");
+            }
+        } catch (Exception e) {
+            // 13. 发生错误时恢复原容器
+            dockerService.renameContainer(backupName, originalConfig.getName());
+            if (wasRunning) {
+                dockerService.startContainer(backupName);
+            }
+            throw new RuntimeException("Failed to update container image: " + e.getMessage(), e);
+        }
+    }
 
     /**
      * 根据容器ID或名称查找容器
@@ -257,4 +399,6 @@ public class ContainerServiceImpl implements ContainerService {
             return false;
         }
     }
+
+
 }

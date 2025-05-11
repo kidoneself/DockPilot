@@ -655,6 +655,15 @@ public class DockerService {
         return dockerClientWrapper.startContainerWithCmd(containerCmd);
     }
 
+    /**
+     * 创建容器命令
+     *
+     * @param image 镜像名称
+     * @return 创建容器命令对象
+     */
+    public CreateContainerCmd createContainerCmd(String image) {
+        return dockerClientWrapper.createContainerCmd(image);
+    }
 
 }
 
