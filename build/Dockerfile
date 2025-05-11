@@ -1,6 +1,9 @@
 # 使用nginx作为基础镜像
 FROM nginx:stable-alpine
 
+# 覆盖基础镜像的EXPOSE指令
+EXPOSE 8888
+
 # 安装Java、skopeo和regctl
 RUN apk add --no-cache openjdk11-jre && \
     apk add --no-cache skopeo --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community && \
@@ -35,9 +38,6 @@ RUN echo '#!/bin/sh' > /start.sh && \
     echo 'java -jar app.jar &' >> /start.sh && \
     echo 'wait' >> /start.sh && \
     chmod +x /start.sh
-
-# 暴露端口
-EXPOSE 8888
 
 # 使用启动脚本
 CMD ["/start.sh"]
