@@ -31,7 +31,7 @@ docker run -d --privileged \
    --name dockpilot \
    -v /var/run/docker.sock:/var/run/docker.sock \
    -v /:/mnt/host \
-  -v $(pwd)/dockpilot:/dockpilot \
+  -v /dockpilot:/dockpilot \
    kidself/dockpilot:latest
 
 print_message "容器已启动！"

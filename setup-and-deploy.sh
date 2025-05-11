@@ -47,12 +47,16 @@ install_nodejs() {
     apt-get install -y nodejs
 }
 
-# 安装Docker
+# 安装Docker和buildx
 install_docker() {
-    print_message "安装Docker..."
+    print_message "安装Docker和buildx..."
     curl -fsSL https://get.docker.com | sh
     systemctl enable docker
     systemctl start docker
+    
+    # 安装buildx
+    docker buildx create --name mybuilder --use
+    docker buildx inspect --bootstrap
 }
 
 # 检查是否安装了必要的工具
@@ -96,7 +100,7 @@ setup_code() {
         cd DockPilot
     else
         print_message "更新代码仓库..."
-        rm-rf DockPilot
+        rm -rf DockPilot
         git fetch origin
         if [ $? -ne 0 ]; then
             print_error "获取远程代码失败"
@@ -163,7 +167,18 @@ copy_build_files() {
 build_docker_image() {
     print_message "构建Docker镜像..."
     cd build
-    ./build-and-run.sh
+    
+    # 使用buildx构建多架构镜像
+    print_message "构建多架构镜像..."
+    docker buildx build --platform linux/amd64,linux/arm64 \
+        -t kidself/dockpilot:latest \
+        --push .
+    
+    if [ $? -ne 0 ]; then
+        print_error "Docker镜像构建失败"
+        exit 1
+    fi
+
     cd ..
 }
 
@@ -171,34 +186,16 @@ build_docker_image() {
 push_to_dockerhub() {
     print_message "推送到DockerHub..."
     # DockerHub信息
-    DOCKERHUB_USERNAME="kidself"  # 请替换为你的DockerHub用户名
+    DOCKERHUB_USERNAME="kidself"
     DOCKERHUB_IMAGE="dockpilot"
 
-    # 获取最新镜像ID
-    get_latest_image_id
-
-    # 给镜像打标签
-    print_message "给镜像打标签..."
-    docker tag ${IMAGE_ID} ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest
-
-    # 推送镜像
-    print_message "推送镜像..."
-    docker push ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest
+    # 使用buildx构建并推送多架构镜像
+    docker buildx build --platform linux/amd64,linux/arm64 \
+        -t ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest \
+        --push .
 
     print_message "DockerHub镜像推送完成！"
     print_message "镜像地址: ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest"
-}
-
-# 获取最新构建的镜像ID
-get_latest_image_id() {
-    print_message "获取最新构建的镜像ID..."
-    # 获取最近构建的dockpilot镜像ID
-    IMAGE_ID=$(docker images dockpilot --format "{{.ID}}" | head -n 1)
-    if [ -z "$IMAGE_ID" ]; then
-        print_error "未找到dockpilot镜像"
-        exit 1
-    fi
-    print_message "找到镜像ID: $IMAGE_ID"
 }
 
 # 推送到腾讯云容器镜像服务
@@ -208,17 +205,11 @@ push_to_tencent() {
     TENCENT_REGISTRY="ccr.ccs.tencentyun.com"
     NAMESPACE="naspt/dockpilot"
     
-    # 获取最新镜像ID
-    get_latest_image_id
-    
-    # 给镜像打标签
-    print_message "给镜像打标签..."
-    docker tag ${IMAGE_ID} ${TENCENT_REGISTRY}/${NAMESPACE}:latest
-    
-    # 推送镜像
-    print_message "推送镜像..."
-    docker push ${TENCENT_REGISTRY}/${NAMESPACE}:latest
-    
+    # 使用buildx构建并推送多架构镜像
+    docker buildx build --platform linux/amd64,linux/arm64 \
+        -t ${TENCENT_REGISTRY}/${NAMESPACE}:latest \
+        --push .
+
     print_message "镜像推送完成！"
     print_message "镜像地址: ${TENCENT_REGISTRY}/${NAMESPACE}:latest"
 }
