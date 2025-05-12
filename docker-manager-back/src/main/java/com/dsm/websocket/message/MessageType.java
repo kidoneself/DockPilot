@@ -187,5 +187,15 @@ public enum MessageType {
     /**
      * 导入模板结果
      */
-    IMPORT_TEMPLATE_RESULT
+    IMPORT_TEMPLATE_RESULT,
+
+    /**
+     * 容器JSON配置
+     */
+    CONTAINER_JSON_CONFIG,
+
+    /**
+     * 容器JSON配置响应
+     */
+    CONTAINER_JSON_CONFIG_RESPONSE
 } 

@@ -1,9 +1,14 @@
 [
   {
-    "Id": "9bd4ee625430f0e920ab6f82db8a6c0d97c05bb1ff9f676cd8acfbe7fa51b8a4",
-    "Created": "2025-04-21T00:36:21.02776616Z",
-    "Path": "/init",
-    "Args": [],
+    "Id": "aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e",
+    "Created": "2025-05-12T01:03:08.282516684Z",
+    "Path": "/allinone",
+    "Args": [
+      "-tv=true",
+      "-aesKey=swj6pnb4h6xyvhpq69fgae2bbpjlb8y2",
+      "-userid=5892131247",
+      "-token=9209187973c38fb7ee461017e1147ebe43ef7d73779840ba57447aaa439bac301b02ad7189d2f1b58d3de8064ba9d52f46ec2de6a834d1373071246ac0eed55bb3ff4ccd79d137"
+    ],
     "State": {
       "Status": "running",
       "Running": true,
@@ -11,18 +16,18 @@
       "Restarting": false,
       "OOMKilled": false,
       "Dead": false,
-      "Pid": 3586024,
+      "Pid": 487070,
       "ExitCode": 0,
       "Error": "",
-      "StartedAt": "2025-04-21T00:43:07.00142478Z",
-      "FinishedAt": "2025-04-21T00:43:06.402944551Z"
+      "StartedAt": "2025-05-12T01:03:08.351510493Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
     },
-    "Image": "sha256:80bd91a35f58538deed86f4440abf3ef580dd162fe5c259ef14cb5187cbd515f",
-    "ResolvConfPath": "/volume1/@docker/containers/9bd4ee625430f0e920ab6f82db8a6c0d97c05bb1ff9f676cd8acfbe7fa51b8a4/resolv.conf",
-    "HostnamePath": "/volume1/@docker/containers/9bd4ee625430f0e920ab6f82db8a6c0d97c05bb1ff9f676cd8acfbe7fa51b8a4/hostname",
-    "HostsPath": "/volume1/@docker/containers/9bd4ee625430f0e920ab6f82db8a6c0d97c05bb1ff9f676cd8acfbe7fa51b8a4/hosts",
-    "LogPath": "/volume1/@docker/containers/9bd4ee625430f0e920ab6f82db8a6c0d97c05bb1ff9f676cd8acfbe7fa51b8a4/9bd4ee625430f0e920ab6f82db8a6c0d97c05bb1ff9f676cd8acfbe7fa51b8a4-json.log",
-    "Name": "/naspt-emby",
+    "Image": "sha256:334b346d6f8b35458233550a08f0520fd5348d0e4e37d6957b534fda828cffb5",
+    "ResolvConfPath": "/var/lib/docker/containers/aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e/resolv.conf",
+    "HostnamePath": "/var/lib/docker/containers/aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e/hostname",
+    "HostsPath": "/var/lib/docker/containers/aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e/hosts",
+    "LogPath": "/var/lib/docker/containers/aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e/aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e-json.log",
+    "Name": "/naspt-allinone",
     "RestartCount": 0,
     "Driver": "overlay2",
     "Platform": "linux",
@@ -31,24 +36,14 @@
     "AppArmorProfile": "unconfined",
     "ExecIDs": null,
     "HostConfig": {
-      "Binds": [
-        "/volume1/docker/naspt-emby/config:/config",
-        "/volume1/media:/media"
-      ],
+      "Binds": null,
       "ContainerIDFile": "",
       "LogConfig": {
         "Type": "json-file",
         "Config": {}
       },
-      "NetworkMode": "bridge",
-      "PortBindings": {
-        "8096/tcp": [
-          {
-            "HostIp": "",
-            "HostPort": "8096"
-          }
-        ]
-      },
+      "NetworkMode": "host",
+      "PortBindings": {},
       "RestartPolicy": {
         "Name": "always",
         "MaximumRetryCount": 0
@@ -57,8 +52,8 @@
       "VolumeDriver": "",
       "VolumesFrom": null,
       "ConsoleSize": [
-        64,
-        168
+        61,
+        152
       ],
       "CapAdd": null,
       "CapDrop": null,
@@ -100,13 +95,7 @@
       "CpuRealtimeRuntime": 0,
       "CpusetCpus": "",
       "CpusetMems": "",
-      "Devices": [
-        {
-          "PathOnHost": "/dev/dri",
-          "PathInContainer": "/dev/dri",
-          "CgroupPermissions": "rwm"
-        }
-      ],
+      "Devices": [],
       "DeviceCgroupRules": null,
       "DeviceRequests": null,
       "MemoryReservation": 0,
@@ -124,128 +113,80 @@
     },
     "GraphDriver": {
       "Data": {
-        "LowerDir": "/volume1/@docker/overlay2/31ef2d75380ed56600f0228a96b9958cea28bc27f5f81f620e4f5da1eef58237-init/diff:/volume1/@docker/overlay2/dc7c8f81298fbb29db34351493031a3369c5867474055dc18fee6b39bf486030/diff:/volume1/@docker/overlay2/e8f0527c3f7c2d27f141347572d6dbd27fbe0b12bf1fe8cdbd196dd04530c2d8/diff:/volume1/@docker/overlay2/5023c1cdc9939e3142146bf120b93ba6fafbe5c096c9a97e6e430bb122f9b179/diff:/volume1/@docker/overlay2/733074954c0a6ea831a22f97847211e830ec35f2b00586f49f88676f665c267c/diff:/volume1/@docker/overlay2/555a5f1cedc8b481125e91a57167107246234ce7159063f0d1f7068bc8fb6331/diff",
-        "MergedDir": "/volume1/@docker/overlay2/31ef2d75380ed56600f0228a96b9958cea28bc27f5f81f620e4f5da1eef58237/merged",
-        "UpperDir": "/volume1/@docker/overlay2/31ef2d75380ed56600f0228a96b9958cea28bc27f5f81f620e4f5da1eef58237/diff",
-        "WorkDir": "/volume1/@docker/overlay2/31ef2d75380ed56600f0228a96b9958cea28bc27f5f81f620e4f5da1eef58237/work"
+        "ID": "aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e",
+        "LowerDir": "/var/lib/docker/overlay2/51483b386161c80fa78dd0c3554e4206a523e524268c356bc8d63f57dbebb091-init/diff:/var/lib/docker/overlay2/bfbc4f90e123c5ab56e51c7bde3bcf494adf2aafe263a50d2ae0303808f497de/diff:/var/lib/docker/overlay2/6ddc20034f3c613ec43b6c44de85dcfe86ef1741012b624bc3e08cd7d435ac6d/diff",
+        "MergedDir": "/var/lib/docker/overlay2/51483b386161c80fa78dd0c3554e4206a523e524268c356bc8d63f57dbebb091/merged",
+        "UpperDir": "/var/lib/docker/overlay2/51483b386161c80fa78dd0c3554e4206a523e524268c356bc8d63f57dbebb091/diff",
+        "WorkDir": "/var/lib/docker/overlay2/51483b386161c80fa78dd0c3554e4206a523e524268c356bc8d63f57dbebb091/work"
       },
       "Name": "overlay2"
     },
-    "Mounts": [
-      {
-        "Type": "bind",
-        "Source": "/volume1/media",
-        "Destination": "/media",
-        "Mode": "",
-        "RW": true,
-        "Propagation": "rprivate"
-      },
-      {
-        "Type": "bind",
-        "Source": "/volume1/docker/naspt-emby/config",
-        "Destination": "/config",
-        "Mode": "",
-        "RW": true,
-        "Propagation": "rprivate"
-      }
-    ],
+    "Mounts": [],
     "Config": {
-      "Hostname": "9bd4ee625430",
+      "Hostname": "web",
       "Domainname": "",
       "User": "",
       "AttachStdin": false,
       "AttachStdout": false,
       "AttachStderr": false,
       "ExposedPorts": {
-        "1900/udp": {},
-        "7359/udp": {},
-        "8096/tcp": {},
-        "8920/tcp": {}
+        "35455/tcp": {}
       },
       "Tty": false,
       "OpenStdin": false,
       "StdinOnce": false,
       "Env": [
-        "UID=0",
-        "GID=0",
-        "UMASK=022",
-        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-        "LANG=en_US.UTF-8",
-        "HOME=/tmp",
-        "AMDGPU_IDS=/share/libdrm/amdgpu.ids",
-        "FONTCONFIG_PATH=/etc/fonts",
-        "LD_LIBRARY_PATH=/lib:/system",
-        "LIBVA_DRIVERS_PATH=/lib/dri",
-        "OCL_ICD_VENDORS=/etc/OpenCL/vendors",
-        "PCI_IDS_PATH=/share/hwdata/pci.ids",
-        "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt",
-        "GIDLIST=0",
-        "NVIDIA_VISIBLE_DEVICES=all",
-        "NVIDIA_DRIVER_CAPABILITIES=compute,video,utility",
-        "IGNORE_VAAPI_ENABLED_FLAG=false",
-        "XDG_CACHE_HOME=/config/cache"
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
       ],
-      "Cmd": null,
-      "Image": "ccr.ccs.tencentyun.com/naspt/embyserver:latest",
-      "Volumes": {
-        "/config": {}
-      },
+      "Cmd": [
+        "-tv=true",
+        "-aesKey=swj6pnb4h6xyvhpq69fgae2bbpjlb8y2",
+        "-userid=5892131247",
+        "-token=9209187973c38fb7ee461017e1147ebe43ef7d73779840ba57447aaa439bac301b02ad7189d2f1b58d3de8064ba9d52f46ec2de6a834d1373071246ac0eed55bb3ff4ccd79d137"
+      ],
+      "Image": "youshandefeiyang/allinone:latest",
+      "Volumes": null,
       "WorkingDir": "",
       "Entrypoint": [
-        "/init"
+        "/allinone"
       ],
       "OnBuild": null,
-      "Labels": {
-        "maintainer": "Emby LLC <apps@emby.media>"
-      }
+      "Labels": {}
     },
     "NetworkSettings": {
       "Bridge": "",
-      "SandboxID": "7640d860f58c7961711ce18df0cc2ae3d2f4154370ba871499a37601d127d173",
-      "SandboxKey": "/var/run/docker/netns/7640d860f58c",
-      "Ports": {
-        "1900/udp": null,
-        "7359/udp": null,
-        "8096/tcp": [
-          {
-            "HostIp": "0.0.0.0",
-            "HostPort": "8096"
-          },
-          {
-            "HostIp": "::",
-            "HostPort": "8096"
-          }
-        ],
-        "8920/tcp": null
-      },
+      "SandboxID": "783fd7c0d7ae3aed563e1249fd2cef5d8a1e4e6f4f328aff9e6bddb537215e6e",
+      "SandboxKey": "/var/run/docker/netns/default",
+      "Ports": {},
       "HairpinMode": false,
       "LinkLocalIPv6Address": "",
       "LinkLocalIPv6PrefixLen": 0,
       "SecondaryIPAddresses": null,
       "SecondaryIPv6Addresses": null,
-      "EndpointID": "a0c068997caa58383a038d11bc0684aa9d62274247dfd89067edec3726456b15",
-      "Gateway": "172.17.0.1",
+      "EndpointID": "",
+      "Gateway": "",
       "GlobalIPv6Address": "",
       "GlobalIPv6PrefixLen": 0,
-      "IPAddress": "172.17.0.4",
-      "IPPrefixLen": 16,
+      "IPAddress": "",
+      "IPPrefixLen": 0,
       "IPv6Gateway": "",
-      "MacAddress": "02:42:ac:11:00:04",
+      "MacAddress": "",
       "Networks": {
-        "bridge": {
+        "host": {
           "IPAMConfig": null,
           "Links": null,
           "Aliases": null,
-          "MacAddress": "02:42:ac:11:00:04",
-          "NetworkID": "09488a00f7c6947d11be927d54f92ad6025e5437331b99d72ff89e89068d30bd",
-          "EndpointID": "a0c068997caa58383a038d11bc0684aa9d62274247dfd89067edec3726456b15",
-          "Gateway": "172.17.0.1",
-          "IPAddress": "172.17.0.4",
-          "IPPrefixLen": 16,
+          "MacAddress": "",
+          "DriverOpts": null,
+          "GwPriority": 0,
+          "NetworkID": "82e1ef224ba1ce73cdfedf05c2420212c83ed9ec91eba8f0b4a24fe6e930a58b",
+          "EndpointID": "f7bd9a37909784ddfd093a424768af0b2e39415ef0b0ee5130f0b92994fee76b",
+          "Gateway": "",
+          "IPAddress": "",
+          "IPPrefixLen": 0,
           "IPv6Gateway": "",
           "GlobalIPv6Address": "",
           "GlobalIPv6PrefixLen": 0,
-          "DriverOpts": null,
           "DNSNames": null
         }
       }

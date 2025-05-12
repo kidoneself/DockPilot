@@ -3,6 +3,7 @@ package com.dsm.model;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -36,4 +37,7 @@ class ServiceTemplate {
 
     @JsonProperty("restartPolicy")
     private String restartPolicy;
+
+    @JsonProperty("cmd")
+    private List<String> cmd;
 }

@@ -23,6 +23,7 @@ export enum TaskIdPrefix {
   CONTAINER_DELETE = 'container_delete',
   CONTAINER_UPDATE = 'container_update',
   CONTAINER_CREATE = 'container_create',
+  CONTAINER_JSON_CONFIG = 'container_json_config',
   NETWORK_LIST = 'network_list',
   NETWORK_CREATE = 'network_create',
   NETWORK_DELETE = 'network_delete',

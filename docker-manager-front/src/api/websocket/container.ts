@@ -1202,3 +1202,47 @@ export const importTemplate = async (content: string, fileName: string): Promise
       });
   });
 };
+
+/**
+ * 获取容器JSON配置
+ * @param containerId 容器ID
+ * @returns Promise<{success: boolean; message?: string; data?: string}>
+ */
+export const getContainerJsonConfig = (containerId: string): Promise<{success: boolean; message?: string; data?: string}> => {
+  return new Promise((resolve, reject) => {
+    const taskId = generateTaskId(TaskIdPrefix.CONTAINER_JSON_CONFIG);
+    
+    const messageHandler = (message: WebSocketMessage) => {
+      if (message.taskId === taskId) {
+        dockerWebSocketService.removeMessageHandler(taskId);
+        if (message.type === 'CONTAINER_JSON_CONFIG') {
+          resolve({
+            success: true,
+            data: message.data
+          });
+        } else if (message.type === 'ERROR') {
+          resolve({
+            success: false,
+            message: message.data?.message
+          });
+        }
+      }
+    };
+
+    dockerWebSocketService.addMessageHandler(taskId, messageHandler);
+
+    dockerWebSocketService
+      .sendMessage({
+        type: 'CONTAINER_JSON_CONFIG',
+        taskId,
+        data: { containerId }
+      })
+      .catch(() => {
+        dockerWebSocketService.removeMessageHandler(taskId);
+        resolve({
+          success: false,
+          message: '网络连接失败'
+        });
+      });
+  });
+};

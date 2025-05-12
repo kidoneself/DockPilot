@@ -25,6 +25,7 @@ export type WebSocketMessageType =
   | 'CONTAINER_LOGS'
   | 'CONTAINER_STATS'
   | 'CONTAINER_STATE_CHANGE'
+  | 'CONTAINER_JSON_CONFIG'
   
   // 镜像相关
   | 'PULL_IMAGE'

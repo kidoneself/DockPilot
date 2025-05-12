@@ -21,7 +21,7 @@ public class DockerInspectToJson {
             String currentDir = "/Users/lizhiqiang/coding-my/docker/docker-manager-back/src/main/java/com/dsm/inspect2Cmd";
 
             // 只使用一个参数，同时作为文件夹名和模板名
-            String name = "Emby";
+            String name = "allinone";
             String folderPath = currentDir + File.separator + name;
             System.out.println("正在处理文件夹: " + folderPath);
 
@@ -44,6 +44,7 @@ public class DockerInspectToJson {
         JsonNode portsNode = containerNode.get("Config").get("ExposedPorts");
         JsonNode volumesNode = containerNode.get("Mounts");
         JsonNode restartPolicyNode = containerNode.get("HostConfig").get("RestartPolicy");
+        JsonNode cmdNode = containerNode.get("Config").get("Cmd");
 
         // 构建简化 JSON
         String simplifiedJson = "{";
@@ -53,6 +54,20 @@ public class DockerInspectToJson {
 
         // 镜像
         simplifiedJson += "\"image\":\"" + imageNode.asText() + "\", ";
+
+        // 命令
+        simplifiedJson += "\"cmd\":[";
+        if (cmdNode != null && cmdNode.isArray()) {
+            Iterator<JsonNode> cmdIter = cmdNode.elements();
+            while (cmdIter.hasNext()) {
+                JsonNode cmd = cmdIter.next();
+                simplifiedJson += "\"" + cmd.asText() + "\", ";
+            }
+            if (cmdNode.size() > 0) {
+                simplifiedJson = simplifiedJson.substring(0, simplifiedJson.length() - 2); // 去掉最后的逗号
+            }
+        }
+        simplifiedJson += "], ";
 
         // 环境变量
         simplifiedJson += "\"env\":{";
@@ -83,7 +98,7 @@ public class DockerInspectToJson {
 
         // 挂载卷
         simplifiedJson += "\"volumes\":{";
-        if (volumesNode != null) {
+        if (volumesNode != null && volumesNode.size() > 0) {
             Iterator<JsonNode> volumeIter = volumesNode.elements();
             while (volumeIter.hasNext()) {
                 JsonNode volume = volumeIter.next();

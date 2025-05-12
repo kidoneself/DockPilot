@@ -110,10 +110,47 @@
                 更新
               </t-button>
             </t-popconfirm>
+            <t-button theme="default" size="small" @click="handleShowConfig(row)">
+              <template #icon>
+                <t-icon name="file-code" />
+              </template>
+              获取配置
+            </t-button>
           </t-space>
         </template>
       </t-table>
     </t-card>
+
+    <!-- 配置展示弹窗 -->
+    <t-dialog
+      v-model:visible="configDialogVisible"
+      header="容器配置"
+      :width="680"
+      :footer="false"
+    >
+      <div class="config-dialog-content">
+        <div class="config-actions">
+          <t-button theme="primary" size="small" @click="handleSaveConfig">
+            <template #icon>
+              <t-icon name="download" />
+            </template>
+            保存配置
+          </t-button>
+          <t-button theme="default" size="small" @click="handleCopyConfig">
+            <template #icon>
+              <t-icon name="file-copy" />
+            </template>
+            复制配置
+          </t-button>
+        </div>
+        <t-textarea
+          v-model="formattedConfig"
+          :autosize="{ minRows: 15, maxRows: 20 }"
+          readonly
+          class="config-textarea"
+        />
+      </div>
+    </t-dialog>
   </div>
 </template>
 
@@ -133,6 +170,7 @@ import {
   startContainer,
   stopContainer,
   updateContainer,
+  getContainerJsonConfig,
 } from '@/api/websocket/container';
 import type { Container } from '@/api/model/containerModel';
 // 导入容器状态相关的工具函数
@@ -183,6 +221,11 @@ const columns = [
     fixed: 'right' as const,
   },
 ] as PrimaryTableCol[];
+
+// 配置相关
+const configDialogVisible = ref(false);
+const formattedConfig = ref('');
+const currentConfig = ref<any>(null);
 
 /**
  * 检查容器是否正在操作
@@ -308,6 +351,62 @@ const getUpdateConfirmMessage = (container: Container) => {
   return `确认要更新容器 ${container.names?.[0]?.replace('/', '')} 吗？`;
 };
 
+/**
+ * 显示容器配置
+ * @param container 容器对象
+ */
+const handleShowConfig = async (container: Container) => {
+  try {
+    const response = await getContainerJsonConfig(container.id);
+    currentConfig.value = response.data;
+    formattedConfig.value = JSON.stringify(response.data, null, 2);
+    configDialogVisible.value = true;
+  } catch (error) {
+    MessagePlugin.error(error instanceof Error ? error.message : '获取配置失败');
+  }
+};
+
+/**
+ * 保存配置
+ */
+const handleSaveConfig = () => {
+  if (!currentConfig.value) return;
+
+  try {
+    const containerName = currentConfig.value.name.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const fileName = `container-config-${containerName}.json`;
+
+    const blob = new Blob([formattedConfig.value], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    MessagePlugin.success('配置保存成功');
+  } catch (error) {
+    MessagePlugin.error('保存配置失败');
+  }
+};
+
+/**
+ * 复制配置
+ */
+const handleCopyConfig = () => {
+  if (!formattedConfig.value) return;
+
+  navigator.clipboard.writeText(formattedConfig.value)
+    .then(() => {
+      MessagePlugin.success('配置已复制到剪贴板');
+    })
+    .catch(() => {
+      MessagePlugin.error('复制失败');
+    });
+};
+
 // 组件挂载时获取容器列表
 onMounted(() => {
   fetchContainers();
@@ -369,5 +468,26 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   background-color: var(--td-bg-color-container);
+}
+
+.config-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.config-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.config-textarea {
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: var(--td-bg-color-container);
+  border: 1px solid var(--td-component-border);
+  border-radius: var(--td-radius-default);
+  padding: 8px;
 }
 </style>

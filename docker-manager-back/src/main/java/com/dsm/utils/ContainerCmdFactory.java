@@ -21,7 +21,7 @@ public class ContainerCmdFactory {
         JsonNode volumesNode = root.path("volumes");
         String restartPolicy = root.path("restartPolicy").asText();
         String networkMode = root.path("networkMode").asText();
-        JsonNode commandNode = root.path("command");
+        JsonNode commandNode = root.path("cmd");
         JsonNode entrypointNode = root.path("entrypoint");
 
         CreateContainerCmd cmd = dockerClient.createContainerCmd(image);

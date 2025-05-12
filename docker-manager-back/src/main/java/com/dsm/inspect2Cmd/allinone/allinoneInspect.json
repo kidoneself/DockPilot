@@ -1,0 +1,195 @@
+[
+  {
+    "Id": "aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e",
+    "Created": "2025-05-12T01:03:08.282516684Z",
+    "Path": "/allinone",
+    "Args": [
+      "-tv=true",
+      "-aesKey=swj6pnb4h6xyvhpq69fgae2bbpjlb8y2",
+      "-userid=5892131247",
+      "-token=9209187973c38fb7ee461017e1147ebe43ef7d73779840ba57447aaa439bac301b02ad7189d2f1b58d3de8064ba9d52f46ec2de6a834d1373071246ac0eed55bb3ff4ccd79d137"
+    ],
+    "State": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 487070,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2025-05-12T01:03:08.351510493Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "Image": "sha256:334b346d6f8b35458233550a08f0520fd5348d0e4e37d6957b534fda828cffb5",
+    "ResolvConfPath": "/var/lib/docker/containers/aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e/resolv.conf",
+    "HostnamePath": "/var/lib/docker/containers/aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e/hostname",
+    "HostsPath": "/var/lib/docker/containers/aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e/hosts",
+    "LogPath": "/var/lib/docker/containers/aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e/aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e-json.log",
+    "Name": "/naspt-allinone",
+    "RestartCount": 0,
+    "Driver": "overlay2",
+    "Platform": "linux",
+    "MountLabel": "",
+    "ProcessLabel": "",
+    "AppArmorProfile": "unconfined",
+    "ExecIDs": null,
+    "HostConfig": {
+      "Binds": null,
+      "ContainerIDFile": "",
+      "LogConfig": {
+        "Type": "json-file",
+        "Config": {}
+      },
+      "NetworkMode": "host",
+      "PortBindings": {},
+      "RestartPolicy": {
+        "Name": "always",
+        "MaximumRetryCount": 0
+      },
+      "AutoRemove": false,
+      "VolumeDriver": "",
+      "VolumesFrom": null,
+      "ConsoleSize": [
+        61,
+        152
+      ],
+      "CapAdd": null,
+      "CapDrop": null,
+      "CgroupnsMode": "private",
+      "Dns": [],
+      "DnsOptions": [],
+      "DnsSearch": [],
+      "ExtraHosts": null,
+      "GroupAdd": null,
+      "IpcMode": "private",
+      "Cgroup": "",
+      "Links": null,
+      "OomScoreAdj": 0,
+      "PidMode": "",
+      "Privileged": true,
+      "PublishAllPorts": false,
+      "ReadonlyRootfs": false,
+      "SecurityOpt": [
+        "label=disable"
+      ],
+      "UTSMode": "",
+      "UsernsMode": "",
+      "ShmSize": 67108864,
+      "Runtime": "runc",
+      "Isolation": "",
+      "CpuShares": 0,
+      "Memory": 0,
+      "NanoCpus": 0,
+      "CgroupParent": "",
+      "BlkioWeight": 0,
+      "BlkioWeightDevice": [],
+      "BlkioDeviceReadBps": [],
+      "BlkioDeviceWriteBps": [],
+      "BlkioDeviceReadIOps": [],
+      "BlkioDeviceWriteIOps": [],
+      "CpuPeriod": 0,
+      "CpuQuota": 0,
+      "CpuRealtimePeriod": 0,
+      "CpuRealtimeRuntime": 0,
+      "CpusetCpus": "",
+      "CpusetMems": "",
+      "Devices": [],
+      "DeviceCgroupRules": null,
+      "DeviceRequests": null,
+      "MemoryReservation": 0,
+      "MemorySwap": 0,
+      "MemorySwappiness": null,
+      "OomKillDisable": null,
+      "PidsLimit": null,
+      "Ulimits": [],
+      "CpuCount": 0,
+      "CpuPercent": 0,
+      "IOMaximumIOps": 0,
+      "IOMaximumBandwidth": 0,
+      "MaskedPaths": null,
+      "ReadonlyPaths": null
+    },
+    "GraphDriver": {
+      "Data": {
+        "ID": "aefd9efdf24c3f9e9681d39c7dd6202c6b1ac09ab1d596a65689198c59ad146e",
+        "LowerDir": "/var/lib/docker/overlay2/51483b386161c80fa78dd0c3554e4206a523e524268c356bc8d63f57dbebb091-init/diff:/var/lib/docker/overlay2/bfbc4f90e123c5ab56e51c7bde3bcf494adf2aafe263a50d2ae0303808f497de/diff:/var/lib/docker/overlay2/6ddc20034f3c613ec43b6c44de85dcfe86ef1741012b624bc3e08cd7d435ac6d/diff",
+        "MergedDir": "/var/lib/docker/overlay2/51483b386161c80fa78dd0c3554e4206a523e524268c356bc8d63f57dbebb091/merged",
+        "UpperDir": "/var/lib/docker/overlay2/51483b386161c80fa78dd0c3554e4206a523e524268c356bc8d63f57dbebb091/diff",
+        "WorkDir": "/var/lib/docker/overlay2/51483b386161c80fa78dd0c3554e4206a523e524268c356bc8d63f57dbebb091/work"
+      },
+      "Name": "overlay2"
+    },
+    "Mounts": [],
+    "Config": {
+      "Hostname": "web",
+      "Domainname": "",
+      "User": "",
+      "AttachStdin": false,
+      "AttachStdout": false,
+      "AttachStderr": false,
+      "ExposedPorts": {
+        "35455/tcp": {}
+      },
+      "Tty": false,
+      "OpenStdin": false,
+      "StdinOnce": false,
+      "Env": [
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      ],
+      "Cmd": [
+        "-tv=true",
+        "-aesKey=swj6pnb4h6xyvhpq69fgae2bbpjlb8y2",
+        "-userid=5892131247",
+        "-token=9209187973c38fb7ee461017e1147ebe43ef7d73779840ba57447aaa439bac301b02ad7189d2f1b58d3de8064ba9d52f46ec2de6a834d1373071246ac0eed55bb3ff4ccd79d137"
+      ],
+      "Image": "youshandefeiyang/allinone:latest",
+      "Volumes": null,
+      "WorkingDir": "",
+      "Entrypoint": [
+        "/allinone"
+      ],
+      "OnBuild": null,
+      "Labels": {}
+    },
+    "NetworkSettings": {
+      "Bridge": "",
+      "SandboxID": "783fd7c0d7ae3aed563e1249fd2cef5d8a1e4e6f4f328aff9e6bddb537215e6e",
+      "SandboxKey": "/var/run/docker/netns/default",
+      "Ports": {},
+      "HairpinMode": false,
+      "LinkLocalIPv6Address": "",
+      "LinkLocalIPv6PrefixLen": 0,
+      "SecondaryIPAddresses": null,
+      "SecondaryIPv6Addresses": null,
+      "EndpointID": "",
+      "Gateway": "",
+      "GlobalIPv6Address": "",
+      "GlobalIPv6PrefixLen": 0,
+      "IPAddress": "",
+      "IPPrefixLen": 0,
+      "IPv6Gateway": "",
+      "MacAddress": "",
+      "Networks": {
+        "host": {
+          "IPAMConfig": null,
+          "Links": null,
+          "Aliases": null,
+          "MacAddress": "",
+          "DriverOpts": null,
+          "GwPriority": 0,
+          "NetworkID": "82e1ef224ba1ce73cdfedf05c2420212c83ed9ec91eba8f0b4a24fe6e930a58b",
+          "EndpointID": "f7bd9a37909784ddfd093a424768af0b2e39415ef0b0ee5130f0b92994fee76b",
+          "Gateway": "",
+          "IPAddress": "",
+          "IPPrefixLen": 0,
+          "IPv6Gateway": "",
+          "GlobalIPv6Address": "",
+          "GlobalIPv6PrefixLen": 0,
+          "DNSNames": null
+        }
+      }
+    }
+  }
+]
