@@ -190,6 +190,16 @@ public enum MessageType {
     IMPORT_TEMPLATE_RESULT,
 
     /**
+     * 删除模板
+     */
+    DELETE_TEMPLATE,
+
+    /**
+     * 删除模板结果
+     */
+    DELETE_TEMPLATE_RESULT,
+
+    /**
      * 容器JSON配置
      */
     CONTAINER_JSON_CONFIG,

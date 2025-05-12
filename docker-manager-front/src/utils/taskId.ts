@@ -38,5 +38,6 @@ export enum TaskIdPrefix {
   INSTALL_CHECK = 'install_check',
   INSTALL_VALIDATE = 'install_validate',
   INSTALL_START = 'install_start',
-  IMPORT_TEMPLATE = 'import_template'
+  IMPORT_TEMPLATE = 'import_template',
+  DELETE_TEMPLATE = 'delete_template'
 } 

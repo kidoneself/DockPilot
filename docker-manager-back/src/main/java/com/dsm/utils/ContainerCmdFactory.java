@@ -3,9 +3,9 @@ package com.dsm.utils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerCmd;
+import com.github.dockerjava.api.model.*;
 
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 将配置文件中的模板转换成cmd
@@ -21,70 +21,73 @@ public class ContainerCmdFactory {
         JsonNode volumesNode = root.path("volumes");
         String restartPolicy = root.path("restartPolicy").asText();
         String networkMode = root.path("networkMode").asText();
+        boolean privileged = root.path("privileged").asBoolean(false);
         JsonNode commandNode = root.path("cmd");
-        JsonNode entrypointNode = root.path("entrypoint");
 
-        CreateContainerCmd cmd = dockerClient.createContainerCmd(image);
-        cmd.withName(name);
+        CreateContainerCmd cmd = dockerClient.createContainerCmd(image)
+                .withName(name)
+                .withPrivileged(privileged);
+
         // 环境变量
         if (envNode != null && !envNode.isEmpty()) {
-            Iterator<Map.Entry<String, JsonNode>> envIter = envNode.fields();
-            java.util.List<String> envList = new java.util.ArrayList<>();
-            while (envIter.hasNext()) {
-                Map.Entry<String, JsonNode> entry = envIter.next();
-                envList.add(entry.getKey() + "=" + entry.getValue().asText());
-            }
+            List<String> envList = new ArrayList<>();
+            envNode.fields().forEachRemaining(entry -> 
+                envList.add(entry.getKey() + "=" + entry.getValue().asText())
+            );
             cmd.withEnv(envList);
         }
+
         // 端口映射
         if (portsNode != null && !portsNode.isEmpty()) {
-            java.util.Map<com.github.dockerjava.api.model.ExposedPort, com.github.dockerjava.api.model.Ports.Binding> portBindings = new java.util.HashMap<>();
-            java.util.List<com.github.dockerjava.api.model.ExposedPort> exposedPorts = new java.util.ArrayList<>();
-            Iterator<Map.Entry<String, JsonNode>> portIter = portsNode.fields();
-            while (portIter.hasNext()) {
-                Map.Entry<String, JsonNode> entry = portIter.next();
+            Map<ExposedPort, Ports.Binding> portBindings = new HashMap<>();
+            List<ExposedPort> exposedPorts = new ArrayList<>();
+            
+            portsNode.fields().forEachRemaining(entry -> {
                 String containerPortProto = entry.getKey(); // 例如 3000/tcp
                 String hostPort = entry.getValue().asText();
                 String[] portParts = containerPortProto.split("/");
                 int port = Integer.parseInt(portParts[0]);
                 String proto = portParts.length > 1 ? portParts[1] : "tcp";
-                com.github.dockerjava.api.model.ExposedPort exposedPort = new com.github.dockerjava.api.model.ExposedPort(port, com.github.dockerjava.api.model.InternetProtocol.parse(proto));
+                ExposedPort exposedPort = new ExposedPort(port, InternetProtocol.parse(proto));
                 exposedPorts.add(exposedPort);
-                com.github.dockerjava.api.model.Ports.Binding binding = com.github.dockerjava.api.model.Ports.Binding.bindPort(Integer.parseInt(hostPort));
+                Ports.Binding binding = Ports.Binding.bindPort(Integer.parseInt(hostPort));
                 portBindings.put(exposedPort, binding);
-            }
+            });
+
             cmd.withExposedPorts(exposedPorts);
-            com.github.dockerjava.api.model.Ports ports = new com.github.dockerjava.api.model.Ports();
-            for (Map.Entry<com.github.dockerjava.api.model.ExposedPort, com.github.dockerjava.api.model.Ports.Binding> entry : portBindings.entrySet()) {
-                ports.bind(entry.getKey(), entry.getValue());
-            }
+            Ports ports = new Ports();
+            portBindings.forEach(ports::bind);
             cmd.withPortBindings(ports);
         }
+
         // 卷挂载
         if (volumesNode != null && !volumesNode.isEmpty()) {
-            java.util.List<com.github.dockerjava.api.model.Bind> binds = new java.util.ArrayList<>();
-            java.util.List<com.github.dockerjava.api.model.Volume> volumes = new java.util.ArrayList<>();
-            Iterator<Map.Entry<String, JsonNode>> volIter = volumesNode.fields();
-            while (volIter.hasNext()) {
-                Map.Entry<String, JsonNode> entry = volIter.next();
+            List<Bind> binds = new ArrayList<>();
+            List<Volume> volumes = new ArrayList<>();
+            
+            volumesNode.fields().forEachRemaining(entry -> {
                 String hostPath = entry.getKey();
                 String containerPath = entry.getValue().asText();
-                com.github.dockerjava.api.model.Volume volume = new com.github.dockerjava.api.model.Volume(containerPath);
-                com.github.dockerjava.api.model.Bind bind = new com.github.dockerjava.api.model.Bind(hostPath, volume);
+                Volume volume = new Volume(containerPath);
+                Bind bind = new Bind(hostPath, volume);
                 binds.add(bind);
                 volumes.add(volume);
-            }
+            });
+
             cmd.withBinds(binds);
             cmd.withVolumes(volumes);
         }
+
         // 重启策略
         if (!restartPolicy.isEmpty()) {
-            cmd.withRestartPolicy(com.github.dockerjava.api.model.RestartPolicy.parse(restartPolicy));
+            cmd.withRestartPolicy(RestartPolicy.parse(restartPolicy));
         }
+
         // 网络模式
         if (!networkMode.isEmpty()) {
             cmd.withNetworkMode(networkMode);
         }
+
         // command
         if (commandNode != null && commandNode.isArray() && !commandNode.isEmpty()) {
             String[] cmdArr = new String[commandNode.size()];
@@ -93,14 +96,7 @@ public class ContainerCmdFactory {
             }
             cmd.withCmd(cmdArr);
         }
-        // entrypoint
-        if (entrypointNode != null && entrypointNode.isArray() && !entrypointNode.isEmpty()) {
-            String[] entryArr = new String[entrypointNode.size()];
-            for (int i = 0; i < entrypointNode.size(); i++) {
-                entryArr[i] = entrypointNode.get(i).asText();
-            }
-            cmd.withEntrypoint(entryArr);
-        }
+
         return cmd;
     }
 }

@@ -110,7 +110,7 @@
                 更新
               </t-button>
             </t-popconfirm>
-            <t-button theme="default" size="small" @click="handleShowConfig(row)">
+            <t-button v-if="showConfigButton" theme="default" size="small" @click="handleShowConfig(row)">
               <template #icon>
                 <t-icon name="file-code" />
               </template>
@@ -160,9 +160,9 @@ import type { PrimaryTableCol } from 'tdesign-vue-next';
 // 导入 TDesign 组件库的消息提示组件
 import { MessagePlugin } from 'tdesign-vue-next';
 // 导入 Vue 相关功能
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, computed } from 'vue';
 // 导入路由相关功能
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 // 导入容器相关的 API 和类型
 import {
   getContainerList,
@@ -185,6 +185,7 @@ import {
 
 // 获取路由实例
 const router = useRouter();
+const route = useRoute();
 
 // 响应式数据定义
 const containers = ref<Container[]>([]); // 容器列表
@@ -196,6 +197,9 @@ const operatingContainers = ref<ContainerOperationState>({
 const isLoading = ref(false); // 列表加载状态
 // 定义选中行
 const selectedRowKeys = ref<Array<string | number>>([]);
+
+// 控制配置按钮显示
+const showConfigButton = computed(() => route.query.config === 'true');
 
 // 定义表格列
 const columns = [

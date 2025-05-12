@@ -1,6 +1,11 @@
 <template>
   <div class="install-container">
     <t-card :bordered="false">
+      <!-- 新手引导按钮 -->
+      <div class="guide-button">
+        <t-button @click="handleGuideClick">新手引导</t-button>
+      </div>
+      
       <!-- 应用信息 -->
       <div class="app-info">
         <div class="app-header">
@@ -150,6 +155,17 @@
           </t-space>
         </template>
       </t-dialog>
+
+      <!-- 新手引导组件 -->
+      <t-guide
+        v-model="currentGuideStep"
+        :steps="guideSteps"
+        @change="handleGuideChange"
+        @prev-step-click="handleGuidePrevStep"
+        @next-step-click="handleGuideNextStep"
+        @finish="handleGuideFinish"
+        @skip="handleGuideSkip"
+      />
     </t-card>
   </div>
 </template>
@@ -428,6 +444,84 @@ const getLogIcon = (type: string) => {
     error: 'error-circle',
   };
   return icons[type] || 'info-circle';
+};
+
+// 新手引导相关
+const currentGuideStep = ref(-1);
+const guideSteps = [
+  {
+    element: '.app-info',
+    title: '应用信息',
+    description: '这里显示应用的基本信息，包括名称和描述',
+    placement: 'bottom' as const,
+  },
+  {
+    element: '.images-section',
+    title: '镜像管理',
+    description: '在这里可以查看和管理应用所需的 Docker 镜像',
+    placement: 'bottom' as const,
+  },
+  {
+    element: '.parameters-form',
+    title: '参数配置',
+    description: '在这里配置应用的运行参数，配置完成后需要点击"校验参数"按钮进行验证',
+    placement: 'bottom' as const,
+  },
+  {
+    element: '.action-buttons',
+    title: '操作按钮',
+    description: '在这里可以执行参数校验、开始安装等操作',
+    placement: 'top' as const,
+  },
+];
+
+const handleGuideClick = () => {
+  currentGuideStep.value = 0;
+};
+
+const handleGuideChange = (current: number, { e, total }: any) => {
+  console.log('引导步骤变更:', current, e, total);
+  // 添加自动滚动功能
+  nextTick(() => {
+    const currentStep = guideSteps[current];
+    if (currentStep) {
+      const element = document.querySelector(currentStep.element);
+      if (element) {
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+        
+        // 等待滚动动画完成后再更新遮罩层位置
+        setTimeout(() => {
+          // 强制更新当前步骤，触发遮罩层重新计算位置
+          const temp = currentGuideStep.value;
+          currentGuideStep.value = -1;
+          nextTick(() => {
+            currentGuideStep.value = temp;
+          });
+        }, 300); // 300ms 是滚动动画的持续时间
+      }
+    }
+  });
+};
+
+const handleGuidePrevStep = ({ e, prev, current, total }: any) => {
+  console.log('上一步:', e, prev, current, total);
+};
+
+const handleGuideNextStep = ({ e, next, current, total }: any) => {
+  console.log('下一步:', e, next, current, total);
+};
+
+const handleGuideFinish = ({ e, current, total }: any) => {
+  console.log('引导完成:', e, current, total);
+  currentGuideStep.value = -1;
+};
+
+const handleGuideSkip = ({ e, current, total }: any) => {
+  console.log('跳过引导:', e, current, total);
+  currentGuideStep.value = -1;
 };
 
 // 在组件挂载时检查镜像
@@ -768,5 +862,12 @@ onUnmounted(() => {
 .progress-text {
   font-size: 12px;
   color: var(--td-text-color-secondary);
+}
+
+.guide-button {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 100;
 }
 </style>

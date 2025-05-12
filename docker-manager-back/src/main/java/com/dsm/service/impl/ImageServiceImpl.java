@@ -140,7 +140,7 @@ public class ImageServiceImpl implements ImageService {
             syncLocalImageToDb(imageName, tag);
 
             result.put("success", true);
-            result.put("message", "镜像更新成功");
+            result.put("message", "镜像开始更新");
             result.put("remoteCreateTime", remoteCreateTime);
             result.put("pull_output", pullOutput.toString());
 

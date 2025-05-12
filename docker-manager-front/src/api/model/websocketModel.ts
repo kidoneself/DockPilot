@@ -60,6 +60,7 @@ export type WebSocketMessageType =
   | 'INSTALL_PULL_IMAGE'
   | 'IMPORT_TEMPLATE'
   | 'IMPORT_TEMPLATE_RESULT'
+  | 'DELETE_TEMPLATE'
   | 'OPERATION_RESULT';
 
 /**

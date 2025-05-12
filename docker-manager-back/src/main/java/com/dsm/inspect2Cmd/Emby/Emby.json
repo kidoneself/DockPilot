@@ -5,42 +5,40 @@
   "description" : "一个强大的媒体管理应用",
   "iconUrl" : "https://example.com/icon.jpg",
   "services" : [ {
-    "id" : "naspt-emby",
-    "name" : "naspt-emby",
+    "id" : "naspt-allinone",
+    "name" : "naspt-allinone",
     "template" : {
-      "name" : "naspt-emby",
-      "image" : "ccr.ccs.tencentyun.com/naspt/embyserver:latest",
-      "env" : {
-        "UID" : "0",
-        "GID" : "0",
-        "UMASK" : "022",
-        "PATH" : "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-        "LANG" : "en_US.UTF-8",
-        "HOME" : "/tmp",
-        "AMDGPU_IDS" : "/share/libdrm/amdgpu.ids",
-        "FONTCONFIG_PATH" : "/etc/fonts",
-        "LD_LIBRARY_PATH" : "/lib:/system",
-        "LIBVA_DRIVERS_PATH" : "/lib/dri",
-        "OCL_ICD_VENDORS" : "/etc/OpenCL/vendors",
-        "PCI_IDS_PATH" : "/share/hwdata/pci.ids",
-        "SSL_CERT_FILE" : "/etc/ssl/certs/ca-certificates.crt",
-        "GIDLIST" : "0",
-        "NVIDIA_VISIBLE_DEVICES" : "all",
-        "NVIDIA_DRIVER_CAPABILITIES" : "compute,video,utility",
-        "IGNORE_VAAPI_ENABLED_FLAG" : "false",
-        "XDG_CACHE_HOME" : "/config/cache"
-      },
-      "ports" : {
-        "1900/udp" : "1900/udp",
-        "7359/udp" : "7359/udp",
-        "8096/tcp" : "8096",
-        "8920/tcp" : "8920"
-      },
-      "volumes" : {
-        "/volume1/media" : "/media",
-        "/volume1/docker/naspt-emby/config" : "/config"
-      },
-      "restartPolicy" : "always"
+      "name" : "naspt-allinone",
+      "category" : "媒体",
+      "version" : "1.0",
+      "description" : "一个强大的媒体管理应用",
+      "iconUrl" : "https://example.com/icon.jpg",
+      "services" : [ {
+        "id" : "naspt-allinone",
+        "name" : "naspt-allinone",
+        "template" : {
+          "name" : "naspt-allinone",
+          "image" : "youshandefeiyang/allinone:latest",
+          "cmd" : [ "-tv=true", "-aesKey=swj6pnb4h6xyvhpq69fgae2bbpjlb8y2", "-userid=5892131247", "-token=9209187973c38fb7ee461017e1147ebe43ef7d73779840ba57447aaa439bac301b02ad7189d2f1b58d3de8064ba9d52f46ec2de6a834d1373071246ac0eed55bb3ff4ccd79d137" ],
+          "env" : {
+            "PATH" : "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+          },
+          "ports" : {
+            "35455/tcp" : "35455/tcp"
+          },
+          "volumes" : { },
+          "restartPolicy" : "always"
+        }
+      } ],
+      "parameters" : [ {
+        "key" : "MEDIA_PATH",
+        "value" : "/volume2/media",
+        "name" : "媒体文件路径"
+      } ],
+      "configs" : [ {
+        "target" : "{{DOCKER_PATH}}",
+        "urls" : [ "https://example.com/config1.tgz" ]
+      } ]
     }
   } ],
   "parameters" : [ {

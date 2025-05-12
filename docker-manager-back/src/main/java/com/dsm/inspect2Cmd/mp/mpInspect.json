@@ -1,0 +1,292 @@
+[
+  {
+    "Id": "d491ed64c2d66f44910ffdb7b8b484632579204d108d50c15079f48972919e9f",
+    "Created": "2025-05-12T08:21:39.347494343Z",
+    "Path": "/entrypoint.sh",
+    "Args": [],
+    "State": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 524580,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2025-05-12T08:21:39.520262127Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "Image": "sha256:562ec480f1c6ee2319ed4961972b8867407299f2d91db88f7f922ed139ffc72a",
+    "ResolvConfPath": "/var/lib/docker/containers/d491ed64c2d66f44910ffdb7b8b484632579204d108d50c15079f48972919e9f/resolv.conf",
+    "HostnamePath": "/var/lib/docker/containers/d491ed64c2d66f44910ffdb7b8b484632579204d108d50c15079f48972919e9f/hostname",
+    "HostsPath": "/var/lib/docker/containers/d491ed64c2d66f44910ffdb7b8b484632579204d108d50c15079f48972919e9f/hosts",
+    "LogPath": "/var/lib/docker/containers/d491ed64c2d66f44910ffdb7b8b484632579204d108d50c15079f48972919e9f/d491ed64c2d66f44910ffdb7b8b484632579204d108d50c15079f48972919e9f-json.log",
+    "Name": "/naspt-mpv2",
+    "RestartCount": 0,
+    "Driver": "overlay2",
+    "Platform": "linux",
+    "MountLabel": "",
+    "ProcessLabel": "",
+    "AppArmorProfile": "unconfined",
+    "ExecIDs": null,
+    "HostConfig": {
+      "Binds": [
+        "/home/docker/naspt-mpv2/config:/config",
+        "/home/media:/media",
+        "/home/docker/naspt-qb/config/qBittorrent/BT_backup:/qbtr",
+        "/home/docker/naspt-mpv2/core:/moviepilot/.cache/ms-playwright"
+      ],
+      "ContainerIDFile": "",
+      "LogConfig": {
+        "Type": "json-file",
+        "Config": {}
+      },
+      "NetworkMode": "bridge",
+      "PortBindings": {
+        "3000/tcp": [
+          {
+            "HostIp": "",
+            "HostPort": "3000"
+          }
+        ],
+        "3001/tcp": [
+          {
+            "HostIp": "",
+            "HostPort": "3001"
+          }
+        ]
+      },
+      "RestartPolicy": {
+        "Name": "always",
+        "MaximumRetryCount": 0
+      },
+      "AutoRemove": false,
+      "VolumeDriver": "",
+      "VolumesFrom": null,
+      "ConsoleSize": [
+        65,
+        195
+      ],
+      "CapAdd": null,
+      "CapDrop": null,
+      "CgroupnsMode": "private",
+      "Dns": [],
+      "DnsOptions": [],
+      "DnsSearch": [],
+      "ExtraHosts": null,
+      "GroupAdd": null,
+      "IpcMode": "private",
+      "Cgroup": "",
+      "Links": null,
+      "OomScoreAdj": 0,
+      "PidMode": "",
+      "Privileged": true,
+      "PublishAllPorts": false,
+      "ReadonlyRootfs": false,
+      "SecurityOpt": [
+        "label=disable"
+      ],
+      "UTSMode": "",
+      "UsernsMode": "",
+      "ShmSize": 67108864,
+      "Runtime": "runc",
+      "Isolation": "",
+      "CpuShares": 0,
+      "Memory": 0,
+      "NanoCpus": 0,
+      "CgroupParent": "",
+      "BlkioWeight": 0,
+      "BlkioWeightDevice": [],
+      "BlkioDeviceReadBps": [],
+      "BlkioDeviceWriteBps": [],
+      "BlkioDeviceReadIOps": [],
+      "BlkioDeviceWriteIOps": [],
+      "CpuPeriod": 0,
+      "CpuQuota": 0,
+      "CpuRealtimePeriod": 0,
+      "CpuRealtimeRuntime": 0,
+      "CpusetCpus": "",
+      "CpusetMems": "",
+      "Devices": [],
+      "DeviceCgroupRules": null,
+      "DeviceRequests": null,
+      "MemoryReservation": 0,
+      "MemorySwap": 0,
+      "MemorySwappiness": null,
+      "OomKillDisable": null,
+      "PidsLimit": null,
+      "Ulimits": [],
+      "CpuCount": 0,
+      "CpuPercent": 0,
+      "IOMaximumIOps": 0,
+      "IOMaximumBandwidth": 0,
+      "MaskedPaths": null,
+      "ReadonlyPaths": null
+    },
+    "GraphDriver": {
+      "Data": {
+        "ID": "d491ed64c2d66f44910ffdb7b8b484632579204d108d50c15079f48972919e9f",
+        "LowerDir": "/var/lib/docker/overlay2/a45ee2f34ad6e76b2d85c6b28359c73ad87a3e4491bf03356045cd73cbb6e27e-init/diff:/var/lib/docker/overlay2/42499d874404d093602de37ef08ac62bbf65928d4313f821d4c48d2495e382e4/diff:/var/lib/docker/overlay2/42a74ed9e122d5fc9503e312663ae44398080d504da4aa2e586cbdaab57f2784/diff:/var/lib/docker/overlay2/042ee508d54d41c28482f66f81ac3a4995aa4023ab8a10ecde0a54e043113075/diff:/var/lib/docker/overlay2/ecb930cb4b060da200a7810ddfa10d4be5ec00cff62ae449a8c662012d2130c1/diff:/var/lib/docker/overlay2/6cfb7219bba023c594d24730fa26d5e5c5d494b9ef7f71f7a88bf596a29ee144/diff:/var/lib/docker/overlay2/12d052659c13d5ebd595973ca96a0d7a5c660f48104ad4914f343311439bcd55/diff:/var/lib/docker/overlay2/7eecd3ac5d4e76f5e95081ffc36231795869bc027e6bf6e743b1c4002b8bd2b4/diff:/var/lib/docker/overlay2/5c1552fac9c543cc7bdc0b0c93b39d5b5a879d43c22e74fa7a867a70f7c0f5bf/diff:/var/lib/docker/overlay2/d17620a8a4867c6795de318b45b2ab76502d7850ad523710cdaf7935ed3daa7e/diff:/var/lib/docker/overlay2/a16f787f6f77eb38ab83e8345f9c9a62f9d67e6e4f7dd1844f2bca7a816a4447/diff",
+        "MergedDir": "/var/lib/docker/overlay2/a45ee2f34ad6e76b2d85c6b28359c73ad87a3e4491bf03356045cd73cbb6e27e/merged",
+        "UpperDir": "/var/lib/docker/overlay2/a45ee2f34ad6e76b2d85c6b28359c73ad87a3e4491bf03356045cd73cbb6e27e/diff",
+        "WorkDir": "/var/lib/docker/overlay2/a45ee2f34ad6e76b2d85c6b28359c73ad87a3e4491bf03356045cd73cbb6e27e/work"
+      },
+      "Name": "overlay2"
+    },
+    "Mounts": [
+      {
+        "Type": "bind",
+        "Source": "/home/docker/naspt-qb/config/qBittorrent/BT_backup",
+        "Destination": "/qbtr",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "/home/docker/naspt-mpv2/core",
+        "Destination": "/moviepilot/.cache/ms-playwright",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "/home/docker/naspt-mpv2/config",
+        "Destination": "/config",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "/home/media",
+        "Destination": "/media",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+      }
+    ],
+    "Config": {
+      "Hostname": "d491ed64c2d6",
+      "Domainname": "",
+      "User": "",
+      "AttachStdin": false,
+      "AttachStdout": false,
+      "AttachStderr": false,
+      "ExposedPorts": {
+        "3000/tcp": {},
+        "3001/tcp": {}
+      },
+      "Tty": false,
+      "OpenStdin": false,
+      "StdinOnce": false,
+      "Env": [
+        "LEAVES_UID=10971",
+        "LEAVES_PASSKEY=e0405a9d0de9e3b112ef78ac3d9c7975",
+        "TZ=Asia/Shanghai",
+        "SUPERUSER=admin",
+        "API_TOKEN=nasptnasptnasptnasptnaspt",
+        "AUTO_UPDATE_RESOURCE=false",
+        "MOVIEPILOT_AUTO_UPDATE=false",
+        "AUTH_SITE=icc2022,leaves",
+        "ICC2022_UID=24730",
+        "ICC2022_PASSKEY=49c421073514d4d981a0cbc4174f4b23",
+        "PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "LANG=C.UTF-8",
+        "GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305",
+        "PYTHON_VERSION=3.12.8",
+        "PYTHON_SHA256=c909157bb25ec114e5869124cc2a9c4a4d4c1e957ca4ff553f1edc692101154e",
+        "HOME=/moviepilot",
+        "CONFIG_DIR=/config",
+        "TERM=xterm",
+        "DISPLAY=:987",
+        "PUID=0",
+        "PGID=0",
+        "UMASK=000",
+        "PORT=3001",
+        "NGINX_PORT=3000"
+      ],
+      "Cmd": null,
+      "Image": "jxxghp/moviepilot-v2:latest",
+      "Volumes": {
+        "/config": {}
+      },
+      "WorkingDir": "/app",
+      "Entrypoint": [
+        "/entrypoint.sh"
+      ],
+      "OnBuild": null,
+      "Labels": {
+        "org.opencontainers.image.created": "2025-05-12T03:11:17.623Z",
+        "org.opencontainers.image.description": "NAS媒体库自动化管理工具",
+        "org.opencontainers.image.licenses": "GPL-3.0",
+        "org.opencontainers.image.revision": "59cd176f4415aa6be7848a86707aa025b56f5a6e",
+        "org.opencontainers.image.source": "https://github.com/jxxghp/MoviePilot",
+        "org.opencontainers.image.title": "MoviePilot",
+        "org.opencontainers.image.url": "https://github.com/jxxghp/MoviePilot",
+        "org.opencontainers.image.version": "2.4.6"
+      }
+    },
+    "NetworkSettings": {
+      "Bridge": "",
+      "SandboxID": "e21d527a087d23bce5f8eef296a288614a7941352ba5ee38acbe1b458bec9f7e",
+      "SandboxKey": "/var/run/docker/netns/e21d527a087d",
+      "Ports": {
+        "3000/tcp": [
+          {
+            "HostIp": "0.0.0.0",
+            "HostPort": "3000"
+          },
+          {
+            "HostIp": "::",
+            "HostPort": "3000"
+          }
+        ],
+        "3001/tcp": [
+          {
+            "HostIp": "0.0.0.0",
+            "HostPort": "3001"
+          },
+          {
+            "HostIp": "::",
+            "HostPort": "3001"
+          }
+        ]
+      },
+      "HairpinMode": false,
+      "LinkLocalIPv6Address": "",
+      "LinkLocalIPv6PrefixLen": 0,
+      "SecondaryIPAddresses": null,
+      "SecondaryIPv6Addresses": null,
+      "EndpointID": "8bc2326457383479acd4f3525174986743eaef323ea5a93f8ebd51e498d4f9f7",
+      "Gateway": "172.17.0.1",
+      "GlobalIPv6Address": "",
+      "GlobalIPv6PrefixLen": 0,
+      "IPAddress": "172.17.0.10",
+      "IPPrefixLen": 16,
+      "IPv6Gateway": "",
+      "MacAddress": "b2:6d:2c:b4:73:b5",
+      "Networks": {
+        "bridge": {
+          "IPAMConfig": null,
+          "Links": null,
+          "Aliases": null,
+          "MacAddress": "b2:6d:2c:b4:73:b5",
+          "DriverOpts": null,
+          "GwPriority": 0,
+          "NetworkID": "8d8687ae321658da05d209216d9a55e0034d3a1acf12ef9e5ede10fd73bb3db5",
+          "EndpointID": "8bc2326457383479acd4f3525174986743eaef323ea5a93f8ebd51e498d4f9f7",
+          "Gateway": "172.17.0.1",
+          "IPAddress": "172.17.0.10",
+          "IPPrefixLen": 16,
+          "IPv6Gateway": "",
+          "GlobalIPv6Address": "",
+          "GlobalIPv6PrefixLen": 0,
+          "DNSNames": null
+        }
+      }
+    }
+  }
+]

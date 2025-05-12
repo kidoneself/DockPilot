@@ -95,11 +95,11 @@ public class DockerInstallService {
         }
 
         messageSender.sendMessage(session, MessageType.INSTALL_LOG, message.getTaskId(), Map.of("level", "info", "message", "开始处理服务配置..."));
-        Boolean isConfig = true;
+        boolean mkdirConfig = true;
         //获取configFiles节点
         JsonNode configsNode = jsonNode.get("configs");
         if (configsNode != null && configsNode.isArray()) {
-            isConfig = false;
+            mkdirConfig = false;
             messageSender.sendMessage(session, MessageType.INSTALL_LOG, message.getTaskId(), Map.of("level", "info", "message", "开始处理配置文件..."));
 
             for (JsonNode config : configsNode) {
@@ -142,17 +142,13 @@ public class DockerInstallService {
             messageSender.sendMessage(session, MessageType.INSTALL_LOG, message.getTaskId(), Map.of("level", "info", "message", String.format("正在处理服务 [%s] 的配置...", serviceName)));
 
             JsonNode template = serviceConfig.get("template");
-            //获取模板里的volumes
-            if (isConfig) {
-
-            }
             // 生成容器启动命令
             CreateContainerCmd containerCmd = dockerService.getCmdByTempJson(template);
             if (containerCmd == null) {
                 messageSender.sendMessage(session, MessageType.ERROR, message.getTaskId(), String.format("服务 [%s] 的容器启动命令生成失败", serviceName));
                 continue;
             }
-            if (isConfig) {
+            if (mkdirConfig) {
                 //获取containerCmd中的volumes
                 Bind[] binds = Objects.requireNonNull(containerCmd.getHostConfig()).getBinds();
                 if (binds != null) {
@@ -165,7 +161,6 @@ public class DockerInstallService {
             }
 
             messageSender.sendMessage(session, MessageType.INSTALL_LOG, message.getTaskId(), Map.of("level", "success", "message", String.format("服务 [%s] 的容器启动命令生成成功", serviceName)));
-
             String containerId = dockerService.startContainerWithCmd(containerCmd);
             messageSender.sendMessage(session, MessageType.INSTALL_LOG, message.getTaskId(), Map.of("level", "success", "message", String.format("服务 [%s] 的容器创建成功", containerId)));
         }

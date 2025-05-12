@@ -20,6 +20,13 @@
                   <t-button theme="primary" size="small" @click.stop="handleInstall(app)">
                     安装
                   </t-button>
+                  <t-popconfirm
+                    content="确认删除该应用吗？此操作不可恢复"
+                    :confirm-btn="{ theme: 'danger' }"
+                    @confirm="handleDelete(app)"
+                  >
+                    <t-button theme="danger" size="small" @click.stop>删除</t-button>
+                  </t-popconfirm>
                 </div>
               </div>
             </div>
@@ -52,26 +59,64 @@
       class="import-dialog"
     >
       <div class="import-content">
-        <div class="upload-area" @click="triggerFileInput" @drop.prevent="handleFileDrop" @dragover.prevent>
-          <input
-            ref="fileInput"
-            type="file"
-            accept=".json,.yaml,.yml"
-            class="file-input"
-            @change="handleFileChange"
-          />
-          <div class="upload-placeholder">
-            <t-icon name="upload" size="48" />
-            <p>点击或拖拽文件到此处</p>
-            <p class="upload-tip">支持 .json、.yaml、.yml 格式</p>
-          </div>
+        <div class="import-tabs">
+          <t-tabs v-model="importTab">
+            <t-tab-panel value="base64" label="从Base64导入">
+              <div class="base64-input-area">
+                <t-textarea
+                  v-model="base64Content"
+                  placeholder="请输入Base64编码的JSON内容"
+                  :status="base64InputStatus"
+                  :tips="base64InputTips"
+                  :autosize="{ minRows: 3, maxRows: 6 }"
+                />
+                <div class="base64-actions">
+                  <t-button theme="primary" @click="handleBase64Import" :loading="isBase64Importing">
+                    解析
+                  </t-button>
+                </div>
+              </div>
+            </t-tab-panel>
+            <t-tab-panel value="url" label="从URL导入">
+              <div class="url-input-area">
+                <t-input
+                  v-model="importUrl"
+                  placeholder="请输入JSON文件的URL地址"
+                  :status="urlInputStatus"
+                  :tips="urlInputTips"
+                >
+                  <template #suffix>
+                    <t-button theme="primary" size="small" @click="handleUrlImport" :loading="isUrlImporting">
+                      解析
+                    </t-button>
+                  </template>
+                </t-input>
+              </div>
+            </t-tab-panel>
+            <t-tab-panel value="file" label="从文件导入">
+              <div class="upload-area" @click="triggerFileInput" @drop.prevent="handleFileDrop" @dragover.prevent>
+                <input
+                  ref="fileInput"
+                  type="file"
+                  accept=".json,.yaml,.yml"
+                  class="file-input"
+                  @change="handleFileChange"
+                />
+                <div class="upload-placeholder">
+                  <t-icon name="upload" size="48" />
+                  <p>点击或拖拽文件到此处</p>
+                  <p class="upload-tip">支持 .json、.yaml、.yml 格式</p>
+                </div>
+              </div>
+            </t-tab-panel>
+          </t-tabs>
         </div>
 
         <!-- 文件预览 -->
         <div v-if="previewContent" class="preview-section">
           <h3 class="preview-title">文件预览</h3>
           <div class="preview-content">
-            <pre>{{ previewContent }}</pre>
+            <div ref="editorContainer" class="json-editor"></div>
           </div>
           <div class="preview-actions">
             <t-button theme="default" @click="clearPreview">取消</t-button>
@@ -80,16 +125,31 @@
         </div>
       </div>
     </t-dialog>
+
+ 
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { getAppList } from '@/api/appStoreApi'
 import type { AppStoreApp } from '@/api/model/appStoreModel'
-import { importTemplate } from '@/api/websocket/container'
+import { importTemplate, deleteTemplate } from '@/api/websocket/container'
+import * as monaco from 'monaco-editor'
+import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
+import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
+
+// 配置 Monaco Editor workers
+self.MonacoEnvironment = {
+  getWorker(_, label) {
+    if (label === 'json') {
+      return new jsonWorker()
+    }
+    return new editorWorker()
+  }
+}
 
 const router = useRouter()
 
@@ -108,6 +168,73 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const previewContent = ref<string>('')
 const isImporting = ref(false)
 const currentFile = ref<File | null>(null)
+const importTab = ref('base64')
+const importUrl = ref('')
+const urlInputStatus = ref<'default' | 'success' | 'warning' | 'error'>('default')
+const urlInputTips = ref('')
+const isUrlImporting = ref(false)
+const base64Content = ref('')
+const base64InputStatus = ref<'default' | 'success' | 'warning' | 'error'>('default')
+const base64InputTips = ref('')
+const isBase64Importing = ref(false)
+
+const editorContainer = ref<HTMLElement | null>(null)
+let editor: monaco.editor.IStandaloneCodeEditor | null = null
+
+// 初始化编辑器
+const initEditor = () => {
+  if (!editorContainer.value) return
+
+  editor = monaco.editor.create(editorContainer.value, {
+    value: previewContent.value,
+    language: 'json',
+    theme: 'vs-dark',
+    automaticLayout: true,
+    minimap: {
+      enabled: false
+    },
+    scrollBeyondLastLine: false,
+    formatOnPaste: true,
+    formatOnType: true,
+    tabSize: 2,
+    wordWrap: 'on'
+  })
+
+  // 添加格式化快捷键
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+    editor?.getAction('editor.action.formatDocument')?.run()
+  })
+}
+
+// 更新编辑器内容
+const updateEditorContent = () => {
+  if (editor) {
+    editor.setValue(previewContent.value)
+  }
+}
+
+// 获取编辑器内容
+const getEditorContent = () => {
+  if (editor) {
+    return editor.getValue()
+  }
+  return previewContent.value
+}
+
+// 处理删除按钮点击
+const handleDelete = async (app: AppStoreApp) => {
+  try {
+    const result = await deleteTemplate(app.id)
+    if (result.success) {
+      MessagePlugin.success('删除成功')
+      fetchAppList() // 刷新列表
+    } else {
+      MessagePlugin.error(result.message || '删除失败')
+    }
+  } catch (error) {
+    MessagePlugin.error('删除失败')
+  }
+}
 
 // 获取应用列表
 const fetchAppList = async () => {
@@ -222,35 +349,62 @@ const handleFile = async (file: File) => {
 
 // 清除预览
 const clearPreview = () => {
-  previewContent.value = '';
-  currentFile.value = null;
+  previewContent.value = ''
+  currentFile.value = null
+  base64Content.value = ''
   if (fileInput.value) {
-    fileInput.value.value = '';
+    fileInput.value.value = ''
   }
-};
+  if (editor) {
+    editor.dispose()
+    editor = null
+  }
+}
 
 // 处理导入
 const handleImport = async () => {
-  if (!currentFile.value || !previewContent.value) return;
+  if (!previewContent.value) return
 
-  isImporting.value = true;
+  isImporting.value = true
   
   try {
-    const result = await importTemplate(previewContent.value, currentFile.value.name);
+    // 获取编辑器中的内容
+    const content = getEditorContent()
+    
+    // 验证JSON格式
+    try {
+      JSON.parse(content)
+    } catch (e) {
+      MessagePlugin.error('JSON格式错误，请检查并修正后再导入')
+      isImporting.value = false
+      return
+    }
+    
+    // 根据不同的导入方式设置文件名
+    let fileName = 'template.json'
+    if (currentFile.value) {
+      fileName = currentFile.value.name
+    } else if (importUrl.value) {
+      fileName = importUrl.value.split('/').pop() || 'template.json'
+    } else if (base64Content.value) {
+      fileName = 'base64_template.json'
+    }
+
+    const result = await importTemplate(content, fileName)
     if (result.success) {
-      MessagePlugin.success('模板导入成功');
-      showImportDialog.value = false;
-      clearPreview();
-      fetchAppList();
+      MessagePlugin.success('模板导入成功')
+      showImportDialog.value = false
+      clearPreview()
+      fetchAppList()
     } else {
-      MessagePlugin.error(result.message || '模板导入失败');
+      MessagePlugin.error(result.message || '模板导入失败')
     }
   } catch (error) {
-    MessagePlugin.error('导入失败');
+    MessagePlugin.error('导入失败')
   } finally {
-    isImporting.value = false;
+    isImporting.value = false
   }
-};
+}
 
 // 触发文件选择
 const triggerFileInput = () => {
@@ -261,6 +415,97 @@ const triggerFileInput = () => {
 const generateTaskId = () => {
   return Math.random().toString(36).substring(2, 15);
 };
+
+// 处理URL导入
+const handleUrlImport = async () => {
+  if (!importUrl.value) {
+    urlInputStatus.value = 'error'
+    urlInputTips.value = '请输入URL地址'
+    return
+  }
+
+  try {
+    isUrlImporting.value = true
+    urlInputStatus.value = 'default'
+    urlInputTips.value = '正在获取文件...'
+
+    const response = await fetch(importUrl.value)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const content = await response.text()
+    try {
+      // 验证JSON格式
+      JSON.parse(content)
+      previewContent.value = content
+      urlInputStatus.value = 'success'
+      urlInputTips.value = '文件获取成功'
+    } catch (e) {
+      urlInputStatus.value = 'error'
+      urlInputTips.value = '无效的JSON格式'
+      throw e
+    }
+  } catch (error) {
+    urlInputStatus.value = 'error'
+    urlInputTips.value = error instanceof Error ? error.message : '获取文件失败'
+  } finally {
+    isUrlImporting.value = false
+  }
+}
+
+// 添加base64导入处理函数
+const handleBase64Import = async () => {
+  if (!base64Content.value) {
+    base64InputStatus.value = 'error'
+    base64InputTips.value = '请输入Base64内容'
+    return
+  }
+
+  try {
+    isBase64Importing.value = true
+    base64InputStatus.value = 'default'
+    base64InputTips.value = '正在解析...'
+
+    // 尝试解码base64，处理中文编码
+    const decodedContent = decodeURIComponent(escape(atob(base64Content.value)))
+    try {
+      // 验证JSON格式
+      JSON.parse(decodedContent)
+      previewContent.value = decodedContent
+      base64InputStatus.value = 'success'
+      base64InputTips.value = '解析成功'
+    } catch (e) {
+      base64InputStatus.value = 'error'
+      base64InputTips.value = '无效的JSON格式'
+      throw e
+    }
+  } catch (error) {
+    base64InputStatus.value = 'error'
+    base64InputTips.value = error instanceof Error ? error.message : '解析失败'
+  } finally {
+    isBase64Importing.value = false
+  }
+}
+
+// 监听 previewContent 变化
+watch(previewContent, (newValue) => {
+  if (newValue && !editor) {
+    nextTick(() => {
+      initEditor()
+    })
+  } else if (newValue && editor) {
+    updateEditorContent()
+  }
+})
+
+// 组件卸载时清理编辑器
+onBeforeUnmount(() => {
+  if (editor) {
+    editor.dispose()
+    editor = null
+  }
+})
 
 // 初始化
 onMounted(() => {
@@ -389,6 +634,7 @@ onMounted(() => {
 .app-footer {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   margin-top: auto;
 }
 
@@ -466,6 +712,14 @@ onMounted(() => {
   padding: 24px;
 }
 
+.import-tabs {
+  margin-bottom: 16px;
+}
+
+.url-input-area {
+  padding: 16px;
+}
+
 .upload-area {
   border: 2px dashed var(--td-component-stroke);
   border-radius: 8px;
@@ -477,24 +731,20 @@ onMounted(() => {
 
 .upload-area:hover {
   border-color: var(--td-brand-color);
-  background-color: var(--td-bg-color-container-hover);
-}
-
-.file-input {
-  display: none;
 }
 
 .upload-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
   color: var(--td-text-color-secondary);
 }
 
 .upload-tip {
   font-size: 12px;
-  margin-top: 4px;
+  margin-top: 8px;
+  color: var(--td-text-color-placeholder);
+}
+
+.file-input {
+  display: none;
 }
 
 .preview-section {
@@ -511,17 +761,8 @@ onMounted(() => {
   background-color: var(--td-bg-color-secondarycontainer);
   border-radius: 6px;
   padding: 16px;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.preview-content pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-  font-family: monospace;
-  font-size: 13px;
-  line-height: 1.5;
+  max-height: 500px;
+  overflow: hidden;
 }
 
 .preview-actions {
@@ -544,5 +785,22 @@ onMounted(() => {
   .preview-content {
     max-height: 200px;
   }
+}
+
+.base64-input-area {
+  padding: 16px;
+}
+
+.base64-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.json-editor {
+  width: 100%;
+  height: 400px;
+  border-radius: 6px;
+  overflow: hidden;
 }
 </style> 

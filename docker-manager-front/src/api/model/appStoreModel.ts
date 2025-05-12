@@ -100,6 +100,8 @@ export interface ServiceTemplate {
   ports: Record<string, string>;
   volumes: Record<string, string>;
   restartPolicy: string;
+  networkMode?: string;
+  privileged?: boolean;
 }
 
 export interface HostConfig {

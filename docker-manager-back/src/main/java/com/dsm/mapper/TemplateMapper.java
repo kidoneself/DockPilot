@@ -28,4 +28,9 @@ public interface TemplateMapper {
      * 插入模板
      */
     int insert(Template template);
+
+    /**
+     * 根据ID删除模板
+     */
+    int deleteById(@Param("id") String id);
 }

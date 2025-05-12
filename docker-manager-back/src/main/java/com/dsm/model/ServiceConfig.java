@@ -40,4 +40,10 @@ class ServiceTemplate {
 
     @JsonProperty("cmd")
     private List<String> cmd;
+
+    @JsonProperty("networkMode")
+    private String networkMode;
+
+    @JsonProperty("privileged")
+    private Boolean privileged;
 }

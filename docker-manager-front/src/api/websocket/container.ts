@@ -1246,3 +1246,47 @@ export const getContainerJsonConfig = (containerId: string): Promise<{success: b
       });
   });
 };
+
+/**
+ * 删除应用模板
+ * @param templateId 模板ID
+ * @returns Promise<{success: boolean; message?: string}>
+ */
+export const deleteTemplate = async (templateId: string): Promise<{ success: boolean; message?: string }> => {
+  return new Promise((resolve) => {
+    const taskId = generateTaskId(TaskIdPrefix.DELETE_TEMPLATE);
+    
+    const messageHandler = (message: WebSocketMessage) => {
+      if (message.taskId !== taskId) return;
+      
+      dockerWebSocketService.removeMessageHandler(taskId);
+      
+      if (message.type === 'OPERATION_RESULT') {
+        resolve({
+          success: true
+        });
+      } else if (message.type === 'ERROR') {
+        resolve({
+          success: false,
+          message: message.data?.message,
+        });
+      }
+    };
+
+    dockerWebSocketService.addMessageHandler(taskId, messageHandler);
+
+    dockerWebSocketService
+      .sendMessage({
+        type: 'DELETE_TEMPLATE',
+        taskId,
+        data: { templateId },
+      })
+      .catch(() => {
+        dockerWebSocketService.removeMessageHandler(taskId);
+        resolve({
+          success: false,
+          message: '网络连接失败',
+        });
+      });
+  });
+};

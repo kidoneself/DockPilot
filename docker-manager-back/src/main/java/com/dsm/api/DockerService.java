@@ -4,6 +4,7 @@ import com.dsm.config.AppConfig;
 import com.dsm.model.ContainerCreateRequest;
 import com.dsm.model.ResourceUsageDTO;
 import com.dsm.utils.DockerStatsConverter;
+import com.dsm.utils.DockerInspectJsonGenerator;
 import com.dsm.utils.LogUtil;
 import com.dsm.websocket.callback.PullImageCallback;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -663,6 +664,22 @@ public class DockerService {
      */
     public CreateContainerCmd createContainerCmd(String image) {
         return dockerClientWrapper.createContainerCmd(image);
+    }
+
+    /**
+     * 根据容器ID生成JSON配置
+     *
+     * @param containerId 容器ID
+     * @return 生成的JSON字符串
+     * @throws RuntimeException 当生成配置失败时抛出异常
+     */
+    public String generateJsonFromContainerId(String containerId) {
+        if (containerId == null || containerId.trim().isEmpty()) {
+            throw new IllegalArgumentException("容器ID不能为空");
+        }
+
+        InspectContainerResponse containerInfo = dockerClientWrapper.inspectContainerCmd(containerId);
+        return DockerInspectJsonGenerator.generateJsonFromContainerInfo(containerInfo);
     }
 
 }
