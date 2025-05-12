@@ -669,9 +669,9 @@ onMounted(async () => {
 });
 
 const cmdText = computed({
-  get: () => formData.value.cmd.join(' '),
+  get: () => formData.value.cmd.join('\n'),
   set: (value: string) => {
-    formData.value.cmd = value.split(' ').filter(Boolean);
+    formData.value.cmd = value.split('\n').filter(Boolean);
   },
 });
 </script>

@@ -22,7 +22,7 @@ public class JsonContainerRequestToContainerCreateRequestConverter {
         // ========= 基本配置 =========
         request.setImage(jsonRequest.getImage() + ":" + jsonRequest.getTag()); // 拼接 image:tag
         request.setName(jsonRequest.getName());
-        request.setCmd(List.of(jsonRequest.getCommand())); // 转为 List<String>
+        request.setCmd(jsonRequest.getCommand()); // 转为 List<String>
         request.setEntrypoint(null); // 可根据需要转换 entrypoint
         request.setEnv(convertEnvVars(jsonRequest.getEnvironmentVariables()));
         request.setWorkingDir(null); // 根据需要设置工作目录

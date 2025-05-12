@@ -547,8 +547,8 @@ const environmentVariables = computed(() => {
 
 // 命令/Entrypoint 数据
 const cmdInfo = computed(() => ({
-  entrypoint: Array.isArray(containerDetail.value?.entrypoints) ? containerDetail.value.entrypoints.join(' ') : '-',
-  command: containerDetail.value?.command || '-',
+  entrypoint: Array.isArray(containerDetail.value?.entrypoints) ? containerDetail.value.entrypoints.join('\n') : '-',
+  command: Array.isArray(containerDetail.value?.command) ? containerDetail.value.command.join('\n') : '-',
 }));
 
 // 解析日志行
@@ -1016,6 +1016,7 @@ defineExpose({
       padding: 8px;
       border-radius: 4px;
       word-break: break-all;
+      white-space: pre-line;
     }
   }
 }

@@ -14,7 +14,7 @@ public class ContainerStaticInfoDTO {
     private String createdTime;      // 容器创建时间
     private String status;           // 容器状态 (running, exited...)
     private Integer restartCount;    // 重启次数
-    private String command;          // 启动命令
+    private List<String> command;    // 启动命令及其参数列表
     private String workingDir;       // 工作目录
     private List<String> entrypoints; // 入口点
     private Map<String, String> labels; // 标签

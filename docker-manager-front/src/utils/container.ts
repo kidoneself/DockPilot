@@ -28,7 +28,7 @@ export function mapFormDataToRequest(formData: ContainerForm): CreateContainerPa
         memory: formData.memoryLimit ? Number(formData.memoryLimit) : undefined,
         cpuQuota: formData.cpuLimit ? Number(formData.cpuLimit) : undefined,
         entrypoint: formData.entrypoint,
-        command: formData.cmd?.join(' '),
+        command: formData.cmd,
         workingDir: formData.workingDir,
         user: formData.user,
         labels: formData.labels?.reduce((acc, cur) => {
@@ -94,7 +94,8 @@ export function mapContainerDetailToForm(detail: any): ContainerForm {
         memoryLimit: '',
         cpuLimit: '',
         entrypoint: detail.entrypoints || [],
-        cmd: typeof detail.command === 'string' ? detail.command.split(' ').filter(Boolean) : [],
+        cmd: Array.isArray(detail.command) ? detail.command : 
+             typeof detail.command === 'string' ? detail.command.split('\n').filter(Boolean) : [],
         workingDir: detail.workingDir || '',
         user: '',
         labels: Object.entries(detail.labels || {}).map(([key, value]) => ({

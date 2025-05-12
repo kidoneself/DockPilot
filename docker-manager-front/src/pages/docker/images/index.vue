@@ -232,6 +232,7 @@ import { onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import type { PullImageProgress } from '@/api/model/websocketModel';
 import { formatDate } from '@/utils/format';
+import { useNotificationStore } from '@/store/modules/notification';
 import {
   batchUpdateImages,
   cancelImagePull,
@@ -250,6 +251,7 @@ const loading = ref(false);
 const router = useRouter();
 const deleteConfirmVisible = ref(false);
 const currentDeleteImage = ref<any>(null);
+const notificationStore = useNotificationStore();
 
 // ==================== 2. 表格列配置 ====================
 const columns = [
@@ -312,15 +314,53 @@ const handleDelete = async (image: any) => {
 
 const handleUpdate = async (image: any) => {
   try {
-    await updateImage({
+    // 发送更新请求但不等待完成
+    updateImage({
       image: image.name,
       tag: image.tag,
+    }).then(() => {
+      // 发送成功通知
+      notificationStore.addNotification({
+        id: String(Date.now()),
+        content: `镜像 ${image.name}:${image.tag} 更新成功`,
+        type: 'success',
+        status: true,
+        collected: false,
+        date: new Date().toLocaleString(),
+        quality: 'high'
+      });
+      fetchImages();
+    }).catch((error) => {
+      console.error('更新镜像失败:', error);
+      // 发送错误通知
+      notificationStore.addNotification({
+        id: String(Date.now()),
+        content: error instanceof Error ? error.message : '更新镜像失败',
+        type: 'error',
+        status: true,
+        collected: false,
+        date: new Date().toLocaleString(),
+        quality: 'high'
+      });
     });
-    MessagePlugin.success('更新成功');
-    fetchImages();
+    
+    // 立即返回，不阻塞UI
+    MessagePlugin.info({
+      content: `镜像 ${image.name}:${image.tag} 更新已开始，请稍后查看结果`,
+      duration: 3000,
+      closeBtn: true,
+    });
   } catch (error) {
     console.error('更新镜像失败:', error);
-    MessagePlugin.error(error instanceof Error ? error.message : '更新镜像失败');
+    notificationStore.addNotification({
+      id: String(Date.now()),
+      content: error instanceof Error ? error.message : '更新镜像失败',
+      type: 'error',
+      status: true,
+      collected: false,
+      date: new Date().toLocaleString(),
+      quality: 'high'
+    });
   }
 };
 

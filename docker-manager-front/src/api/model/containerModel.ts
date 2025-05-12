@@ -247,7 +247,7 @@ export interface CreateContainerParams {
   user?: string;
   groupAdd?: string[];
   workingDir?: string;
-  command?: string;
+  command?: string[];
   entrypoint?: string[];
   stopSignal?: string;
   stopTimeout?: number;

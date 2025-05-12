@@ -25,7 +25,7 @@ public class JsonContainerRequest {
     private List<String> extraHosts;
     private List<VolumeMount> volumeMounts;
     private List<EnvVar> environmentVariables;
-    private String command;
+    private List<String> command;
     private Boolean privileged;
 
     @Data

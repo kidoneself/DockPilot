@@ -4,8 +4,10 @@ server:
 spring:
   application:
     name: docker-manager-back
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   datasource:
-    url: jdbc:sqlite:/dockpilot/data/data.db
+    url: jdbc:sqlite:${DB_PATH:data.db}
     driver-class-name: org.sqlite.JDBC
   main:
     allow-circular-references: true
@@ -26,6 +28,22 @@ docker:
 jwt:
   secret: DockPilot
   expiration: 86400
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: jdbc:sqlite:data.db
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:sqlite:/dockpilot/data/data.db
 
 ## 文件下载配置
 #file:

@@ -42,11 +42,11 @@ export class WebSocketClient {
   private ws: WebSocket | null = null;
   private readonly url: string;
   private reconnectAttempts = 0;
-  private readonly maxReconnectAttempts = 5;
+  private readonly maxReconnectAttempts = 10;
   private readonly reconnectDelay = 3000;
   private reconnectTimer: number | null = null;
   private heartbeatInterval: number | null = null;
-  private readonly heartbeatIntervalTime = 30000; // 30秒发送一次心跳
+  private readonly heartbeatIntervalTime = 15000;
   private messageHandler: ((message: BusinessWebSocketMessage) => void) | null = null;
 
   constructor(url: string) {
@@ -138,11 +138,12 @@ export class WebSocketClient {
   private handleDisconnect(): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
+      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
       this.reconnectTimer = window.setTimeout(() => {
         this.connect().catch(() => {
           // 重连失败，继续尝试
         });
-      }, this.reconnectDelay);
+      }, delay);
     } else {
       const notificationStore = useNotificationStore();
       notificationStore.addNotification({

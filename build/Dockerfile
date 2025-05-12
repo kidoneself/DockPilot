@@ -35,6 +35,8 @@ RUN echo '#!/bin/sh' > /start.sh && \
     echo '# 创建宿主机目录' >> /start.sh && \
     echo 'mkdir -p /mnt/host/dockpilot/data /mnt/host/dockpilot/logs && chmod 777 /mnt/host/dockpilot/data && chmod 777 /mnt/host/dockpilot/logs' >> /start.sh && \
     echo 'nginx -g "daemon off;" &' >> /start.sh && \
+    echo 'export SPRING_PROFILES_ACTIVE=prod' >> /start.sh && \
+    echo 'export LOG_PATH=/dockpilot/logs' >> /start.sh && \
     echo 'java -jar app.jar &' >> /start.sh && \
     echo 'wait' >> /start.sh && \
     chmod +x /start.sh

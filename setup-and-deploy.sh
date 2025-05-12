@@ -54,9 +54,19 @@ install_docker() {
     systemctl enable docker
     systemctl start docker
     
+    # 安装qemu-user-static以支持arm64构建
+    print_message "安装qemu-user-static..."
+    apt-get update
+    apt-get install -y qemu-user-static
+    
     # 安装buildx
-    docker buildx create --name mybuilder --use
-    docker buildx inspect --bootstrap
+    print_message "设置buildx..."
+    docker buildx create --name mybuilder --driver docker-container --bootstrap --use
+    
+    # 启用实验性功能
+    mkdir -p /etc/docker
+    echo '{"experimental": true}' > /etc/docker/daemon.json
+    systemctl restart docker
 }
 
 # 检查是否安装了必要的工具
@@ -90,23 +100,21 @@ check_requirements() {
 # 克隆或更新代码
 setup_code() {
     print_message "设置代码..."
-    if [ ! -d "DockPilot" ]; then
-        print_message "克隆代码仓库..."
-        git clone https://github.com/kidoneself/DockPilot.git
-        if [ $? -ne 0 ]; then
-            print_error "克隆代码失败"
-            exit 1
-        fi
-        cd DockPilot
-    else
-        print_message "更新代码仓库..."
+    # 如果目录存在，直接删除
+    if [ -d "DockPilot" ]; then
+        print_message "删除现有代码..."
         rm -rf DockPilot
-        git fetch origin
-        if [ $? -ne 0 ]; then
-            print_error "获取远程代码失败"
-            exit 1
-        fi
     fi
+
+    # 克隆代码
+    print_message "克隆代码仓库..."
+    git clone https://github.com/kidoneself/DockPilot.git
+    if [ $? -ne 0 ]; then
+        print_error "克隆代码失败"
+        exit 1
+    fi
+
+    cd DockPilot
 
     # 切换到指定分支
     BRANCH_NAME="feature/websocket"
@@ -114,13 +122,6 @@ setup_code() {
     git checkout $BRANCH_NAME
     if [ $? -ne 0 ]; then
         print_error "切换分支失败"
-        exit 1
-    fi
-
-    # 拉取最新代码
-    git pull origin $BRANCH_NAME
-    if [ $? -ne 0 ]; then
-        print_error "更新代码失败"
         exit 1
     fi
 }
@@ -168,6 +169,10 @@ build_docker_image() {
     print_message "构建Docker镜像..."
     cd build
     
+    # 确保使用正确的builder
+    print_message "设置buildx builder..."
+    docker buildx create --name mybuilder --driver docker-container --bootstrap --use || true
+    
     # 使用buildx构建多架构镜像
     print_message "构建多架构镜像..."
     docker buildx build --platform linux/amd64,linux/arm64 \
@@ -189,6 +194,9 @@ push_to_dockerhub() {
     DOCKERHUB_USERNAME="kidself"
     DOCKERHUB_IMAGE="dockpilot"
 
+    # 确保使用正确的builder
+    docker buildx create --name mybuilder --driver docker-container --bootstrap --use || true
+
     # 使用buildx构建并推送多架构镜像
     docker buildx build --platform linux/amd64,linux/arm64 \
         -t ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest \
@@ -205,6 +213,9 @@ push_to_tencent() {
     TENCENT_REGISTRY="ccr.ccs.tencentyun.com"
     NAMESPACE="naspt/dockpilot"
     
+    # 确保使用正确的builder
+    docker buildx create --name mybuilder --driver docker-container --bootstrap --use || true
+
     # 使用buildx构建并推送多架构镜像
     docker buildx build --platform linux/amd64,linux/arm64 \
         -t ${TENCENT_REGISTRY}/${NAMESPACE}:latest \

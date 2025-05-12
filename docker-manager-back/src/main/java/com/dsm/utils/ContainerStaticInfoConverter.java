@@ -41,9 +41,8 @@ public class ContainerStaticInfoConverter {
         dto.setCommand(
                 Optional.ofNullable(container.getConfig())
                         .map(ContainerConfig::getCmd) // 获取 cmd 数组
-                        .filter(cmd -> cmd.length > 0) // 确保 cmd 数组不为空
-                        .map(cmd -> cmd[0]) // 获取 cmd 数组的第一个元素
-                        .orElse("") // 如果没有命令，则设置为默认空字符串
+                        .map(Arrays::asList) // 将数组转换为List
+                        .orElse(Collections.emptyList()) // 如果没有命令，则设置为空列表
         );
 
         // 工作目录
