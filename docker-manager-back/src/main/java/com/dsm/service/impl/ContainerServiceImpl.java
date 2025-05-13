@@ -293,19 +293,23 @@ public class ContainerServiceImpl implements ContainerService {
             CreateContainerResponse response = createContainerCmd.exec();
             String newContainerId = response.getId();
 
+
             // 10. 验证新容器状态
             if (newContainerId != null) {
                 // 11. 如果原容器在运行，启动新容器
                 if (wasRunning) {
                     dockerService.startContainer(newContainerId);
+                    InspectContainerResponse newOriginalConfig = dockerService.inspectContainerCmd(newContainerId);
+                    boolean newWasRunning = "running".equals(newOriginalConfig.getState().getStatus());
+                    if (newWasRunning) {
+                        // 12. 删除原容器
+                        dockerService.removeContainer(backupName);
+                        return newContainerId;
+                    }
                 }
-
-                // 12. 删除原容器
-                dockerService.removeContainer(backupName);
-
                 return newContainerId;
             } else {
-                throw new RuntimeException("Failed to create new container");
+                throw new BusinessException("Failed to create new container");
             }
         } catch (Exception e) {
             // 13. 发生错误时恢复原容器

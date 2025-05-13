@@ -26,17 +26,17 @@ public class DockerInspectJsonGenerator {
         try {
             // 创建应用配置对象
             JSONObject appConfig = new JSONObject(true);
-            
+
             // 设置基本信息
             String containerName = Optional.ofNullable(containerInfo.getName())
                     .map(name -> name.replaceAll("/", ""))
                     .orElseThrow(() -> new RuntimeException("容器名称不能为空"));
-            
+
             appConfig.put("name", containerName);
-            appConfig.put("category", "媒体");
+            appConfig.put("category", "工具");
             appConfig.put("version", "1.0");
-            appConfig.put("description", "一个强大的媒体管理应用");
-            appConfig.put("iconUrl", "https://example.com/icon.jpg");
+            appConfig.put("description", "分享：" + containerName);
+            appConfig.put("iconUrl", "https://raw.githubusercontent.com/kidoneself/DockPilot/refs/heads/feature/websocket/docker-manager-front/public/favicon.svg");
 
             // 创建服务配置
             JSONObject serviceNode = createServiceNode(containerName, containerInfo);
@@ -184,7 +184,6 @@ public class DockerInspectJsonGenerator {
         config.put("target", "{{DOCKER_PATH}}");
         JSONArray urlsNode = new JSONArray();
         urlsNode.add("https://example.com/config1.tgz");
-        urlsNode.add("https://example.com/config2.tgz");
         config.put("urls", urlsNode);
         configsNode.add(config);
         return configsNode;

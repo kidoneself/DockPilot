@@ -167,7 +167,6 @@ copy_build_files() {
 # 构建Docker镜像
 build_docker_image() {
     print_message "构建Docker镜像..."
-    cd build
     
     # 确保使用正确的builder
     print_message "设置buildx builder..."
@@ -175,6 +174,7 @@ build_docker_image() {
     
     # 使用buildx构建多架构镜像
     print_message "构建多架构镜像..."
+    cd build
     docker buildx build --platform linux/amd64,linux/arm64 \
         -t kidself/dockpilot:latest \
         --push .
@@ -183,7 +183,6 @@ build_docker_image() {
         print_error "Docker镜像构建失败"
         exit 1
     fi
-
     cd ..
 }
 
@@ -198,9 +197,11 @@ push_to_dockerhub() {
     docker buildx create --name mybuilder --driver docker-container --bootstrap --use || true
 
     # 使用buildx构建并推送多架构镜像
+    cd build
     docker buildx build --platform linux/amd64,linux/arm64 \
         -t ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest \
         --push .
+    cd ..
 
     print_message "DockerHub镜像推送完成！"
     print_message "镜像地址: ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest"
@@ -217,9 +218,11 @@ push_to_tencent() {
     docker buildx create --name mybuilder --driver docker-container --bootstrap --use || true
 
     # 使用buildx构建并推送多架构镜像
+    cd build
     docker buildx build --platform linux/amd64,linux/arm64 \
         -t ${TENCENT_REGISTRY}/${NAMESPACE}:latest \
         --push .
+    cd ..
 
     print_message "镜像推送完成！"
     print_message "镜像地址: ${TENCENT_REGISTRY}/${NAMESPACE}:latest"

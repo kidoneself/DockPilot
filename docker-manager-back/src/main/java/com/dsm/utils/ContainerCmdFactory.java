@@ -31,70 +31,77 @@ public class ContainerCmdFactory {
         // 环境变量
         if (envNode != null && !envNode.isEmpty()) {
             List<String> envList = new ArrayList<>();
-            envNode.fields().forEachRemaining(entry -> 
-                envList.add(entry.getKey() + "=" + entry.getValue().asText())
-            );
+            envNode.fields().forEachRemaining(entry -> {
+                String key = entry.getKey();
+                String value = entry.getValue().asText();
+                // 如果值包含空格，则用引号包裹
+                if (value.contains(" ")) {
+                    envList.add(String.format("%s='%s'", key, value));
+                } else {
+                    envList.add(String.format("%s=%s", key, value));
+                }
+            });
             cmd.withEnv(envList);
         }
 
         // 端口映射
         if (portsNode != null && !portsNode.isEmpty()) {
-            Map<ExposedPort, Ports.Binding> portBindings = new HashMap<>();
+            List<PortBinding> portBindings = new ArrayList<>();
             List<ExposedPort> exposedPorts = new ArrayList<>();
             
             portsNode.fields().forEachRemaining(entry -> {
-                String containerPortProto = entry.getKey(); // 例如 3000/tcp
-                String hostPort = entry.getValue().asText();
-                String[] portParts = containerPortProto.split("/");
-                int port = Integer.parseInt(portParts[0]);
-                String proto = portParts.length > 1 ? portParts[1] : "tcp";
-                ExposedPort exposedPort = new ExposedPort(port, InternetProtocol.parse(proto));
+                String[] parts = entry.getKey().split("/");
+                String port = parts[0];
+                String protocol = parts.length > 1 ? parts[1] : "tcp";
+                
+                ExposedPort exposedPort = ExposedPort.tcp(Integer.parseInt(port));
                 exposedPorts.add(exposedPort);
-                Ports.Binding binding = Ports.Binding.bindPort(Integer.parseInt(hostPort));
-                portBindings.put(exposedPort, binding);
+                
+                String hostPort = entry.getValue().asText();
+                portBindings.add(new PortBinding(
+                    Ports.Binding.bindPort(Integer.parseInt(hostPort)),
+                    exposedPort
+                ));
             });
-
+            
             cmd.withExposedPorts(exposedPorts);
-            Ports ports = new Ports();
-            portBindings.forEach(ports::bind);
-            cmd.withPortBindings(ports);
+            cmd.withPortBindings(portBindings);
         }
 
-        // 卷挂载
+        // 卷映射
         if (volumesNode != null && !volumesNode.isEmpty()) {
             List<Bind> binds = new ArrayList<>();
-            List<Volume> volumes = new ArrayList<>();
-            
             volumesNode.fields().forEachRemaining(entry -> {
                 String hostPath = entry.getKey();
                 String containerPath = entry.getValue().asText();
-                Volume volume = new Volume(containerPath);
-                Bind bind = new Bind(hostPath, volume);
-                binds.add(bind);
-                volumes.add(volume);
+                // 使用绝对路径
+                if (!hostPath.startsWith("/")) {
+                    hostPath = "/" + hostPath;
+                }
+                if (!containerPath.startsWith("/")) {
+                    containerPath = "/" + containerPath;
+                }
+                binds.add(new Bind(hostPath, new Volume(containerPath)));
             });
-
             cmd.withBinds(binds);
-            cmd.withVolumes(volumes);
         }
 
         // 重启策略
-        if (!restartPolicy.isEmpty()) {
-            cmd.withRestartPolicy(RestartPolicy.parse(restartPolicy));
+        if (restartPolicy != null && !restartPolicy.isEmpty()) {
+            RestartPolicy restartPolicyObj = RestartPolicy.parse(restartPolicy);
+            cmd.withRestartPolicy(restartPolicyObj);
         }
 
         // 网络模式
-        if (!networkMode.isEmpty()) {
+        if (networkMode != null && !networkMode.isEmpty()) {
             cmd.withNetworkMode(networkMode);
         }
 
-        // command
-        if (commandNode != null && commandNode.isArray() && !commandNode.isEmpty()) {
-            String[] cmdArr = new String[commandNode.size()];
-            for (int i = 0; i < commandNode.size(); i++) {
-                cmdArr[i] = commandNode.get(i).asText();
-            }
-            cmd.withCmd(cmdArr);
+        // 命令
+        if (commandNode != null && !commandNode.isEmpty()) {
+            List<String> commands = new ArrayList<>();
+            commandNode.forEach(node -> commands.add(node.asText()));
+            cmd.withCmd(commands);
         }
 
         return cmd;

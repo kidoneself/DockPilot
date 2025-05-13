@@ -4,6 +4,12 @@ FROM nginx:stable-alpine
 # 覆盖基础镜像的EXPOSE指令
 EXPOSE 8888
 
+# 暴露数据卷
+# /var/run/docker.sock - 用于容器内操作Docker，需要与宿主机共享
+# /mnt/host - 用于访问宿主机文件系统，需要与宿主机根目录映射
+# /dockpilot - 用于存储应用数据，需要与宿主机目录映射
+VOLUME ["/var/run/docker.sock", "/mnt/host", "/dockpilot"]
+
 # 安装Java、skopeo和regctl
 RUN apk add --no-cache openjdk11-jre && \
     apk add --no-cache skopeo --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community && \
