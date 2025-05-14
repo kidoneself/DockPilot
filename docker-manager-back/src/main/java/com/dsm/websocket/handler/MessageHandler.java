@@ -1,6 +1,6 @@
 package com.dsm.websocket.handler;
 
-import com.dsm.websocket.message.MessageType;
+import com.dsm.model.MessageType;
 import org.springframework.web.socket.WebSocketSession;
 
 /**

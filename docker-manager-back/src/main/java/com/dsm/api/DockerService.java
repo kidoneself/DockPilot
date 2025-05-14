@@ -6,7 +6,7 @@ import com.dsm.model.ResourceUsageDTO;
 import com.dsm.utils.DockerStatsConverter;
 import com.dsm.utils.DockerInspectJsonGenerator;
 import com.dsm.utils.LogUtil;
-import com.dsm.websocket.callback.PullImageCallback;
+import com.dsm.utils.PullImageCallback;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.dockerjava.api.command.CreateContainerCmd;
 import com.github.dockerjava.api.command.CreateContainerResponse;

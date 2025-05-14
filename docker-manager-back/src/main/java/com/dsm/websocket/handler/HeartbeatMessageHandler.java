@@ -1,7 +1,7 @@
 package com.dsm.websocket.handler;
 
 import com.alibaba.fastjson.JSON;
-import com.dsm.websocket.message.MessageType;
+import com.dsm.model.MessageType;
 import com.dsm.websocket.model.DockerWebSocketMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

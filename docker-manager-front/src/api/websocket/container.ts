@@ -6,11 +6,10 @@ import type {
     ImageListResponse,
     NetworkListResponse,
 } from '@/api/model/containerModel.ts';
-import type {WebSocketMessage} from '@/api/model/websocketModel';
-import type {DockerWebSocketCallbacks, PullImageParams} from '@/api/model/websocketModel';
+import type {DockerWebSocketCallbacks, PullImageParams, WebSocketMessage} from '@/api/model/websocketModel';
+import {WebSocketMessageType} from '@/api/model/websocketModel';
 import {dockerWebSocketService} from './DockerWebSocketService';
-import { generateTaskId, TaskIdPrefix } from '@/utils/taskId';
-import { ws as wsClient } from '@/utils/websocket';
+import {generateTaskId, TaskIdPrefix} from '@/utils/taskId';
 
 /**
  * 获取容器列表
@@ -18,29 +17,34 @@ import { ws as wsClient } from '@/utils/websocket';
  */
 export const getContainerList = async (): Promise<Container[]> => {
   return new Promise((resolve, reject) => {
+    // 生成任务ID
     const taskId = generateTaskId(TaskIdPrefix.CONTAINER_LIST);
-    
+
+    // 创建消息处理器
     const messageHandler = (message: WebSocketMessage) => {
+      // 如果消息的taskId不等于任务ID，则返回
       if (message.taskId !== taskId) return;
-      
+      // 移除消息处理器
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'CONTAINER_LIST') {
+      // 如果消息的类型是COMPLETE，则返回数据
+      if (message.type === WebSocketMessageType.COMPLETE) {
         resolve(message.data || []);
-      } else if (message.type === 'ERROR') {
-        reject(new Error(message.data.message));
+      } else if (message.type === WebSocketMessageType.ERROR) {
+        reject(new Error(message.data?.errorMessage));
       }
     };
 
+    // 添加消息处理器
     dockerWebSocketService.addMessageHandler(taskId, messageHandler);
-
+    // 发送消息
     dockerWebSocketService
       .sendMessage({
-        type: 'CONTAINER_LIST',
+        type: WebSocketMessageType.CONTAINER_LIST,
         taskId,
         data: {},
       })
       .catch((error: Error) => {
+        // 移除消息处理器
         dockerWebSocketService.removeMessageHandler(taskId);
         reject(error);
       });
@@ -59,19 +63,12 @@ export const startContainer = async (containerId: string): Promise<{ success: bo
     const messageHandler = (message: WebSocketMessage) => {
       dockerWebSocketService.removeMessageHandler(taskId);
 
-      if (message.type === 'OPERATION_RESULT') {
-        if (message.data && message.data.success) {
-          resolve({ success: true });
-        } else {
-          resolve({
-            success: false,
-            message: message.data?.message,
-          });
-        }
-      } else if (message.type === 'ERROR') {
-        resolve({
+      if (message.type === WebSocketMessageType.COMPLETE) {
+        resolve({ success: true });
+      } else if (message.type === WebSocketMessageType.ERROR) {
+        reject({
           success: false,
-          message: message.data?.message,
+          message: message.data?.errorMessage,
         });
       }
     };
@@ -80,7 +77,7 @@ export const startContainer = async (containerId: string): Promise<{ success: bo
 
     dockerWebSocketService
       .sendMessage({
-        type: 'CONTAINER_START',
+        type: WebSocketMessageType.CONTAINER_START,
         taskId: taskId,
         data: { containerId },
       })
@@ -106,19 +103,12 @@ export const stopContainer = async (containerId: string): Promise<{ success: boo
     const messageHandler = (message: WebSocketMessage) => {
       dockerWebSocketService.removeMessageHandler(taskId);
 
-      if (message.type === 'OPERATION_RESULT') {
-        if (message.data && message.data.success) {
-          resolve({ success: true });
-        } else {
-          resolve({
-            success: false,
-            message: message.data?.message,
-          });
-        }
-      } else if (message.type === 'ERROR') {
-        resolve({
+      if (message.type === WebSocketMessageType.COMPLETE) {
+        resolve({ success: true });
+      } else if (message.type === WebSocketMessageType.ERROR) {
+        reject({
           success: false,
-          message: message.data?.message,
+          message: message.data?.errorMessage,
         });
       }
     };
@@ -127,7 +117,7 @@ export const stopContainer = async (containerId: string): Promise<{ success: boo
 
     dockerWebSocketService
       .sendMessage({
-        type: 'CONTAINER_STOP',
+        type: WebSocketMessageType.CONTAINER_STOP,
         taskId: taskId,
         data: { containerId },
       })
@@ -153,7 +143,7 @@ export const restartContainer = async (containerId: string): Promise<{ success: 
     const messageHandler = (message: WebSocketMessage) => {
       dockerWebSocketService.removeMessageHandler(taskId);
 
-      if (message.type === 'OPERATION_RESULT') {
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         if (message.data && message.data.success) {
           resolve({ success: true });
         } else {
@@ -162,7 +152,7 @@ export const restartContainer = async (containerId: string): Promise<{ success: 
             message: message.data?.message,
           });
         }
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -174,7 +164,7 @@ export const restartContainer = async (containerId: string): Promise<{ success: 
 
     dockerWebSocketService
       .sendMessage({
-        type: 'CONTAINER_RESTART',
+        type: WebSocketMessageType.CONTAINER_RESTART,
         taskId: taskId,
         data: { containerId },
       })
@@ -193,40 +183,32 @@ export const restartContainer = async (containerId: string): Promise<{ success: 
  * @param containerId 容器ID
  * @returns Promise<{success: boolean; message?: string; data?: ContainerDetail}>
  */
-export const getContainerDetail = async (containerId: string,): Promise<{ success: boolean; message?: string; data?: ContainerDetail; }> => {
-  return new Promise((resolve) => {
+export const getContainerDetail = async (containerId: string): Promise<ContainerDetail> => {
+  return new Promise((resolve, reject) => {
     const taskId = generateTaskId(TaskIdPrefix.CONTAINER_DETAIL);
 
     const messageHandler = (message: WebSocketMessage) => {
+      if (message.taskId !== taskId) return;
+      // 移除消息处理器
       dockerWebSocketService.removeMessageHandler(taskId);
 
-      if (message.type === 'CONTAINER_DETAIL') {
-        resolve({
-          success: true,
-          data: message.data,
-        });
-      } else if (message.type === 'ERROR') {
-        resolve({
-          success: false,
-          message: message.data?.message,
-        });
+      if (message.type === WebSocketMessageType.COMPLETE) {
+        resolve(message.data || []);
+      } else if (message.type === WebSocketMessageType.ERROR) {
+        reject(new Error(message.data.errorMessage));
       }
     };
-
     dockerWebSocketService.addMessageHandler(taskId, messageHandler);
-
     dockerWebSocketService
       .sendMessage({
-        type: 'CONTAINER_DETAIL',
+        type: WebSocketMessageType.CONTAINER_DETAIL,
         taskId: taskId,
         data: { containerId },
       })
-      .catch(() => {
+      .catch((error: Error) => {
+        // 移除消息处理器
         dockerWebSocketService.removeMessageHandler(taskId);
-        resolve({
-          success: false,
-          message: '网络连接失败',
-        });
+        reject(error);
       });
   });
 };
@@ -239,15 +221,15 @@ export const getContainerDetail = async (containerId: string,): Promise<{ succes
 export const getContainerLogs = async (containerId: string): Promise<{ data: string }> => {
   return new Promise((resolve, reject) => {
     const taskId = generateTaskId(TaskIdPrefix.CONTAINER_LOGS);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'CONTAINER_LOGS') {
+
+      if (message.type === WebSocketMessageType.COMPLETE) {
         resolve({ data: message.data });
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         reject(new Error(message.data.message));
       }
     };
@@ -256,7 +238,7 @@ export const getContainerLogs = async (containerId: string): Promise<{ data: str
 
     dockerWebSocketService
       .sendMessage({
-        type: 'CONTAINER_LOGS',
+        type: WebSocketMessageType.CONTAINER_LOGS,
         taskId,
         data: { containerId },
       })
@@ -275,16 +257,16 @@ export const getContainerLogs = async (containerId: string): Promise<{ data: str
 export async function getContainerStats(containerId: string): Promise<ContainerStats> {
   return new Promise((resolve, reject) => {
     const taskId = generateTaskId(TaskIdPrefix.CONTAINER_STATS);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'CONTAINER_STATS') {
-        resolve(message.data);
-      } else if (message.type === 'ERROR') {
-        reject(new Error(message.data.message));
+
+      if (message.type === WebSocketMessageType.COMPLETE) {
+        resolve(message.data || []);
+      } else if (message.type === WebSocketMessageType.ERROR) {
+        reject(new Error(message.errorMessage));
       }
     };
 
@@ -292,7 +274,7 @@ export async function getContainerStats(containerId: string): Promise<ContainerS
 
     dockerWebSocketService
       .sendMessage({
-        type: 'CONTAINER_STATS',
+        type: WebSocketMessageType.CONTAINER_STATS,
         taskId,
         data: { containerId },
       })
@@ -315,7 +297,7 @@ export const deleteContainer = async (containerId: string): Promise<{ success: b
     const messageHandler = (message: WebSocketMessage) => {
       dockerWebSocketService.removeMessageHandler(taskId);
 
-      if (message.type === 'OPERATION_RESULT') {
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         if (message.data && message.data.success) {
           resolve({ success: true });
         } else {
@@ -324,7 +306,7 @@ export const deleteContainer = async (containerId: string): Promise<{ success: b
             message: message.data?.message,
           });
         }
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -336,7 +318,7 @@ export const deleteContainer = async (containerId: string): Promise<{ success: b
 
     dockerWebSocketService
       .sendMessage({
-        type: 'CONTAINER_DELETE',
+        type: WebSocketMessageType.CONTAINER_DELETE,
         taskId: taskId,
         data: { containerId },
       })
@@ -369,12 +351,12 @@ export const updateContainer = async (
 
     const messageHandler = (message: WebSocketMessage) => {
       dockerWebSocketService.removeMessageHandler(taskId);
-      if (message.type === 'OPERATION_RESULT') {
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         resolve({
           success: true,
           newContainerId: message.data,
         });
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -386,7 +368,7 @@ export const updateContainer = async (
 
     dockerWebSocketService
       .sendMessage({
-        type: 'CONTAINER_UPDATE',
+        type: WebSocketMessageType.CONTAINER_UPDATE,
         taskId: taskId,
         data: { containerId, ...data },
       })
@@ -411,12 +393,12 @@ export const getNetworkList = (): Promise<{ success: boolean; message?: string; 
     const messageHandler = (message: WebSocketMessage) => {
       dockerWebSocketService.removeMessageHandler(taskId);
 
-      if (message.type === 'NETWORK_LIST') {
+      if (message.type === WebSocketMessageType.NETWORK_LIST) {
         resolve({
           success: true,
           data: message.data || [],
         });
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -428,7 +410,7 @@ export const getNetworkList = (): Promise<{ success: boolean; message?: string; 
 
     dockerWebSocketService
       .sendMessage({
-        type: 'NETWORK_LIST',
+        type: WebSocketMessageType.NETWORK_LIST,
         taskId: taskId,
         data: {},
       })
@@ -453,12 +435,12 @@ export const getImageList = async (): Promise<{ success: boolean; message?: stri
     const messageHandler = (message: WebSocketMessage) => {
       dockerWebSocketService.removeMessageHandler(taskId);
 
-      if (message.type === 'IMAGE_LIST') {
+      if (message.type === WebSocketMessageType.IMAGE_LIST) {
         resolve({
           success: true,
           data: message.data || [],
         });
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -470,7 +452,7 @@ export const getImageList = async (): Promise<{ success: boolean; message?: stri
 
     dockerWebSocketService
       .sendMessage({
-        type: 'IMAGE_LIST',
+        type: WebSocketMessageType.IMAGE_LIST,
         taskId: taskId,
         data: {},
       })
@@ -502,12 +484,12 @@ export const getImageDetail = async (
     const messageHandler = (message: WebSocketMessage) => {
       dockerWebSocketService.removeMessageHandler(taskId);
 
-      if (message.type === 'IMAGE_DETAIL') {
+      if (message.type === WebSocketMessageType.IMAGE_DETAIL) {
         resolve({
           success: true,
           data: message.data,
         });
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -519,7 +501,7 @@ export const getImageDetail = async (
 
     dockerWebSocketService
       .sendMessage({
-        type: 'IMAGE_DETAIL',
+        type: WebSocketMessageType.IMAGE_DETAIL,
         taskId: taskId,
         data: { imageName },
       })
@@ -551,7 +533,7 @@ export const createContainer = async (
     const messageHandler = (message: WebSocketMessage) => {
       dockerWebSocketService.removeMessageHandler(taskId);
 
-      if (message.type === 'OPERATION_RESULT') {
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         if (message.data && message.data.success) {
           resolve({
             success: true,
@@ -563,7 +545,7 @@ export const createContainer = async (
             message: message.data?.message,
           });
         }
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -575,7 +557,7 @@ export const createContainer = async (
 
     dockerWebSocketService
       .sendMessage({
-        type: 'CONTAINER_CREATE',
+        type: WebSocketMessageType.CONTAINER_CREATE,
         taskId: taskId,
         data,
       })
@@ -608,13 +590,13 @@ export const createNetwork = async (data: {
 }): Promise<any> => {
   return new Promise((resolve, reject) => {
     const taskId = generateTaskId(TaskIdPrefix.NETWORK_CREATE);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'OPERATION_RESULT') {
+
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         if (message.data.success) {
           resolve({
             code: 0,
@@ -624,7 +606,7 @@ export const createNetwork = async (data: {
         } else {
           reject(new Error(message.data.message));
         }
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         reject(new Error(message.data.message));
       }
     };
@@ -633,7 +615,7 @@ export const createNetwork = async (data: {
 
     dockerWebSocketService
       .sendMessage({
-        type: 'NETWORK_CREATE',
+        type: WebSocketMessageType.NETWORK_CREATE,
         taskId,
         data,
       })
@@ -652,19 +634,19 @@ export const createNetwork = async (data: {
 export const deleteNetwork = async (networkId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     const taskId = generateTaskId(TaskIdPrefix.NETWORK_DELETE);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'OPERATION_RESULT') {
+
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         if (message.data.success) {
           resolve();
         } else {
           reject(new Error(message.data.message));
         }
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         reject(new Error(message.data.message));
       }
     };
@@ -673,7 +655,7 @@ export const deleteNetwork = async (networkId: string): Promise<void> => {
 
     dockerWebSocketService
       .sendMessage({
-        type: 'NETWORK_DELETE',
+        type: WebSocketMessageType.NETWORK_DELETE,
         taskId,
         data: { networkId },
       })
@@ -691,7 +673,7 @@ export const deleteImage = async (imageId: string): Promise<{ success: boolean; 
     const messageHandler = (message: WebSocketMessage) => {
       dockerWebSocketService.removeMessageHandler(taskId);
 
-      if (message.type === 'OPERATION_RESULT') {
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         if (message.data && message.data.success) {
           resolve({ success: true });
         } else {
@@ -700,7 +682,7 @@ export const deleteImage = async (imageId: string): Promise<{ success: boolean; 
             message: message.data?.message,
           });
         }
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -712,7 +694,7 @@ export const deleteImage = async (imageId: string): Promise<{ success: boolean; 
 
     dockerWebSocketService
       .sendMessage({
-        type: 'IMAGE_DELETE',
+        type: WebSocketMessageType.IMAGE_DELETE,
         taskId: taskId,
         data: { imageId },
       })
@@ -734,19 +716,19 @@ export const deleteImage = async (imageId: string): Promise<{ success: boolean; 
 export const updateImage = async (params: { image: string; tag: string; id?: string }): Promise<any> => {
   return new Promise((resolve, reject) => {
     const taskId = generateTaskId(TaskIdPrefix.IMAGE_UPDATE);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'OPERATION_RESULT') {
+
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         resolve({
           code: 0,
           message: 'success',
           data: message.data,
         });
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         reject(new Error(message.data.message));
       }
     };
@@ -755,7 +737,7 @@ export const updateImage = async (params: { image: string; tag: string; id?: str
 
     dockerWebSocketService
       .sendMessage({
-        type: 'IMAGE_UPDATE',
+        type: WebSocketMessageType.IMAGE_UPDATE,
         taskId,
         data: params,
       })
@@ -774,13 +756,13 @@ export const updateImage = async (params: { image: string; tag: string; id?: str
 export const batchUpdateImages = async (params: { useProxy: boolean }): Promise<any> => {
   return new Promise((resolve, reject) => {
     const taskId = generateTaskId(TaskIdPrefix.IMAGE_BATCH_UPDATE);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'OPERATION_RESULT') {
+
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         if (message.data.success) {
           resolve({
             code: 0,
@@ -790,7 +772,7 @@ export const batchUpdateImages = async (params: { useProxy: boolean }): Promise<
         } else {
           reject(new Error(message.data.message));
         }
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         reject(new Error(message.data.message));
       }
     };
@@ -799,7 +781,7 @@ export const batchUpdateImages = async (params: { useProxy: boolean }): Promise<
 
     dockerWebSocketService
       .sendMessage({
-        type: 'IMAGE_BATCH_UPDATE',
+        type: WebSocketMessageType.IMAGE_BATCH_UPDATE,
         taskId,
         data: params,
       })
@@ -818,13 +800,13 @@ export const batchUpdateImages = async (params: { useProxy: boolean }): Promise<
 export const cancelImagePull = async (taskId: string): Promise<any> => {
   return new Promise((resolve, reject) => {
     const cancelTaskId = generateTaskId(TaskIdPrefix.IMAGE_CANCEL_PULL);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== cancelTaskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(cancelTaskId);
-      
-      if (message.type === 'OPERATION_RESULT') {
+
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         if (message.data.success) {
           resolve({
             code: 0,
@@ -834,7 +816,7 @@ export const cancelImagePull = async (taskId: string): Promise<any> => {
         } else {
           reject(new Error(message.data.message));
         }
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         reject(new Error(message.data.message));
       }
     };
@@ -843,7 +825,7 @@ export const cancelImagePull = async (taskId: string): Promise<any> => {
 
     dockerWebSocketService
       .sendMessage({
-        type: 'IMAGE_CANCEL_PULL',
+        type: WebSocketMessageType.IMAGE_CANCEL_PULL,
         taskId: cancelTaskId,
         data: { taskId },
       })
@@ -861,19 +843,19 @@ export const cancelImagePull = async (taskId: string): Promise<any> => {
 export const checkImageUpdates = async (): Promise<any> => {
   return new Promise((resolve, reject) => {
     const taskId = generateTaskId(TaskIdPrefix.IMAGE_CHECK_UPDATES);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'OPERATION_RESULT') {
+
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         resolve({
           code: 0,
           message: 'success',
           data: message.data,
         });
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         reject(new Error(message.data.message));
       }
     };
@@ -882,7 +864,7 @@ export const checkImageUpdates = async (): Promise<any> => {
 
     dockerWebSocketService
       .sendMessage({
-        type: 'IMAGE_CHECK_UPDATES',
+        type: WebSocketMessageType.IMAGE_CHECK_UPDATES,
         taskId,
         data: {},
       })
@@ -898,25 +880,27 @@ export const checkImageUpdates = async (): Promise<any> => {
  * @param images 镜像列表
  * @returns Promise<{success: boolean; message?: string; data?: any}>
  */
-export const checkImages = async (images: { name: string; tag: string }[]): Promise<{
+export const checkImages = async (
+  images: { name: string; tag: string }[],
+): Promise<{
   success: boolean;
   message?: string;
   data?: any;
 }> => {
   return new Promise((resolve) => {
     const taskId = generateTaskId(TaskIdPrefix.INSTALL_CHECK);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'OPERATION_RESULT') {
+
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         resolve({
           success: true,
           data: message.data,
         });
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -928,7 +912,7 @@ export const checkImages = async (images: { name: string; tag: string }[]): Prom
 
     dockerWebSocketService
       .sendMessage({
-        type: 'INSTALL_CHECK_IMAGES',
+        type: WebSocketMessageType.INSTALL_CHECK_IMAGES,
         taskId,
         data: { images },
       })
@@ -947,25 +931,27 @@ export const checkImages = async (images: { name: string; tag: string }[]): Prom
  * @param params 参数
  * @returns Promise<{success: boolean; message?: string; data?: any}>
  */
-export const validateParams = async (params: any): Promise<{
+export const validateParams = async (
+  params: any,
+): Promise<{
   success: boolean;
   message?: string;
   data?: any;
 }> => {
   return new Promise((resolve) => {
     const taskId = generateTaskId(TaskIdPrefix.INSTALL_VALIDATE);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'OPERATION_RESULT') {
+
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         resolve({
           success: true,
           data: message.data,
         });
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -977,7 +963,7 @@ export const validateParams = async (params: any): Promise<{
 
     dockerWebSocketService
       .sendMessage({
-        type: 'INSTALL_VALIDATE',
+        type: WebSocketMessageType.INSTALL_VALIDATE,
         taskId,
         data: { params },
       })
@@ -1007,11 +993,11 @@ export const pullImage = async (
 }> => {
   return new Promise((resolve) => {
     const taskId = generateTaskId(TaskIdPrefix.IMAGE_PULL);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
 
-      if (message.type === 'ERROR') {
+      if (message.type === WebSocketMessageType.ERROR) {
         callbacks.onError?.(message.data.error);
         dockerWebSocketService.removeMessageHandler(taskId);
         resolve({
@@ -1021,12 +1007,12 @@ export const pullImage = async (
         return;
       }
 
-      if (message.type === 'PULL_PROGRESS' && callbacks.onProgress) {
+      if (message.type === WebSocketMessageType.PULL_PROGRESS && callbacks.onProgress) {
         const { progress, status } = message.data as { progress: number; status: string };
         callbacks.onProgress({ progress, status });
       }
 
-      if (message.type === 'PULL_COMPLETE') {
+      if (message.type === WebSocketMessageType.PULL_COMPLETE) {
         callbacks.onComplete?.();
         dockerWebSocketService.removeMessageHandler(taskId);
         resolve({
@@ -1040,7 +1026,7 @@ export const pullImage = async (
 
     dockerWebSocketService
       .sendMessage({
-        type: 'PULL_IMAGE',
+        type: WebSocketMessageType.PULL_IMAGE,
         taskId,
         data: params,
       })
@@ -1070,16 +1056,16 @@ export const startInstall = async (params: {
 }> => {
   return new Promise((resolve) => {
     const taskId = generateTaskId(TaskIdPrefix.INSTALL_START);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
-      if (message.type === 'INSTALL_LOG') {
+
+      if (message.type === WebSocketMessageType.INSTALL_LOG) {
         // 日志消息由外部处理器处理
         return;
       }
-      
-      if (message.type === 'INSTALL_START_RESULT') {
+
+      if (message.type === WebSocketMessageType.INSTALL_START_RESULT) {
         dockerWebSocketService.removeMessageHandler(taskId);
         if (message.data?.success) {
           resolve({
@@ -1092,7 +1078,7 @@ export const startInstall = async (params: {
             message: message.data?.message,
           });
         }
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         dockerWebSocketService.removeMessageHandler(taskId);
         resolve({
           success: false,
@@ -1105,7 +1091,7 @@ export const startInstall = async (params: {
 
     dockerWebSocketService
       .sendMessage({
-        type: 'INSTALL_START',
+        type: WebSocketMessageType.INSTALL_START,
         taskId,
         data: params,
       })
@@ -1126,9 +1112,9 @@ export const startInstall = async (params: {
 export const addInstallLogHandler = (handler: (message: WebSocketMessage) => void) => {
   const logHandler = (message: WebSocketMessage) => {
     console.log('日志处理器收到消息:', message);
-    if (message.type === 'INSTALL_LOG') {
+    if (message.type === WebSocketMessageType.INSTALL_LOG) {
       handler(message);
-    } else if (message.type === 'ERROR') {
+    } else if (message.type === WebSocketMessageType.ERROR) {
       handler(message);
     }
   };
@@ -1163,21 +1149,27 @@ export const removeCheckImagesResultHandler = () => {
  * @param fileName 文件名
  * @returns Promise<{success: boolean; message?: string}>
  */
-export const importTemplate = async (content: string, fileName: string): Promise<{ success: boolean; message?: string }> => {
+export const importTemplate = async (
+  content: string,
+  fileName: string,
+): Promise<{
+  success: boolean;
+  message?: string;
+}> => {
   return new Promise((resolve) => {
     const taskId = generateTaskId(TaskIdPrefix.IMPORT_TEMPLATE);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'IMPORT_TEMPLATE_RESULT') {
+
+      if (message.type === WebSocketMessageType.IMPORT_TEMPLATE_RESULT) {
         resolve({
           success: message.data?.success || false,
           message: message.data?.message,
         });
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -1189,7 +1181,7 @@ export const importTemplate = async (content: string, fileName: string): Promise
 
     dockerWebSocketService
       .sendMessage({
-        type: 'IMPORT_TEMPLATE',
+        type: WebSocketMessageType.IMPORT_TEMPLATE,
         taskId,
         data: { content, fileName },
       })
@@ -1208,41 +1200,42 @@ export const importTemplate = async (content: string, fileName: string): Promise
  * @param containerId 容器ID
  * @returns Promise<{success: boolean; message?: string; data?: string}>
  */
-export const getContainerJsonConfig = (containerId: string): Promise<{success: boolean; message?: string; data?: string}> => {
+export const getContainerJsonConfig = (
+  containerId: string,
+): Promise<{
+  success: boolean;
+  message?: string;
+  data?: string;
+}> => {
   return new Promise((resolve, reject) => {
     const taskId = generateTaskId(TaskIdPrefix.CONTAINER_JSON_CONFIG);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
-      if (message.taskId === taskId) {
-        dockerWebSocketService.removeMessageHandler(taskId);
-        if (message.type === 'CONTAINER_JSON_CONFIG') {
-          resolve({
-            success: true,
-            data: message.data
-          });
-        } else if (message.type === 'ERROR') {
-          resolve({
-            success: false,
-            message: message.data?.message
-          });
-        }
+      if (message.taskId !== taskId) return;
+      dockerWebSocketService.removeMessageHandler(taskId);
+      if (message.type === WebSocketMessageType.COMPLETE) {
+        resolve({
+          success: true,
+          data: message.data,
+        });
+      } else if (message.type === WebSocketMessageType.ERROR) {
+        reject({
+          success: false,
+          message: message.data?.errorMessage,
+        });
       }
     };
-
     dockerWebSocketService.addMessageHandler(taskId, messageHandler);
-
     dockerWebSocketService
       .sendMessage({
-        type: 'CONTAINER_JSON_CONFIG',
+        type: WebSocketMessageType.CONTAINER_JSON_CONFIG,
         taskId,
-        data: { containerId }
+        data: { containerId },
       })
-      .catch(() => {
+      .catch((error: Error) => {
+        // 移除消息处理器
         dockerWebSocketService.removeMessageHandler(taskId);
-        resolve({
-          success: false,
-          message: '网络连接失败'
-        });
+        reject(error);
       });
   });
 };
@@ -1255,17 +1248,17 @@ export const getContainerJsonConfig = (containerId: string): Promise<{success: b
 export const deleteTemplate = async (templateId: string): Promise<{ success: boolean; message?: string }> => {
   return new Promise((resolve) => {
     const taskId = generateTaskId(TaskIdPrefix.DELETE_TEMPLATE);
-    
+
     const messageHandler = (message: WebSocketMessage) => {
       if (message.taskId !== taskId) return;
-      
+
       dockerWebSocketService.removeMessageHandler(taskId);
-      
-      if (message.type === 'OPERATION_RESULT') {
+
+      if (message.type === WebSocketMessageType.OPERATION_RESULT) {
         resolve({
-          success: true
+          success: true,
         });
-      } else if (message.type === 'ERROR') {
+      } else if (message.type === WebSocketMessageType.ERROR) {
         resolve({
           success: false,
           message: message.data?.message,
@@ -1277,7 +1270,7 @@ export const deleteTemplate = async (templateId: string): Promise<{ success: boo
 
     dockerWebSocketService
       .sendMessage({
-        type: 'DELETE_TEMPLATE',
+        type: WebSocketMessageType.DELETE_TEMPLATE,
         taskId,
         data: { templateId },
       })

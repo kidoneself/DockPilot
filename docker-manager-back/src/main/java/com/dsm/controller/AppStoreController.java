@@ -4,7 +4,7 @@ import com.dsm.model.AppStoreAppDTO;
 import com.dsm.model.PageResult;
 import com.dsm.model.Template;
 import com.dsm.model.TemplateQueryParam;
-import com.dsm.service.AppStoreService;
+import com.dsm.service.http.AppStoreService;
 import com.dsm.utils.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

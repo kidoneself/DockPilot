@@ -1,7 +1,7 @@
 package com.dsm.controller;
 
 import com.dsm.model.Log;
-import com.dsm.service.LogService;
+import com.dsm.service.http.LogService;
 import com.dsm.utils.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

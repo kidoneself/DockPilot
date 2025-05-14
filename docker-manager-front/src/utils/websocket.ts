@@ -1,16 +1,7 @@
 import { MessagePlugin } from 'tdesign-vue-next';
-import type { WebSocketMessage as BusinessWebSocketMessage, WebSocketMessageType } from '@/api/model/websocketModel';
+import type { WebSocketMessage } from '@/api/model/websocketModel';
+import { WebSocketMessageType } from '@/api/model/websocketModel';
 import { useNotificationStore } from '@/store/modules/notification';
-
-/**
- * 基础WebSocket消息接口
- * 此处使用通用接口，特定业务消息使用api/model/websocketModel.ts中的定义
- */
-export interface BaseWebSocketMessage {
-  type: WebSocketMessageType | string;
-  taskId?: string;
-  data: any;
-}
 
 /**
  * WebSocket配置选项
@@ -19,7 +10,7 @@ export interface WebSocketOptions {
   /** WebSocket URL */
   url: string;
   /** 收到消息时的回调 */
-  onMessage?: (message: BaseWebSocketMessage | BusinessWebSocketMessage) => void;
+  onMessage?: (message: WebSocketMessage) => void;
   /** 发生错误时的回调 */
   onError?: (error: any) => void;
   /** 连接关闭时的回调 */
@@ -47,7 +38,7 @@ export class WebSocketClient {
   private reconnectTimer: number | null = null;
   private heartbeatInterval: number | null = null;
   private readonly heartbeatIntervalTime = 15000;
-  private messageHandler: ((message: BusinessWebSocketMessage) => void) | null = null;
+  private messageHandler: ((message: WebSocketMessage) => void) | null = null;
 
   constructor(url: string) {
     this.url = url;
@@ -56,7 +47,7 @@ export class WebSocketClient {
   /**
    * 设置消息处理器
    */
-  public setMessageHandler(handler: (message: BusinessWebSocketMessage) => void): void {
+  public setMessageHandler(handler: (message: WebSocketMessage) => void): void {
     this.messageHandler = handler;
   }
 
@@ -90,7 +81,7 @@ export class WebSocketClient {
 
         this.ws.onmessage = (event) => {
           try {
-            const message = JSON.parse(event.data) as BusinessWebSocketMessage;
+            const message = JSON.parse(event.data) as WebSocketMessage;
             if (this.messageHandler) {
               this.messageHandler(message);
             }
@@ -107,7 +98,7 @@ export class WebSocketClient {
   /**
    * 发送消息
    */
-  public send(message: BusinessWebSocketMessage): void {
+  public send(message: WebSocketMessage): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error('WebSocket未连接');
     }
@@ -166,7 +157,7 @@ export class WebSocketClient {
     this.heartbeatInterval = window.setInterval(() => {
       if (this.isConnected()) {
         this.send({
-          type: 'HEARTBEAT',
+          type: WebSocketMessageType.HEARTBEAT,
           taskId: '',
           data: { timestamp: Date.now() }
         });

@@ -186,7 +186,9 @@ import {
 // 获取路由实例
 const router = useRouter();
 const route = useRoute();
+import { useNotificationStore } from '@/store/modules/notification';
 
+const notificationStore = useNotificationStore();
 // 响应式数据定义
 const containers = ref<Container[]>([]); // 容器列表
 const operatingContainers = ref<ContainerOperationState>({
@@ -272,6 +274,26 @@ const fetchContainers = async () => {
   try {
     const res = await getContainerList();
     containers.value = res || [];
+// // 发送普通通知
+// notificationStore.addNotification({
+//   id: String(Date.now()),
+//   content: '操作成功！',
+//   type: '成功',
+//   status: true,
+//   collected: false,
+//   date: new Date().toLocaleString(),
+//   quality: 'normal',
+// });
+
+// // 处理WebSocket推送
+// notificationStore.handleWebSocketNotification({
+//   content: '有新的消息啦！',
+//   type: 'WebSocket',
+// });
+
+
+
+
   } catch (error) {
     console.error('获取容器列表失败:', error);
     MessagePlugin.error('获取容器列表失败');

@@ -1,7 +1,7 @@
 package com.dsm.utils;
 
 import com.dsm.model.Log;
-import com.dsm.service.LogService;
+import com.dsm.service.http.LogService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 

@@ -2,7 +2,7 @@ package com.dsm.controller;
 
 import com.dsm.model.Route;
 import com.dsm.model.SystemSetting;
-import com.dsm.service.SystemSettingService;
+import com.dsm.service.http.SystemSettingService;
 import com.dsm.utils.ApiResponse;
 import com.dsm.utils.FaviconFetcher;
 import com.dsm.utils.LogUtil;

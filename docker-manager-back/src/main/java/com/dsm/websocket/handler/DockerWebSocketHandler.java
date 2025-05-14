@@ -1,8 +1,8 @@
 package com.dsm.websocket.handler;
 
 import com.alibaba.fastjson.JSON;
-import com.dsm.websocket.dispatcher.DockerMessageDispatcher;
-import com.dsm.websocket.message.MessageType;
+import com.dsm.websocket.router.MessageRouter;
+import com.dsm.model.MessageType;
 import com.dsm.websocket.model.DockerWebSocketMessage;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +32,7 @@ public class DockerWebSocketHandler extends TextWebSocketHandler {
     private static final Map<String, WebSocketSession> SESSIONS = new ConcurrentHashMap<>();
 
     @Autowired
-    private DockerMessageDispatcher messageDispatcher;
+    private MessageRouter messageRouter;
 
     /**
      * 连接建立时的处理
@@ -56,7 +56,7 @@ public class DockerWebSocketHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         try {
             DockerWebSocketMessage wsMessage = JSON.parseObject(message.getPayload(), DockerWebSocketMessage.class);
-            messageDispatcher.dispatch(session, wsMessage);
+            messageRouter.route(session, wsMessage);
         } catch (Exception e) {
             log.error("处理消息时发生错误", e);
             // 尝试获取 taskId

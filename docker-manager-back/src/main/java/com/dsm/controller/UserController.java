@@ -4,7 +4,7 @@ import com.dsm.annotation.Anonymous;
 import com.dsm.model.dto.ChangePasswordRequest;
 import com.dsm.model.dto.LoginRequest;
 import com.dsm.model.User;
-import com.dsm.service.UserService;
+import com.dsm.service.http.UserService;
 import com.dsm.utils.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

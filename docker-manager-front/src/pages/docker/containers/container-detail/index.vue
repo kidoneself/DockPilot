@@ -578,8 +578,7 @@ const parseLogLine = (line: string) => {
 const fetchContainerDetail = async () => {
   try {
     loading.value = true;
-    const res = await getContainerDetail(route.query.id as string);
-    containerDetail.value = res.data;
+    containerDetail.value = await getContainerDetail(route.query.id as string);
   } catch (error) {
     MessagePlugin.error('获取容器详情失败');
   } finally {
@@ -855,7 +854,7 @@ const beforeRouteEnter = async (to: any, from: any, next: any) => {
     try {
       const res = await getContainerDetail(to.query.id);
       next((vm: any) => {
-        vm.containerDetail = res.data;
+        vm.containerDetail = res;
         vm.startDetailPolling();
         if (vm.activeTab === 'monitor') {
           vm.startStatsPolling();
@@ -874,7 +873,7 @@ const beforeRouteUpdate = async (to: any, from: any, next: any) => {
   if (to.query.id !== from.query.id) {
     try {
       const res = await getContainerDetail(to.query.id);
-      containerDetail.value = res.data;
+      containerDetail.value = res;
       startDetailPolling();
       if (activeTab.value === 'monitor') {
         startStatsPolling();

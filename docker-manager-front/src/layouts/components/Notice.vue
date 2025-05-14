@@ -32,11 +32,11 @@
           <img src="https://tdesign.gtimg.com/pro-template/personal/nothing.png" alt="空" />
           <p>暂无消息</p>
         </div>
-        <div v-if="unreadMsg.length > 0" class="header-msg-bottom">
+        <!-- <div v-if="unreadMsg.length > 0" class="header-msg-bottom">
           <t-button class="header-msg-bottom-link" variant="text" theme="default" block @click="goDetail">
             查看全部
           </t-button>
-        </div>
+        </div> -->
       </div>
     </template>
     <t-badge :count="unreadMsg.length" :offset="[4, 4]">

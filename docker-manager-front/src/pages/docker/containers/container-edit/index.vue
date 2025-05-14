@@ -402,9 +402,7 @@ const fetchContainerDetail = async (id: string) => {
   try {
     const res = await getContainerDetail(id);
     // WebSocket 返回的数据直接就是容器详情对象
-    console.log(res);
- 
-    const mappedData = mapContainerDetailToForm(res.data);
+    const mappedData = mapContainerDetailToForm(res);
       formData.value = mappedData;
 
     // 获取网络列表，网络模式的设置会在fetchNetworkList中处理

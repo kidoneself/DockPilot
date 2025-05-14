@@ -1,7 +1,7 @@
 package com.dsm.config;
 
 import com.dsm.model.User;
-import com.dsm.service.UserService;
+import com.dsm.service.http.UserService;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
