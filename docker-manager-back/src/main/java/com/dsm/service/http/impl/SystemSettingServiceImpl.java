@@ -1,7 +1,7 @@
 package com.dsm.service.http.impl;
 
-import com.dsm.config.AppConfig;
-import com.dsm.event.SystemSettingChangedEvent;
+import com.dsm.common.config.AppConfig;
+import com.dsm.common.event.SystemSettingChangedEvent;
 import com.dsm.mapper.SystemSettingMapper;
 import com.dsm.service.http.SystemSettingService;
 import com.dsm.utils.LogUtil;

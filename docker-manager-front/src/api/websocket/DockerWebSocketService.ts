@@ -2,10 +2,14 @@ import {ws as wsClient} from '@/utils/websocket';
 import type {
     DockerWebSocketCallbacks,
     PullImageParams,
-    WebSocketMessage
+    WebSocketMessage,
+    WebSocketRequestOptions,
+    WebSocketResponse
 } from '@/api/model/websocketModel';
 import {useNotificationStore} from '@/store/modules/notification';
 import {MessagePlugin} from 'tdesign-vue-next';
+import {generateTaskId} from '@/utils/taskId';
+import {WebSocketMessageType} from '@/api/model/websocketModel';
 
 /**
  * Docker WebSocket 服务
@@ -14,6 +18,7 @@ import {MessagePlugin} from 'tdesign-vue-next';
 export class DockerWebSocketService {
     private messageHandlerMap: Map<string, (message: WebSocketMessage) => void> = new Map();
     private typeHandlerMap: Map<string, (message: WebSocketMessage) => void> = new Map();
+    private timeoutMap: Map<string, number> = new Map();
 
     constructor() {
         // 设置消息处理器
@@ -60,10 +65,91 @@ export class DockerWebSocketService {
 
     /**
      * 发送WebSocket消息
+     * @param options 请求选项
+     * @returns Promise<any> 返回处理结果
      */
-    public async sendMessage(message: WebSocketMessage): Promise<void> {
-        await wsClient.connect();
-        wsClient.send(message);
+    public async sendWebSocketMessage(options: WebSocketRequestOptions): Promise<void> {
+        const taskId = generateTaskId(options.type);
+      
+        // 设置超时处理（如果配置了 timeout）
+        if (options.timeout) {
+          const timeoutId = window.setTimeout(() => {
+            this.handleTimeout(taskId, options);
+          }, options.timeout);
+          this.timeoutMap.set(taskId, timeoutId);
+        }
+      
+        const messageHandler = (message: WebSocketMessage) => {
+            const ts = message.timestamp ?? Date.now(); // 处理 timestamp 可选性
+          
+            if (message.taskId !== taskId) return;
+          
+            if (message.type === WebSocketMessageType.START) {
+              options.onStart?.(taskId);
+              return;
+            }
+          
+            //这是进度的
+            if (message.type === WebSocketMessageType.PROGRESS) {
+              options.onProgress?.(message.progress);
+            }
+          
+            //其实这是日志的
+            if (message.type === WebSocketMessageType.LOG) {
+              options.onLog?.(message.data);
+            }
+          
+            if (message.type === WebSocketMessageType.COMPLETE) {
+              this.cleanup(taskId);
+              options.onComplete?.(message.data);
+            }
+          
+            if (message.type === WebSocketMessageType.ERROR) {
+              this.cleanup(taskId);
+              options.onError?.(message.errorMessage || '操作失败');
+            }
+          };
+      
+        this.addMessageHandler(taskId, messageHandler );
+      
+        try {
+          // 发送消息
+          await wsClient.connect();
+          wsClient.send({
+            type: options.type,
+            taskId,
+            data: options.data,
+            timestamp: Date.now(),
+          });
+        } catch (error) {
+          this.cleanup(taskId);
+          options.onError?.('发送消息失败');
+          throw error;
+        }
+      }
+
+    /**
+     * 处理超时
+     */
+    private handleTimeout(taskId: string, options: WebSocketRequestOptions): void {
+        this.cleanup(taskId);
+        options.onTimeout?.();
+        options.onError?.('操作超时');
+    }
+
+    /**
+     * 清理资源
+     */
+    private cleanup(taskId: string): void {
+        // 移除消息处理器
+        this.removeMessageHandler(taskId);
+        
+        // 清除超时定时器
+        const timeoutId = this.timeoutMap.get(taskId);
+        if (timeoutId) {
+            window.clearTimeout(timeoutId);
+            this.timeoutMap.delete(taskId);
+        }
     }
 
     /**

@@ -26,14 +26,10 @@ public class HeartbeatMessageHandler implements MessageHandler {
     @Override
     public void handle(WebSocketSession session, Object message) {
         try {
-            // 发送心跳响应
-            Map<String, Object> data = new HashMap<>();
-            data.put("timestamp", System.currentTimeMillis());
-
             DockerWebSocketMessage response = new DockerWebSocketMessage(
                     MessageType.HEARTBEAT.name(),
                     "",
-                    data
+                    System.currentTimeMillis()
             );
             session.sendMessage(new TextMessage(JSON.toJSONString(response)));
         } catch (Exception e) {

@@ -6,7 +6,9 @@ import com.dsm.model.ContainerCreateRequest;
 import com.dsm.model.JsonContainerRequest;
 import com.dsm.model.MessageType;
 import com.dsm.service.http.ContainerService;
+import com.dsm.utils.AsyncTaskRunner;
 import com.dsm.utils.JsonContainerRequestToContainerCreateRequestConverter;
+import com.dsm.utils.MessageCallback;
 import com.dsm.websocket.model.DockerWebSocketMessage;
 import com.dsm.websocket.sender.WebSocketMessageSender;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 容器服务
@@ -67,7 +70,35 @@ public class ContainerWebSocketService implements BaseService {
                     result = handleContainerDelete(message);
                     break;
                 case CONTAINER_UPDATE:         // 更新容器
-                    result = handleContainerUpdate(message);
+                    // 假设以下变量已经定义好：
+                    CompletableFuture<String> updateFuture = AsyncTaskRunner.runWithResult(() -> handleContainerUpdate(message, new MessageCallback() {
+                        @Override
+                        public void onProgress(int progress) {
+                            System.out.println("进度: " + progress + "%");
+                            messageSender.sendProgress(session, taskId, progress);
+                        }
+
+                        @Override
+                        public void onLog(String log) {
+                            System.out.println("日志: " + log);
+                            messageSender.sendLog(session, taskId, log);
+                        }
+
+                        @Override
+                        public void onComplete() {
+                            System.out.println("镜像拉取完成！");
+                            messageSender.sendComplete(session, taskId, true);
+                        }
+
+                        @Override
+                        public void onError(String error) {
+                            System.err.println("错误: " + error);
+                            messageSender.sendError(session, taskId, error);
+                        }
+                    }), messageSender, session, taskId);
+
+                    // 阻塞等待结果，也可以用异步方式处理
+                    result = updateFuture.join();
                     break;
                 case CONTAINER_CREATE:         // 创建容器
                     result = handleContainerCreate(message);
@@ -175,16 +206,17 @@ public class ContainerWebSocketService implements BaseService {
      * @param message WebSocket消息
      * @return 更新操作结果
      */
-    private Object handleContainerUpdate(DockerWebSocketMessage message) {
+    private CompletableFuture<String> handleContainerUpdate(DockerWebSocketMessage message, MessageCallback callback) {
         Map<String, Object> data = (Map<String, Object>) message.getData();
         String containerId = (String) data.get("containerId");
         boolean onlyContainerId = data.containsKey("containerId") && data.size() == 1;
         if (onlyContainerId) {
-            return containerService.updateContainerImage(containerId);
+            return containerService.updateContainerImage(containerId, callback);
         }
         JsonContainerRequest json = JSON.parseObject(JSON.toJSONString(data), JsonContainerRequest.class);
         ContainerCreateRequest request = JsonContainerRequestToContainerCreateRequestConverter.convert(json);
-        return containerService.updateContainer(containerId, request);
+//        return containerService.updateContainer(containerId, request, callback);
+        return null;
     }
 
     /**

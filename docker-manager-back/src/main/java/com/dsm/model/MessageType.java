@@ -33,6 +33,10 @@ public enum MessageType {
      * 完成消息
      */
     COMPLETE,
+    /**
+     * 日志
+     */
+    LOG,
 
     /**
      * 检查安装所需的镜像

@@ -134,25 +134,21 @@
         </t-form-item>
       </t-form>
       <div v-else class="pull-progress-container">
-        <div class="space-y-4">
-          <t-progress :percentage="pullProgress" theme="plump" label="inside" />
-
-          <div class="text-sm text-gray-600">当前阶段：{{ currentStage }}</div>
-
-          <div class="scrollbar-container" style="height: 120px; overflow: auto">
-            <div class="text-xs text-gray-400">
-              <div v-for="(log, index) in logLines" :key="index" class="log-line">
-                {{ log }}
-              </div>
-            </div>
-          </div>
-
-          <div class="text-right mt-4">
-            <t-button v-if="!completed" theme="default" variant="outline" @click="handleCancelPull">
-              取消拉取
-            </t-button>
-            <t-button v-else theme="primary" @click="closePullDialog"> 关闭 </t-button>
-          </div>
+        <div class="pull-task-header">
+          <span class="pull-task-title">拉取镜像</span>
+          <span class="pull-task-image">{{ pullImageFormData.image }}:{{ pullImageFormData.tag }}</span>
+        </div>
+        <div class="pull-task-progress-row">
+          <t-progress :percentage="pullProgress" :label="true" style="flex:1;" />
+        </div>
+        <div class="pull-task-log-box" ref="logBoxRef">
+          <div v-for="(log, index) in logLines" :key="index" class="pull-task-log-line">{{ log }}</div>
+        </div>
+        <div class="pull-task-btns">
+          <t-button v-if="!completed" theme="default" variant="outline" @click="handleCancelPull">
+            取消拉取
+          </t-button>
+          <t-button v-else theme="primary" @click="closePullDialog"> 关闭 </t-button>
         </div>
       </div>
     </t-dialog>
@@ -228,7 +224,7 @@
 
 <script setup lang="ts">
 import { MessagePlugin } from 'tdesign-vue-next';
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import type { PullImageProgress } from '@/api/model/websocketModel';
 import { formatDate } from '@/utils/format';
@@ -241,9 +237,7 @@ import {
   getImageList,
   updateImage,
   pullImage,
-  getImageDetail,
 } from '@/api/websocket/container';
-import { dockerWebSocketAPI } from '@/api/docker';
 
 // ==================== 1. 响应式数据定义 ====================
 const images = ref([]);
@@ -390,16 +384,29 @@ const handleBatchUpdate = async () => {
   }
 };
 
-const handleCancelPull = async (e: MouseEvent) => {
-  const taskId = (e.currentTarget as HTMLElement).dataset.taskId;
-  if (!taskId) {
-    MessagePlugin.error('任务ID不存在');
-    return;
-  }
+const handleCancelPullTask = async (task: any) => {
   try {
-    await cancelImagePull(taskId);
-    MessagePlugin.success('取消拉取成功');
-    fetchImages();
+    const result = await cancelImagePull(task.taskId);
+
+    if (result.code === 0) {
+      // 更新任务状态
+      const taskIndex = activePullTasks.value.findIndex((t) => t.taskId === task.taskId);
+      if (taskIndex >= 0) {
+        const updatedTask = { ...activePullTasks.value[taskIndex] };
+        updatedTask.status = 'canceled';
+        updatedTask.message = '用户取消了拉取';
+        activePullTasks.value.splice(taskIndex, 1, updatedTask);
+      }
+
+      // 如果当前正在显示该任务的详情，也需要断开连接
+      if (pullTaskId.value === task.taskId) {
+        // 不需要手动断开连接，pullImage 函数会处理连接管理
+      }
+
+      MessagePlugin.warning('已取消拉取镜像');
+    } else {
+      MessagePlugin.error(result.message || '取消拉取失败');
+    }
   } catch (error) {
     console.error('取消拉取失败:', error);
     MessagePlugin.error('取消拉取失败');
@@ -489,121 +496,6 @@ const isLayerCompleted = (layer: any) => {
 const showPullTaskDetails = (task: any) => {
   currentTaskDetails.value = { ...task };
   pullTaskDetailsVisible.value = true;
-};
-
-// 取消指定任务
-const handleCancelPullTask = async (task: any) => {
-  try {
-    const result = await cancelImagePull(task.taskId);
-
-    if (result.code === 0) {
-      // 更新任务状态
-      const taskIndex = activePullTasks.value.findIndex((t) => t.taskId === task.taskId);
-      if (taskIndex >= 0) {
-        const updatedTask = { ...activePullTasks.value[taskIndex] };
-        updatedTask.status = 'canceled';
-        updatedTask.message = '用户取消了拉取';
-        activePullTasks.value.splice(taskIndex, 1, updatedTask);
-      }
-
-      // 如果当前正在显示该任务的详情，也需要断开连接
-      if (pullTaskId.value === task.taskId) {
-        // 不需要手动断开连接，pullImage 函数会处理连接管理
-      }
-
-      MessagePlugin.warning('已取消拉取镜像');
-    } else {
-      MessagePlugin.error(result.message || '取消拉取失败');
-    }
-  } catch (error) {
-    console.error('取消拉取失败:', error);
-    MessagePlugin.error('取消拉取失败');
-  }
-};
-
-// 清理过期任务（如24小时前的成功或失败任务）
-const cleanupOldTasks = () => {
-  const currentTime = Date.now();
-  const oneDayMs = 24 * 60 * 60 * 1000;
-
-  activePullTasks.value = activePullTasks.value.filter((task) => {
-    // 保留所有活动任务
-    if (task.status === 'pending' || task.status === 'running') {
-      return true;
-    }
-
-    // 保留24小时内的已完成或失败任务
-    if (task.startTime && currentTime - task.startTime < oneDayMs) {
-      return true;
-    }
-
-    return false;
-  });
-};
-
-// 添加 handlePull 方法
-const handlePull = () => {
-  pullImageDialogVisible.value = true;
-  isPulling.value = false;
-  pullProgress.value = 0;
-  pullStatus.value = 'active';
-  pullMessage.value = '';
-  pullLayers.value = [];
-  pullTaskId.value = '';
-};
-
-// 修改拉取镜像确认函数
-const onPullImageConfirm = async () => {
-  try {
-    await pullImageForm.value?.validate();
-    isPulling.value = true;
-    pullProgress.value = 0;
-    pullStatus.value = 'active';
-    currentStage.value = '等待开始';
-    logLines.value = [];
-    completed.value = false;
-
-    await pullImage(
-      {
-        imageName: `${pullImageFormData.value.image}:${pullImageFormData.value.tag}`,
-      },
-      {
-        onStart: (taskId) => {
-          pullTaskId.value = taskId;
-          logLines.value.push('开始拉取镜像...');
-        },
-        onProgress: (progress) => {
-          updatePullProgress(progress);
-        },
-        onComplete: () => {
-          pullStatus.value = 'success';
-          logLines.value.push('镜像拉取完成');
-          completed.value = true;
-          MessagePlugin.success('镜像拉取成功');
-          setTimeout(() => {
-            isPulling.value = false;
-            pullImageDialogVisible.value = false;
-            fetchImages();
-          }, 1500);
-        },
-        onError: (error) => {
-          pullStatus.value = 'error';
-          logLines.value.push(`拉取失败: ${error}`);
-          completed.value = true;
-          MessagePlugin.error(`拉取镜像失败: ${error}`);
-          setTimeout(() => {
-            isPulling.value = false;
-            pullImageDialogVisible.value = false;
-          }, 3000);
-        },
-      },
-    );
-  } catch (error) {
-    console.error('拉取镜像出错:', error);
-    MessagePlugin.error(error instanceof Error ? error.message : '镜像拉取失败');
-    isPulling.value = false;
-    pullImageDialogVisible.value = false;
-  }
 };
 
 // ==================== 8. 拉取镜像相关状态 ====================
@@ -702,35 +594,125 @@ const getProgressStatus = (status: string) => {
 };
 
 // 添加新的响应式变量
-const currentStage = ref('等待开始');
+const logBoxRef = ref<HTMLElement | null>(null);
 const logLines = ref<string[]>([]);
 const completed = ref(false);
 
-// 修改更新进度函数
-const updatePullProgress = (data: PullImageProgress) => {
-  if (!data) return;
-
-  pullProgress.value = data.progress || 0;
-  if (data.status) {
-    logLines.value.push(data.status);
+// 自动滚动到底部，兼容多种日志追加方式
+watch(
+  () => logLines.value.length,
+  () => {
+    nextTick(() => {
+      if (logBoxRef.value) {
+        logBoxRef.value.scrollTop = logBoxRef.value.scrollHeight;
+      }
+    });
   }
+);
 
-  if (data.status) {
-    if (data.status.includes('Copying config')) {
-      currentStage.value = '复制配置层';
-    } else if (data.status.includes('Copying blob')) {
-      currentStage.value = '复制数据层';
-    } else if (data.status.includes('Writing manifest')) {
-      currentStage.value = '写入清单';
-    } else if (data.status.includes('Storing signatures')) {
-      currentStage.value = '存储签名';
-    } else if (data.status.includes('Getting image source signatures')) {
-      currentStage.value = '获取镜像签名';
-    }
+// 添加 handlePull 方法
+const handlePull = () => {
+  pullImageDialogVisible.value = true;
+  isPulling.value = false;
+  pullProgress.value = 0;
+  pullStatus.value = 'active';
+  pullMessage.value = '';
+  pullLayers.value = [];
+  pullTaskId.value = '';
+};
+
+// 修改拉取镜像确认函数
+const onPullImageConfirm = async () => {
+  try {
+    console.log('开始拉取镜像流程...');
+    await pullImageForm.value?.validate();
+    isPulling.value = true;
+    pullProgress.value = 0;
+    pullStatus.value = 'active';
+    logLines.value = [];
+    completed.value = false;
+
+    console.log('准备调用 pullImage API...');
+    await pullImage(
+      {
+        imageName: `${pullImageFormData.value.image}:${pullImageFormData.value.tag}`,
+      },
+      {
+        // 任务开始回调
+        onStart: (taskId) => {
+          console.log('onStart 被调用，taskId:', taskId);
+          pullTaskId.value = taskId;
+          logLines.value.push('开始拉取镜像...');
+        },
+
+        // 进度回调
+        onProgress: (progress: number) => {
+          console.log('onProgress 被调用，progress:', progress);
+          pullProgress.value = progress;
+        },
+
+        // 日志回调
+        onLog: (data: any) => {
+          console.log('onLog 被调用，数据:', data);
+          logLines.value.push(data);
+        },
+
+        // 完成回调
+        onComplete: () => {
+          console.log('onComplete 被调用');
+          pullStatus.value = 'success';
+          logLines.value.push('镜像拉取完成');
+          completed.value = true;
+          MessagePlugin.success('镜像拉取成功');
+          setTimeout(() => {
+            isPulling.value = false;
+            pullImageDialogVisible.value = false;
+            fetchImages(); // 刷新镜像列表
+          }, 1500);
+        },
+
+        // 错误回调
+        onError: (error) => {
+          console.log('onError 被调用，错误:', error);
+          pullStatus.value = 'error';
+          logLines.value.push(`拉取失败: ${error}`);
+          completed.value = true;
+          MessagePlugin.error(`拉取镜像失败: ${error}`);
+          setTimeout(() => {
+            isPulling.value = false;
+            pullImageDialogVisible.value = false;
+          }, 3000);
+        },
+      },
+    );
+    console.log('pullImage API 调用完成');
+  } catch (error) {
+    console.error('拉取镜像出错:', error);
+    MessagePlugin.error(error instanceof Error ? error.message : '镜像拉取失败');
+    isPulling.value = false;
+    pullImageDialogVisible.value = false;
   }
+};
 
-  if (pullProgress.value >= 100) {
+// 修改取消拉取函数
+const handleCancelPull = async () => {
+  if (!pullTaskId.value) {
+    MessagePlugin.error('任务ID不存在');
+    return;
+  }
+  try {
+    await cancelImagePull(pullTaskId.value);
+    pullStatus.value = 'warning'; // 改为 warning 而不是 canceled
+    logLines.value.push('用户取消了拉取');
     completed.value = true;
+    MessagePlugin.warning('已取消拉取镜像');
+    setTimeout(() => {
+      isPulling.value = false;
+      pullImageDialogVisible.value = false;
+    }, 1500);
+  } catch (error) {
+    console.error('取消拉取失败:', error);
+    MessagePlugin.error('取消拉取失败');
   }
 };
 
@@ -739,9 +721,9 @@ const closePullDialog = () => {
   pullImageDialogVisible.value = false;
   isPulling.value = false;
   pullProgress.value = 0;
-  currentStage.value = '等待开始';
   logLines.value = [];
   completed.value = false;
+  pullTaskId.value = ''; // 清空任务ID
 };
 
 // 确认删除镜像
@@ -993,5 +975,154 @@ onUnmounted(() => {
 
 .scrollbar-container::-webkit-scrollbar-track {
   background-color: #f1f1f1;
+}
+
+/* 添加进度条样式 */
+.t-progress-domo-width {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.log-box {
+  background: #f7f8fa;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  border: 1px solid #e5e6eb;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  transition: min-height 0.2s;
+}
+.log-line {
+  margin-bottom: 2px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  word-break: break-all;
+  background: #fff;
+}
+
+/* 任务卡片风格样式 */
+.task-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  padding: 24px 24px 16px 24px;
+  min-width: 420px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.task-card-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.task-card-icon {
+  color: #0052d9;
+  margin-right: 16px;
+}
+.task-card-title {
+  flex: 1;
+}
+.task-card-title-main {
+  font-size: 18px;
+  font-weight: 600;
+  color: #222;
+}
+.task-card-title-sub {
+  font-size: 13px;
+  color: #888;
+  margin-top: 2px;
+}
+.task-card-progress-num {
+  font-size: 22px;
+  font-weight: bold;
+  color: #0052d9;
+  margin-left: 16px;
+  min-width: 56px;
+  text-align: right;
+}
+.task-card-log-box {
+  background: #f7f8fa;
+  border-radius: 6px;
+  padding: 10px 14px;
+  min-height: 36px;
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: 14px;
+  margin-bottom: 12px;
+  border: 1px solid #e5e6eb;
+  transition: min-height 0.2s;
+}
+.task-card-log-line {
+  color: #333;
+  line-height: 1.7;
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin-bottom: 2px;
+}
+.task-card-btns {
+  text-align: right;
+  margin-top: 4px;
+}
+
+/* 极简主次分明风格样式 */
+.pull-task-simple-card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 20px 20px 12px 20px;
+  min-width: 400px;
+  max-width: 540px;
+  margin: 0 auto;
+}
+.pull-task-header {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.pull-task-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #222;
+  margin-right: 12px;
+}
+.pull-task-image {
+  font-size: 13px;
+  color: #888;
+}
+.pull-task-progress-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.pull-task-progress-num {
+  font-size: 16px;
+  color: #0052d9;
+  font-weight: bold;
+  margin-left: 12px;
+  min-width: 40px;
+  text-align: right;
+}
+.pull-task-log-box {
+  background: #f7f8fa;
+  border-radius: 6px;
+  padding: 8px 12px;
+  min-height: 60px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 13px;
+  margin-bottom: 10px;
+  border: 1px solid #e5e6eb;
+}
+.pull-task-log-line {
+  color: #333;
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin-bottom: 2px;
+}
+.pull-task-btns {
+  text-align: right;
+  margin-top: 2px;
 }
 </style>

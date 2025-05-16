@@ -2,9 +2,11 @@ package com.dsm.service.http;
 
 import com.dsm.model.ImageInspectDTO;
 import com.dsm.model.ImageStatusDTO;
+import com.dsm.utils.MessageCallback;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 镜像服务接口
@@ -28,4 +30,7 @@ public interface ImageService {
      * @return 镜像详情信息
      */
     ImageInspectDTO getImageDetail(String imageName);
+
+    CompletableFuture<Void> pullImage(String image, String tag, MessageCallback callback);
+
 }

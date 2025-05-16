@@ -1,12 +1,12 @@
 package com.dsm.api;
 
-import com.dsm.config.AppConfig;
+import com.dsm.common.config.AppConfig;
 import com.dsm.model.ContainerCreateRequest;
 import com.dsm.model.ResourceUsageDTO;
-import com.dsm.utils.DockerStatsConverter;
 import com.dsm.utils.DockerInspectJsonGenerator;
+import com.dsm.utils.DockerStatsConverter;
 import com.dsm.utils.LogUtil;
-import com.dsm.utils.PullImageCallback;
+import com.dsm.utils.MessageCallback;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.dockerjava.api.command.CreateContainerCmd;
 import com.github.dockerjava.api.command.CreateContainerResponse;
@@ -22,6 +22,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -35,6 +37,9 @@ public class DockerService {
 
     @Resource
     private AppConfig appConfig;
+
+    @Resource
+    private DockerComposeWrapper dockerComposeWrapper;
 
     /**
      * 获取所有容器列表
@@ -551,88 +556,89 @@ public class DockerService {
      * @param tag      镜像标签
      * @param callback 进度回调
      */
-    public void pullImageWithSkopeo(String image, String tag, PullImageCallback callback) {
-        LogUtil.logSysInfo("开始使用 skopeo 拉取镜像: " + image + ":" + tag);
-        try {
-            // 构建完整的镜像名称
-            String fullImageName = tag != null && !tag.isEmpty() ? image + ":" + tag : image;
-            // 构建 skopeo 命令
-            List<String> command = new ArrayList<>();
-            command.add("skopeo");
-            command.add("copy");
-            // 添加源和目标
-            // 检查当前系统架构
-            String osName = System.getProperty("os.name").toLowerCase();
-            String osArch = System.getProperty("os.arch").toLowerCase();
-            // 只有在Mac的ARM架构(M系列芯片)上才需要指定架构参数
-            if (osName.contains("mac") && (osArch.contains("aarch64") || osArch.contains("arm64"))) {
-                LogUtil.logSysInfo("检测到Mac ARM架构，强制指定arm64/linux架构参数");
-                // 强制指定为amd64架构和linux系统，解决在Mac ARM芯片上的兼容性问题
-                command.add("--override-arch");
-                command.add("arm64");
-                command.add("--override-os");
-                command.add("linux");
-            }
-            command.add("docker://" + fullImageName);
-            command.add("docker-daemon:" + fullImageName);
-            // 执行命令
-            ProcessBuilder processBuilder = new ProcessBuilder(command);
-            // 设置代理（如果启用）
-            // 如果代理配置不为空就使用代理
-            String proxyUrl = appConfig.getProxyUrl();
-            if (proxyUrl != null && !proxyUrl.isBlank()) {
-                processBuilder.redirectErrorStream(true);
-                processBuilder.environment().put("HTTP_PROXY", proxyUrl);
-                processBuilder.environment().put("HTTPS_PROXY", proxyUrl);
-            }
-            processBuilder.redirectErrorStream(true);
-            // 打印完整命令行
-            LogUtil.logSysInfo("执行命令: " + String.join(" ", command) + ",是否使用代理 " + (proxyUrl != null && !proxyUrl.isBlank()));
-            Process process = processBuilder.start();
-            // 读取输出
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                int progress = 0;
-                while ((line = reader.readLine()) != null) {
-                    LogUtil.logSysInfo("skopeo: " + line);
-                    if (callback != null) {
-                        // 解析进度
+    public CompletableFuture<Void> pullImageWithSkopeo(String image, String tag, MessageCallback callback) {
+        return CompletableFuture.runAsync(() -> {
+
+            LogUtil.logSysInfo("开始使用 skopeo 拉取镜像: " + image + ":" + tag);
+            try {
+                String fullImageName = tag != null && !tag.isEmpty() ? image + ":" + tag : image;
+                List<String> command = new ArrayList<>();
+                command.add("skopeo");
+                command.add("copy");
+
+                // mac arm64 fix
+                String osName = System.getProperty("os.name").toLowerCase();
+                String osArch = System.getProperty("os.arch").toLowerCase();
+                if (osName.contains("mac") && (osArch.contains("aarch64") || osArch.contains("arm64"))) {
+                    command.add("--override-arch");
+                    command.add("arm64");
+                    command.add("--override-os");
+                    command.add("linux");
+                }
+
+                command.add("docker://" + fullImageName);
+                command.add("docker-daemon:" + fullImageName);
+
+                // 设置代理
+                String proxyUrl = appConfig.getProxyUrl();
+                ProcessBuilder pb = new ProcessBuilder(command);
+                if (proxyUrl != null && !proxyUrl.isBlank()) {
+                    pb.environment().put("HTTP_PROXY", proxyUrl);
+                    pb.environment().put("HTTPS_PROXY", proxyUrl);
+                }
+                pb.redirectErrorStream(true);
+
+                LogUtil.logSysInfo("执行命令: " + String.join(" ", command));
+                Process process = pb.start();
+
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    int progress = 0;
+                    while ((line = reader.readLine()) != null) {
+                        // 解析进度并回调
                         if (line.contains("Getting image source signatures")) {
                             progress = 10;
                         } else if (line.contains("Copying blob")) {
-                            progress = 30;
+                            progress = Math.min(progress + 2, 80); // 每次 +2，但最多到 80
                         } else if (line.contains("Copying config")) {
-                            progress = 70;
+                            progress = 80;
                         } else if (line.contains("Writing manifest")) {
-                            progress = 90;
-                        } else if (line.contains("Storing signatures")) {
                             progress = 100;
+                        }else if (line.contains("timeout")) {
+                            line = "网络链接错误，请配置代理或增加加速地址";
                         }
-                        callback.onProgress(progress, line);
+                        if (callback != null) {
+                            callback.onProgress(progress); // 进度回调
+                            callback.onLog(line); // 日志回调
+                        }
                     }
                 }
-            }
-            // 等待命令完成
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                String error = "skopeo 命令执行失败，退出码: " + exitCode;
-                if (callback != null) {
-                    callback.onError(error);
+
+                int exitCode = process.waitFor();
+                if (exitCode != 0) {
+                    String error = "skopeo 命令执行失败，退出码: " + exitCode;
+                    if (callback != null) {
+                        callback.onError(error); // 错误回调
+                    }
+                    throw new RuntimeException(error);
                 }
-                throw new RuntimeException(error);
+
+                if (callback != null) {
+                    callback.onComplete(); // 完成回调
+                }
+
+                LogUtil.logSysInfo("镜像拉取完成: " + fullImageName);
+            } catch (Exception e) {
+                String errorMessage = "使用 skopeo 拉取镜像失败: " + e.getMessage();
+                LogUtil.logSysError(errorMessage);
+                if (callback != null) {
+                    callback.onError(errorMessage); // 错误回调
+                }
+                throw new RuntimeException(errorMessage);
             }
-            LogUtil.logSysInfo("镜像拉取完成: " + fullImageName);
-            if (callback != null) {
-                callback.onComplete();
-            }
-        } catch (Exception e) {
-            LogUtil.logSysError("使用 skopeo 拉取镜像失败: " + e.getMessage());
-            if (callback != null) {
-                callback.onError(e.getMessage());
-            }
-            throw new RuntimeException("使用 skopeo 拉取镜像失败: " + e.getMessage());
-        }
+        });
     }
+
 
     /**
      * 拉取Docker镜像（支持WebSocket回调）
@@ -641,7 +647,7 @@ public class DockerService {
      * @param tag      镜像标签
      * @param callback 进度回调
      */
-    public void pullImage(String image, String tag, PullImageCallback callback) {
+    public void pullImage(String image, String tag, MessageCallback callback) {
         /**
          * 这里其实需要多种返回，使用代理，使用镜像加速，什么都不用
          */
@@ -680,6 +686,47 @@ public class DockerService {
 
         InspectContainerResponse containerInfo = dockerClientWrapper.inspectContainerCmd(containerId);
         return DockerInspectJsonGenerator.generateJsonFromContainerInfo(containerInfo);
+    }
+
+    /**
+     * 使用 Compose 部署容器
+     *
+     * @param projectName 项目名称
+     * @param composeContent Compose 配置内容
+     * @return 部署结果
+     */
+    public String deployWithCompose(String projectName, String composeContent) {
+        return dockerComposeWrapper.deployCompose(projectName, composeContent);
+    }
+
+    /**
+     * 使用 Compose 更新容器
+     *
+     * @param projectName 项目名称
+     * @param composeContent 新的 Compose 配置内容
+     * @return 更新结果
+     */
+    public String updateWithCompose(String projectName, String composeContent) {
+        return dockerComposeWrapper.updateCompose(projectName, composeContent);
+    }
+
+    /**
+     * 使用 Compose 删除容器
+     *
+     * @param projectName 项目名称
+     */
+    public void removeWithCompose(String projectName) {
+        dockerComposeWrapper.removeCompose(projectName);
+    }
+
+    /**
+     * 获取 Compose 项目状态
+     *
+     * @param projectName 项目名称
+     * @return 项目状态信息
+     */
+    public Map<String, Object> getComposeStatus(String projectName) {
+        return dockerComposeWrapper.getComposeStatus(projectName);
     }
 
 }

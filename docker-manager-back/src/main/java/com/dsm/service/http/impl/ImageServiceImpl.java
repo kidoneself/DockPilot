@@ -1,13 +1,13 @@
 package com.dsm.service.http.impl;
 
 import com.dsm.api.DockerService;
-import com.dsm.config.AppConfig;
-import com.dsm.exception.BusinessException;
+import com.dsm.common.config.AppConfig;
+import com.dsm.common.exception.BusinessException;
 import com.dsm.mapper.ImageStatusMapper;
 import com.dsm.model.*;
 import com.dsm.service.http.ImageService;
 import com.dsm.utils.LogUtil;
-import com.dsm.utils.PullImageCallback;
+import com.dsm.utils.MessageCallback;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.GraphDriver;
 import com.github.dockerjava.api.command.InspectImageResponse;
@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -38,7 +39,6 @@ import java.util.stream.Collectors;
 @Service
 public class ImageServiceImpl implements ImageService {
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    // 存储镜像拉取任务和进度信息
     @Resource
     private DockerService dockerService;
     @Resource
@@ -113,36 +113,40 @@ public class ImageServiceImpl implements ImageService {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            // 获取远程镜像创建时间
-            String remoteCreateTime = getRemoteImageCreateTime(imageName, tag);
+//            // 获取远程镜像创建时间
+//            String remoteCreateTime = getRemoteImageCreateTime(imageName, tag);
+//
+//            // 拉取镜像
+////            StringBuilder pullOutput = new StringBuilder();
+//            dockerService.pullImage(imageName, tag, new PullImageCallback() {
+//                @Override
+//                public void onProgress(int progress) {
+//                    super();
+//                }
+//
+//                @Override
+//                public void onLog(String log) {
+//                    super
+//                }
+//
+//                @Override
+//                public void onComplete() {
+//                    super
+//                }
+//
+//                @Override
+//                public void onError(String error) {
+//                    super
+//                }
+//            });
+//
+//            // 同步本地镜像信息到数据库，
+//            syncLocalImageToDb(imageName, tag);
 
-            // 拉取镜像
-            StringBuilder pullOutput = new StringBuilder();
-            dockerService.pullImage(imageName, tag, new PullImageCallback() {
-                @Override
-                public void onProgress(int progress, String status) {
-                    pullOutput.append(status).append("\n");
-                    LogUtil.logSysInfo("拉取进度: " + status);
-                }
-
-                @Override
-                public void onComplete() {
-                    LogUtil.logSysInfo("镜像拉取完成");
-                }
-
-                @Override
-                public void onError(String error) {
-                    LogUtil.logSysError("镜像拉取失败: " + error);
-                }
-            });
-
-            // 同步本地镜像信息到数据库，
-            syncLocalImageToDb(imageName, tag);
-
-            result.put("success", true);
-            result.put("message", "镜像开始更新");
-            result.put("remoteCreateTime", remoteCreateTime);
-            result.put("pull_output", pullOutput.toString());
+//            result.put("success", true);
+//            result.put("message", "镜像开始更新");
+//            result.put("remoteCreateTime", remoteCreateTime);
+//            result.put("pull_output", pullOutput.toString());
 
             return result;
         } catch (Exception e) {
@@ -491,10 +495,8 @@ public class ImageServiceImpl implements ImageService {
     }
 
     @Override
-    public ImageInspectDTO getImageDetail(String imageName) {
-        InspectImageResponse response = dockerService.getInspectImage(imageName);
-
-
+    public ImageInspectDTO getImageDetail(String imageId) {
+        InspectImageResponse response = dockerService.getInspectImage(imageId);
         ImageInspectDTO imageInspectDTO = new ImageInspectDTO();
         imageInspectDTO.setId(response.getId());
         imageInspectDTO.setParent(response.getParent());
@@ -637,27 +639,11 @@ public class ImageServiceImpl implements ImageService {
         return imageInspectDTO;
     }
 
-
-    /**
-     * 通过WebSocket发送进度消息
-     *
-     * @param taskId       任务ID
-     * @param progressData 进度数据
-     */
-    private void sendPullProgressMessage(String taskId, Map<String, Object> progressData) {
-        try {
-            // 创建一个副本，避免ConcurrentModificationException
-            Map<String, Object> dataCopy = new HashMap<>(progressData);
-
-            // 添加时间戳，确保每次消息都有变化
-            dataCopy.put("timestamp", System.currentTimeMillis());
-
-            // 发送到特定任务的WebSocket主题
-//            messagingTemplate.convertAndSend("/topic/image/pull/" + taskId, dataCopy);
-
-            LogUtil.logSysInfo("已发送进度消息: 任务=" + taskId + ", 进度=" + dataCopy.get("progress") + "%, 状态=" + dataCopy.get("status"));
-        } catch (Exception e) {
-            LogUtil.logSysError("发送WebSocket消息失败: " + e.getMessage());
-        }
+    @Override
+    public CompletableFuture<Void> pullImage(String image, String tag, MessageCallback callback) {
+        return dockerService.pullImageWithSkopeo(image, tag, callback);
     }
+
+
+
 }

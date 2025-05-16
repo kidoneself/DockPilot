@@ -109,6 +109,31 @@ export interface ImageInfo {
 
 export type ImageListResponse = ImageInfo[];
 
+export interface ImageDetailResponse {
+  id: string;
+  name: string;
+  tag: string;
+  size: number;
+  created: Date;
+  localCreateTime: string;
+  remoteCreateTime: string;
+  needUpdate: boolean;
+  lastChecked: Date;
+  labels: Record<string, string>;
+  config: {
+    cmd: string[];
+    entrypoint: string[];
+    env: string[];
+    exposedPorts: Record<string, any>;
+    volumes: Record<string, any>;
+    workingDir: string;
+  };
+  layers: string[];
+  parent: string;
+  repoDigests: string[];
+  repoTags: string[];
+}
+
 export interface NetworkInfo {
   id: string;
   name: string;

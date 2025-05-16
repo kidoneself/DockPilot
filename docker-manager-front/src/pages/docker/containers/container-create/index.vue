@@ -607,13 +607,24 @@ const handleCreateContainer = async (context: SubmitContext) => {
     try {
       creating.value = true;
       const request = mapFormDataToRequest(formData.value);
-      const res = await createContainer(request);
-      containerId.value = res.data;
-      activeForm.value = 6;
-      MessagePlugin.success('容器创建成功');
+      const res = await createContainer(request, {
+        onProgress: (progress) => {
+          console.log(`[创建容器] 进度更新: ${progress}%`);
+        },
+        onLog: (data) => {
+          console.log(`[创建容器] 日志: ${data}`);
+        },
+        onComplete: () => {
+          MessagePlugin.success('容器创建完成');
+          activeForm.value = 6;
+        },
+        onError: (errMsg) => {
+          MessagePlugin.error(errMsg);
+        }
+      });
+      containerId.value = res;
     } catch (error) {
       console.error('创建容器失败:', error);
-      MessagePlugin.error(String(error instanceof Error ? error.message : '创建容器失败'));
     } finally {
       creating.value = false;
     }

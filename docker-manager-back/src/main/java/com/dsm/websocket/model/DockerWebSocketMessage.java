@@ -1,6 +1,7 @@
 package com.dsm.websocket.model;
 
 import com.alibaba.fastjson.JSON;
+import com.dsm.model.MessageType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -13,7 +14,7 @@ import java.io.Serializable;
  * 包含消息类型、任务 ID、消息体、时间戳等字段。
  *
  * @author dsm
- * @version 1.2
+ * @version 1.3
  * @since 2024-03-21
  */
 @Data
@@ -47,12 +48,6 @@ public class DockerWebSocketMessage implements Serializable {
     private long timestamp;
 
     /**
-     * 消息状态
-     */
-    @Schema(description = "消息状态", example = "SUCCESS")
-    private String status;
-
-    /**
      * 错误信息
      */
     @Schema(description = "错误信息")
@@ -69,28 +64,19 @@ public class DockerWebSocketMessage implements Serializable {
      */
     public DockerWebSocketMessage() {
         this.timestamp = System.currentTimeMillis();
-        this.status = "PROCESSING";
         this.progress = 0;
     }
 
     /**
      * 构造函数
-     *
-     * @param type   消息类型
-     * @param taskId 任务ID
-     * @param data   消息数据
      */
     public DockerWebSocketMessage(String type, String taskId, Object data) {
         this.type = type;
         this.taskId = taskId;
         this.data = data;
         this.timestamp = System.currentTimeMillis();
-//        this.status = "PROCESSING";
-//        this.progress = 0;
+        this.progress = 0;
     }
-
-
-
 
     public String toJson() {
         return JSON.toJSONString(this);
@@ -104,10 +90,9 @@ public class DockerWebSocketMessage implements Serializable {
     }
 
     /**
-     * 设置成功状态
+     * 设置成功状态（即进度100）
      */
     public DockerWebSocketMessage success() {
-        this.status = "SUCCESS";
         this.progress = 100;
         return this;
     }
@@ -116,7 +101,6 @@ public class DockerWebSocketMessage implements Serializable {
      * 设置错误状态
      */
     public DockerWebSocketMessage error(String errorMessage) {
-        this.status = "ERROR";
         this.errorMessage = errorMessage;
         return this;
     }
@@ -132,14 +116,28 @@ public class DockerWebSocketMessage implements Serializable {
     /**
      * 快速创建成功消息
      */
-    public static DockerWebSocketMessage ok(String type, String taskId, Object data) {
-        return new DockerWebSocketMessage(type, taskId, data).success();
+    public static DockerWebSocketMessage complete(String taskId, Object data) {
+        return new DockerWebSocketMessage(MessageType.COMPLETE.name(), taskId, data).success();
     }
 
     /**
      * 快速创建失败消息
      */
-    public static DockerWebSocketMessage fail(String type, String taskId, String errorMessage) {
-        return new DockerWebSocketMessage(type, taskId, null).error(errorMessage);
+    public static DockerWebSocketMessage fail(String taskId, String errorMessage) {
+        return new DockerWebSocketMessage(MessageType.ERROR.name(), taskId, null).error(errorMessage);
     }
-} 
+
+    /**
+     * 快速创建进度消息
+     */
+    public static DockerWebSocketMessage progress(String taskId, Integer progress) {
+        return new DockerWebSocketMessage(MessageType.PROGRESS.name(), taskId, null).updateProgress(progress);
+    }
+
+    /**
+     * 快速创建日志消息
+     */
+    public static DockerWebSocketMessage log(String taskId, String logMessage) {
+        return new DockerWebSocketMessage(MessageType.LOG.name(), taskId, logMessage);
+    }
+}

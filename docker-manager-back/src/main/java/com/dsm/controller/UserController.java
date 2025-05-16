@@ -1,6 +1,6 @@
 package com.dsm.controller;
 
-import com.dsm.annotation.Anonymous;
+import com.dsm.common.annotation.Anonymous;
 import com.dsm.model.dto.ChangePasswordRequest;
 import com.dsm.model.dto.LoginRequest;
 import com.dsm.model.User;

@@ -1,7 +1,7 @@
 package com.dsm.api;
 
-import com.dsm.config.DockerConfig;
-import com.dsm.exception.DockerErrorResolver;
+import com.dsm.common.config.DockerConfig;
+import com.dsm.common.exception.DockerErrorResolver;
 import com.dsm.utils.ContainerCmdFactory;
 import com.dsm.utils.LogUtil;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,7 +15,6 @@ import com.github.dockerjava.core.InvocationBuilder;
 import com.github.dockerjava.core.command.LogContainerResultCallback;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;

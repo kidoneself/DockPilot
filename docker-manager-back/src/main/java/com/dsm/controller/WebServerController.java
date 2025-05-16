@@ -1,6 +1,6 @@
 package com.dsm.controller;
 
-import com.dsm.annotation.Anonymous;
+import com.dsm.common.annotation.Anonymous;
 import com.dsm.model.dto.WebServerDTO;
 import com.dsm.service.http.WebServerService;
 import com.dsm.utils.ApiResponse;

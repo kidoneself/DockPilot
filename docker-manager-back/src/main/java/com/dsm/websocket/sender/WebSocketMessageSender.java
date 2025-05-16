@@ -41,14 +41,28 @@ public class WebSocketMessageSender {
      * @param session  WebSocket会话
      * @param taskId   任务ID
      * @param progress 进度（0-100）
-     * @param message  进度消息
      */
-    public void sendProgress(WebSocketSession session, String taskId, int progress, String message) {
+    public void sendProgress(WebSocketSession session, String taskId, int progress) {
         try {
-            Map<String, Object> data = new HashMap<>();
-            data.put("progress", progress);
-            data.put("message", message);
-            sendMessage(session, MessageType.PROGRESS, taskId, data);
+            DockerWebSocketMessage fail = DockerWebSocketMessage.progress(taskId, progress);
+            session.sendMessage(new TextMessage(fail.toJson()));
+        } catch (Exception e) {
+            log.error("发送进度消息失败: taskId={}", taskId, e);
+        }
+    }
+
+
+    /**
+     * 发送日志消息
+     *
+     * @param session WebSocket会话
+     * @param taskId  任务ID
+     * @param logMessage    进度（0-100）
+     */
+    public void sendLog(WebSocketSession session, String taskId, String logMessage) {
+        try {
+            DockerWebSocketMessage log = DockerWebSocketMessage.log(taskId, logMessage);
+            session.sendMessage(new TextMessage(log.toJson()));
         } catch (Exception e) {
             log.error("发送进度消息失败: taskId={}", taskId, e);
         }
@@ -63,7 +77,7 @@ public class WebSocketMessageSender {
      */
     public void sendError(WebSocketSession session, String taskId, String errorMessage) {
         try {
-            DockerWebSocketMessage fail = DockerWebSocketMessage.fail(MessageType.ERROR.name(), taskId, errorMessage);
+            DockerWebSocketMessage fail = DockerWebSocketMessage.fail(taskId, errorMessage);
             session.sendMessage(new TextMessage(fail.toJson()));
         } catch (Exception e) {
             log.error("发送错误消息失败: taskId={}", taskId, e);

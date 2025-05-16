@@ -9,24 +9,15 @@ export enum WebSocketMessageType {
   // 系统消息
   HEARTBEAT = 'HEARTBEAT',
   HEARTBEAT_RESPONSE = 'HEARTBEAT_RESPONSE',
-  ERROR = 'ERROR',
+
   TEST_NOTIFY = 'TEST_NOTIFY',
   TEST_NOTIFY_RESPONSE = 'TEST_NOTIFY_RESPONSE',
- /**
-     * 进度消息
-     */
- PROGRESS='PROGRESS',
 
- /**
-  * 开始消息
-  */
- START='START',
-
- /**
-  * 完成消息
-  */
+  PROGRESS='PROGRESS',
+  START='START',
   COMPLETE='COMPLETE',
-
+  ERROR = 'ERROR',
+  LOG = 'LOG',
 
 
   
@@ -139,7 +130,9 @@ export interface DockerWebSocketCallbacks {
   /** 任务开始回调 */
   onStart?: (taskId: string) => void;
   /** 进度更新回调 */
-  onProgress?: (progress: PullImageProgress) => void;
+  onProgress?: (progress: number) => void;
+  /** 日志回调 */
+  onLog?: (data: any) => void;
   /** 任务完成回调 */
   onComplete?: () => void;
   /** 错误回调 */
@@ -200,4 +193,42 @@ export interface ImageOperationResult {
   imageId: string;
   /** 操作类型 */
   operation: 'delete' | 'update' | 'pull';
-} 
+}
+
+/**
+ * WebSocket 请求选项定义
+ */
+export interface WebSocketRequestOptions {
+  /** 消息类型（用于区分业务行为） */
+  type: WebSocketMessageType;
+  /** 要发送的数据 */
+  data: any;
+  /** 任务开始时的回调 */
+  onStart?: (taskId: string) => void;
+  /** 任务进度更新（0-100） */
+  onProgress?: (progress: number) => void;
+  /** 后端标记 status 为 PROCESSING 时的中间数据回调 */
+  onLog?: (data: any) => void;
+  /** 任务完成时回调（type 为 COMPLETE） */
+  onComplete?: (data: any) => void;
+  /** 任务失败或异常时的回调 */
+  onError?: (error: string) => void;
+  /** 超时触发时间（毫秒） */
+  timeout?: number;
+  /** 超时触发后的回调 */
+  onTimeout?: () => void;
+}
+
+/**
+ * WebSocket 响应消息结构
+ */
+export interface WebSocketResponse {
+  type: WebSocketMessageType;
+  taskId: string;
+  data: any;
+  timestamp: number;
+  errorMessage?: string;
+  progress?: number;
+  /** 可选：处理中状态，如构建中、导入中等 */
+  status?: string;
+}

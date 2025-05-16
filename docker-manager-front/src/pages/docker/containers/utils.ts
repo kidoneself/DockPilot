@@ -44,24 +44,6 @@ export const getStatusText = (state: ContainerState): string => {
   return textMap[state] || '未知';
 };
 
-// 获取容器状态颜色
-export const getStatusColor = (state: ContainerState): string => {
-  const colorMap: Record<ContainerState, string> = {
-    running: 'var(--td-success-color)',
-    exited: 'var(--td-warning-color)',
-    created: 'var(--td-primary-color)',
-    paused: 'var(--td-gray-color-6)',
-    restarting: 'var(--td-primary-color)',
-  };
-  return colorMap[state] || 'var(--td-gray-color-6)';
-};
-
-// 获取容器名称首字母
-export const getContainerInitial = (name: string | undefined): string => {
-  if (!name) return '?';
-  const cleanName = name.replace('/', '');
-  return cleanName.charAt(0).toUpperCase();
-};
 
 /**
  * 处理容器操作

@@ -5,12 +5,12 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.dsm.api.DockerService;
 import com.dsm.mapper.TemplateMapper;
-import com.dsm.model.NetworkInfoDTO;
+import com.dsm.model.MessageType;
 import com.dsm.model.Template;
+import com.dsm.service.http.ImageService;
 import com.dsm.service.http.NetworkService;
 import com.dsm.utils.JsonPlaceholderReplacerUtil;
-import com.dsm.utils.PullImageCallback;
-import com.dsm.model.MessageType;
+import com.dsm.utils.MessageCallback;
 import com.dsm.websocket.model.DockerWebSocketMessage;
 import com.dsm.websocket.sender.WebSocketMessageSender;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -61,9 +61,12 @@ public class AppStoreService implements BaseService {
 
     @Autowired
     private NetworkService networkService;
+    @Autowired
+    private ImageService imageService;
 
     /**
      * 处理WebSocket消息的主入口方法
+     *
      * @param session WebSocket会话
      * @param message 接收到的消息
      */
@@ -73,36 +76,72 @@ public class AppStoreService implements BaseService {
         String taskId = message.getTaskId();
 
         try {
-            // 发送开始消息
-            messageSender.sendStart(session, taskId, "开始处理" + type.name() + "消息");
 
             // 处理消息
+            Object result = null;
             switch (type) {
                 // 安装相关
                 case INSTALL_CHECK_IMAGES:    // 检查安装所需的镜像
-                    handleInstallCheckImages(session, message);
+                    result = handleInstallCheckImages(message);
                     break;
                 case INSTALL_VALIDATE:        // 验证安装参数
-                    handleInstallValidate(session, message);
+                    result = handleInstallValidate(message);
                     break;
                 case INSTALL_START:           // 开始安装
-                    handleInstallStart(session, message);
+                    result = handleInstallStart(session, message);
                     break;
                 case INSTALL_LOG:             // 安装日志
-                    handleInstallLog(session, message);
+                    result = handleInstallLog(session, message);
                     break;
-                case PULL_IMAGE:              // 拉取镜像
-                    handlePullImage(session, message);
+                case PULL_IMAGE:
+                    CompletableFuture.runAsync(() -> {
+                        CompletableFuture<Void> pullFuture = handlePullImage(message, new MessageCallback() {
+                            @Override
+                            public void onProgress(int progress) {
+                                // 处理进度
+                                System.out.println("进度: " + progress + "%");
+                                messageSender.sendProgress(session, taskId, progress);
+                            }
+
+                            @Override
+                            public void onLog(String log) {
+                                // 处理日志
+                                System.out.println("日志: " + log);
+                                messageSender.sendLog(session, taskId, log);
+                            }
+
+                            @Override
+                            public void onComplete() {
+                                // 完成时的操作
+                                System.out.println("镜像拉取完成！");
+                                messageSender.sendComplete(session, taskId, true);
+                            }
+
+                            @Override
+                            public void onError(String error) {
+                                // 错误时的操作
+                                System.err.println("错误: " + error);
+                                messageSender.sendError(session, taskId, error);
+                            }
+                        });
+
+                        pullFuture.thenRun(() -> {
+                            messageSender.sendComplete(session, taskId, null); // 拉取完成
+                        }).exceptionally(ex -> {
+                            messageSender.sendError(session, taskId, ex.getMessage()); // 错误处理
+                            return null;
+                        });
+                    });
                     break;
                 // 模板相关
                 case NETWORK_LIST:            // 获取网络列表
-                    handleNetworkList(session, taskId);
+                    result = handleNetworkList();
                     break;
                 case IMPORT_TEMPLATE:         // 导入模板
-                    handleImportTemplate(session, taskId, message);
+                    result = handleImportTemplate(message);
                     break;
                 case DELETE_TEMPLATE:         // 删除模板
-                    handleDeleteTemplate(session, taskId, message);
+                    result = handleDeleteTemplate(message);
                     break;
 
                 default:
@@ -110,7 +149,7 @@ public class AppStoreService implements BaseService {
             }
 
             // 发送完成消息
-            messageSender.sendComplete(session, taskId, null);
+            messageSender.sendComplete(session, taskId, result);
         } catch (Exception e) {
             log.error("处理应用商店消息时发生错误: {}", type, e);
             messageSender.sendError(session, taskId, e.getMessage());
@@ -119,52 +158,46 @@ public class AppStoreService implements BaseService {
 
     /**
      * 处理检查镜像是否存在的请求
-     * @param session WebSocket会话
+     *
      * @param message WebSocket消息
      */
-    private void handleInstallCheckImages(WebSocketSession session, DockerWebSocketMessage message) {
-        try {
-            @SuppressWarnings("unchecked") Map<String, Object> data = (Map<String, Object>) message.getData();
-            JSONArray images = (JSONArray) data.get("images");
+    private Object handleInstallCheckImages(DockerWebSocketMessage message) {
+        @SuppressWarnings("unchecked") Map<String, Object> data = (Map<String, Object>) message.getData();
+        JSONArray images = (JSONArray) data.get("images");
 
-            List<Map<String, Object>> results = new ArrayList<>();
+        List<Map<String, Object>> results = new ArrayList<>();
 
-            for (Object obj : images) {
-                JSONObject image = (JSONObject) obj;
-                String imageName = image.getString("name");
-                String tag = image.getString("tag");
-                String fullImageName = tag != null && !tag.isEmpty() ? imageName + ":" + tag : imageName;
+        for (Object obj : images) {
+            JSONObject image = (JSONObject) obj;
+            String imageName = image.getString("name");
+            String tag = image.getString("tag");
+            String fullImageName = tag != null && !tag.isEmpty() ? imageName + ":" + tag : imageName;
 
-                Map<String, Object> result = new HashMap<>();
-                result.put("name", imageName);
-                result.put("tag", tag);
+            Map<String, Object> result = new HashMap<>();
+            result.put("name", imageName);
+            result.put("tag", tag);
 
-                try {
-                    // 尝试获取镜像信息，如果成功则说明镜像存在
-                    dockerService.getInspectImage(fullImageName);
-                    result.put("exists", true);
-                } catch (Exception e) {
-                    result.put("exists", false);
-                    result.put("error", e.getMessage());
-                }
-
-                results.add(result);
+            try {
+                // 尝试获取镜像信息，如果成功则说明镜像存在
+                dockerService.getInspectImage(fullImageName);
+                result.put("exists", true);
+            } catch (Exception e) {
+                result.put("exists", false);
+                result.put("error", e.getMessage());
             }
 
-            // 发送检查结果
-            messageSender.sendMessage(session, MessageType.OPERATION_RESULT, message.getTaskId(), results);
-        } catch (Exception e) {
-            log.error("检查镜像失败", e);
-            messageSender.sendError(session, message.getTaskId(), "检查镜像失败: " + e.getMessage());
+            results.add(result);
         }
+
+        return results;
     }
 
     /**
      * 处理安装参数验证的请求
-     * @param session WebSocket会话
+     *
      * @param message WebSocket消息
      */
-    private void handleInstallValidate(WebSocketSession session, DockerWebSocketMessage message) {
+    private Object handleInstallValidate(DockerWebSocketMessage message) {
         try {
             @SuppressWarnings("unchecked") Map<String, Object> params = (Map<String, Object>) message.getData();
             List<Map<String, Object>> results = new ArrayList<>();
@@ -176,13 +209,7 @@ public class AppStoreService implements BaseService {
                 for (Map<String, Object> port : ports) {
                     String portStr = port.get("hostPort").toString().trim();
                     int hostPort = Integer.parseInt(portStr);
-                    checkCommand.append("nc -z 127.0.0.1 ").append(hostPort).append(" >/dev/null 2>&1; ")
-                            .append("code=$?; ")
-                            .append("if [ $code -eq 0 ]; then ")
-                            .append("echo '::type=port::port=").append(hostPort).append("::status=1::message=Host port is in use'; ")
-                            .append("else ")
-                            .append("echo '::type=port::port=").append(hostPort).append("::status=0::message=Host port is available'; ")
-                            .append("fi; ");
+                    checkCommand.append("nc -z 127.0.0.1 ").append(hostPort).append(" >/dev/null 2>&1; ").append("code=$?; ").append("if [ $code -eq 0 ]; then ").append("echo '::type=port::port=").append(hostPort).append("::status=1::message=Host port is in use'; ").append("else ").append("echo '::type=port::port=").append(hostPort).append("::status=0::message=Host port is available'; ").append("fi; ");
                 }
             }
 
@@ -191,18 +218,7 @@ public class AppStoreService implements BaseService {
                 for (Map<String, Object> path : paths) {
                     String hostPath = path.get("hostPath").toString().trim();
                     String target = "/host" + hostPath;
-                    checkCommand.append("[ -d ").append(target).append(" ] && dir=0 || dir=1; ")
-                            .append("[ -r ").append(target).append(" ] && read=0 || read=1; ")
-                            .append("[ -w ").append(target).append(" ] && write=0 || write=1; ")
-                            .append("if [ $dir -eq 0 ] && [ $read -eq 0 ] && [ $write -eq 0 ]; then ")
-                            .append("echo '::type=path::path=").append(hostPath).append("::status=0::message=Path is valid and accessible'; ")
-                            .append("else ")
-                            .append("msg=\"\"; ")
-                            .append("if [ $dir -ne 0 ]; then msg=\"$msg Path does not exist;\"; fi; ")
-                            .append("if [ $read -ne 0 ]; then msg=\"$msg Not readable;\"; fi; ")
-                            .append("if [ $write -ne 0 ]; then msg=\"$msg Not writable;\"; fi; ")
-                            .append("echo '::type=path::path=").append(hostPath).append("::status=1::message='$msg''; ")
-                            .append("fi; ");
+                    checkCommand.append("[ -d ").append(target).append(" ] && dir=0 || dir=1; ").append("[ -r ").append(target).append(" ] && read=0 || read=1; ").append("[ -w ").append(target).append(" ] && write=0 || write=1; ").append("if [ $dir -eq 0 ] && [ $read -eq 0 ] && [ $write -eq 0 ]; then ").append("echo '::type=path::path=").append(hostPath).append("::status=0::message=Path is valid and accessible'; ").append("else ").append("msg=\"\"; ").append("if [ $dir -ne 0 ]; then msg=\"$msg Path does not exist;\"; fi; ").append("if [ $read -ne 0 ]; then msg=\"$msg Not readable;\"; fi; ").append("if [ $write -ne 0 ]; then msg=\"$msg Not writable;\"; fi; ").append("echo '::type=path::path=").append(hostPath).append("::status=1::message='$msg''; ").append("fi; ");
                 }
             }
 
@@ -239,20 +255,19 @@ public class AppStoreService implements BaseService {
                     results.add(result);
                 }
             }
-
-            messageSender.sendMessage(session, MessageType.OPERATION_RESULT, message.getTaskId(), results);
+            return results;
         } catch (Exception e) {
-            log.error("Parameter validation failed", e);
-            messageSender.sendError(session, message.getTaskId(), "Parameter validation failed: " + e.getMessage());
+            return Collections.emptyList();
         }
     }
 
     /**
      * 处理开始安装应用的请求
+     *
      * @param session WebSocket会话
      * @param message WebSocket消息
      */
-    private void handleInstallStart(WebSocketSession session, DockerWebSocketMessage message) {
+    private Object handleInstallStart(WebSocketSession session, DockerWebSocketMessage message) {
         @SuppressWarnings("unchecked") Map<String, Object> data = (Map<String, Object>) message.getData();
         String appId = (String) data.get("appId");
         @SuppressWarnings("unchecked") Map<String, String> params = (Map<String, String>) data.get("params");
@@ -265,7 +280,7 @@ public class AppStoreService implements BaseService {
         String templateJson = getApplicationTemplate(appId);
         if (templateJson == null) {
             messageSender.sendError(session, message.getTaskId(), "应用模板不存在");
-            return;
+            return null;
         }
         messageSender.sendMessage(session, MessageType.INSTALL_LOG, message.getTaskId(), Map.of("level", "success", "message", "成功获取应用模板"));
 
@@ -288,17 +303,17 @@ public class AppStoreService implements BaseService {
         JsonNode servicesNode = jsonNode.get("services");
         if (servicesNode == null) {
             messageSender.sendError(session, message.getTaskId(), "模板中未找到 services 配置");
-            return;
+            return Collections.emptyList();
         }
 
         if (!servicesNode.isArray()) {
             messageSender.sendError(session, message.getTaskId(), "services 配置格式错误，应为对象类型");
-            return;
+            return Collections.emptyList();
         }
 
         if (servicesNode.isEmpty()) {
             messageSender.sendError(session, message.getTaskId(), "services 配置为空，未定义任何服务");
-            return;
+            return Collections.emptyList();
         }
 
         messageSender.sendMessage(session, MessageType.INSTALL_LOG, message.getTaskId(), Map.of("level", "info", "message", "开始处理服务配置..."));
@@ -375,81 +390,64 @@ public class AppStoreService implements BaseService {
         // 发送处理后的模板
         messageSender.sendMessage(session, MessageType.INSTALL_START_RESULT, message.getTaskId(), Map.of("success", true, "message", "模板处理成功", "template", JSON.parseObject(processedTemplate)));
         messageSender.sendMessage(session, MessageType.INSTALL_LOG, message.getTaskId(), Map.of("level", "success", "message", "所有服务配置处理完成"));
+        return null;
     }
 
     /**
      * 处理安装日志的请求
+     *
      * @param session WebSocket会话
      * @param message WebSocket消息
      */
-    private void handleInstallLog(WebSocketSession session, DockerWebSocketMessage message) {
+    private Object handleInstallLog(WebSocketSession session, DockerWebSocketMessage message) {
         // TODO: 实现安装日志
+        return null;
     }
 
     /**
      * 处理拉取镜像的请求
-     * @param session WebSocket会话
+     *
      * @param message WebSocket消息
      */
-    private void handlePullImage(WebSocketSession session, DockerWebSocketMessage message) {
-        @SuppressWarnings("unchecked") Map<String, Object> data = (Map<String, Object>) message.getData();
-        String imageName = (String) data.get("imageName");
+    private CompletableFuture<Void> handlePullImage(DockerWebSocketMessage message, MessageCallback callback) {
+        Map<String, Object> data = (Map<String, Object>) message.getData();
+        String fullImageName = (String) data.get("imageName");
         String taskId = message.getTaskId();
 
-        // 发送开始消息
-        messageSender.sendMessage(session, MessageType.PULL_START, taskId, Map.of("imageName", imageName));
+        // 拆解 imageName 为 repo 和 tag
+        String repo, tag;
+        if (fullImageName.contains(":")) {
+            String[] parts = fullImageName.split(":", 2);
+            repo = parts[0];
+            tag = parts[1];
+        } else {
+            repo = fullImageName;
+            tag = "latest";
+        }
 
-        // 异步执行拉取操作
-        CompletableFuture.runAsync(() -> {
-            try {
-                // 解析镜像名称和标签
-                String[] parts = imageName.split(":");
-                String image = parts[0];
-                String tag = parts.length > 1 ? parts[1] : "latest";
+        // 通知开始
+        if (callback != null) {
+            callback.onProgress(0);  // 初始进度为0
+            callback.onLog("开始拉取镜像: " + repo + ":" + tag);
+        }
 
-                // 使用DockerService的pullImage方法
-                dockerService.pullImage(image, tag, new PullImageCallback() {
-                    @Override
-                    public void onProgress(int progress, String status) {
-                        // 发送进度消息
-                        messageSender.sendMessage(session, MessageType.PULL_PROGRESS, taskId, Map.of("progress", progress, "status", status));
-                    }
-
-                    @Override
-                    public void onComplete() {
-                        // 发送完成消息
-                        messageSender.sendMessage(session, MessageType.PULL_COMPLETE, taskId, Map.of("status", "success"));
-                    }
-
-                    @Override
-                    public void onError(String error) {
-                        // 发送错误消息
-                        messageSender.sendError(session, taskId, error);
-                    }
-                });
-            } catch (Exception e) {
-                messageSender.sendError(session, taskId, e.getMessage());
-            }
-        });
+        // 使用 skopeo 拉取镜像
+        return imageService.pullImage(repo, tag, callback);
     }
 
     /**
      * 处理获取网络列表的请求
-     * @param session WebSocket会话
-     * @param taskId 任务ID
      */
-    private void handleNetworkList(WebSocketSession session, String taskId) {
-        List<NetworkInfoDTO> networks = networkService.listNetworks();
-        messageSender.sendMessage(session, MessageType.NETWORK_LIST, taskId, networks);
+    private Object handleNetworkList() {
+        return networkService.listNetworks();
     }
 
     /**
      * 处理导入模板的请求
-     * @param session WebSocket会话
-     * @param taskId 任务ID
+     *
      * @param message WebSocket消息
      */
-    private void handleImportTemplate(WebSocketSession session, String taskId, DockerWebSocketMessage message) {
+    private Object handleImportTemplate(DockerWebSocketMessage message) {
         try {
             Map<String, Object> data = (Map<String, Object>) message.getData();
             String templateContent = (String) data.get("content");
@@ -480,37 +478,29 @@ public class AppStoreService implements BaseService {
             template.setCreatedAt(LocalDateTime.now());
             template.setUpdatedAt(LocalDateTime.now());
             template.setSortWeight(0);
-
-            // 保存到数据库
-            templateMapper.insert(template);
-
-            // 发送成功响应
-            messageSender.sendMessage(session, MessageType.IMPORT_TEMPLATE_RESULT, taskId,
-                    Map.of("success", true, "message", "模板导入成功"));
+            return templateMapper.insert(template);
         } catch (Exception e) {
             log.error("导入模板失败", e);
-            messageSender.sendMessage(session, MessageType.IMPORT_TEMPLATE_RESULT, taskId,
-                    Map.of("success", false, "message", "导入模板失败: " + e.getMessage()));
+            return null;
         }
     }
 
     /**
      * 处理删除模板的请求
-     * @param session WebSocket会话
-     * @param taskId 任务ID
+     *
      * @param message WebSocket消息
      */
-    private void handleDeleteTemplate(WebSocketSession session, String taskId, DockerWebSocketMessage message) {
+    private Object handleDeleteTemplate(DockerWebSocketMessage message) {
         Map<String, Object> data = (Map<String, Object>) message.getData();
         String templateId = (String) data.get("templateId");
         // 删除模板
-        templateMapper.deleteById(templateId);
+        return templateMapper.deleteById(templateId);
         // 发送操作结果
-        messageSender.sendMessage(session, MessageType.OPERATION_RESULT, taskId, null);
     }
 
     /**
      * 获取应用模板
+     *
      * @param appId 应用ID
      * @return 模板内容
      */
@@ -521,10 +511,11 @@ public class AppStoreService implements BaseService {
 
     /**
      * 下载文件
-     * @param url 文件URL
+     *
+     * @param url        文件URL
      * @param targetPath 目标路径
-     * @param session WebSocket会话
-     * @param taskId 任务ID
+     * @param session    WebSocket会话
+     * @param taskId     任务ID
      * @throws IOException 下载过程中可能发生的IO异常
      */
     private void downloadFile(String url, String targetPath, WebSocketSession session, String taskId) throws IOException {
@@ -559,14 +550,13 @@ public class AppStoreService implements BaseService {
 
     /**
      * 解压文件
+     *
      * @param tgzFilePath tgz文件路径
      * @throws IOException 解压过程中可能发生的IO异常
      */
     private void unzipFile(String tgzFilePath) throws IOException {
         Path targetDir = Paths.get(tgzFilePath).getParent();
-        try (InputStream fi = Files.newInputStream(Paths.get(tgzFilePath));
-             GzipCompressorInputStream gzi = new GzipCompressorInputStream(fi);
-             TarArchiveInputStream ti = new TarArchiveInputStream(gzi)) {
+        try (InputStream fi = Files.newInputStream(Paths.get(tgzFilePath)); GzipCompressorInputStream gzi = new GzipCompressorInputStream(fi); TarArchiveInputStream ti = new TarArchiveInputStream(gzi)) {
 
             TarArchiveEntry entry;
             while ((entry = ti.getNextTarEntry()) != null) {
@@ -590,6 +580,7 @@ public class AppStoreService implements BaseService {
 
     /**
      * 检查路径是否安全
+     *
      * @param path 要检查的路径
      * @return 是否安全
      */
@@ -600,9 +591,10 @@ public class AppStoreService implements BaseService {
 
     /**
      * 创建宿主机目录
+     *
      * @param hostPath 宿主机路径
-     * @param session WebSocket会话
-     * @param taskId 任务ID
+     * @param session  WebSocket会话
+     * @param taskId   任务ID
      */
     private void createHostDirectory(String hostPath, WebSocketSession session, String taskId) {
         try {

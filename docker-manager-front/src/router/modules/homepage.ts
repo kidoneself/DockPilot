@@ -85,6 +85,16 @@ export default [
           requiresAuth: true,
         },
       },
+      {
+        path: '/docker/images-list',
+        name: 'images-list',
+        component: () => import('@/pages/docker/images-list/index.vue'),
+        meta: {
+          title: '镜像列表（组件化）',
+          expanded: false,
+          requiresAuth: true,
+        },
+      },
     ],
   },
   {

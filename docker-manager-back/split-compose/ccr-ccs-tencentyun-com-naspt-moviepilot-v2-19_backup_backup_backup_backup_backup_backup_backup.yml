@@ -1,0 +1,41 @@
+x-meta:
+  name: Docker容器项目
+  description: Docker容器管理项目
+  version: 1.0.0
+  author: System
+  category: container
+  env:
+    MOVIEPILOT_V2_PORT_3000: '3333'
+    BASE_3: /config
+services:
+  ccr-ccs-tencentyun-com-naspt-moviepilot-v2-19_backup_backup_backup_backup_backup_backup_backup:
+    container_name: ccr-ccs-tencentyun-com-naspt-moviepilot-v2-19_backup_backup_backup_backup_backup_backup_backup
+    image: ccr.ccs.tencentyun.com/naspt/moviepilot-v2:latest
+    environment:
+      - PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - LANG=C.UTF-8
+      - GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305
+      - PYTHON_VERSION=3.12.8
+      - PYTHON_SHA256=c909157bb25ec114e5869124cc2a9c4a4d4c1e957ca4ff553f1edc692101154e
+      - TZ=Asia/Shanghai
+      - HOME=/moviepilot
+      - CONFIG_DIR=/config
+      - TERM=xterm
+      - DISPLAY=:987
+      - PUID=0
+      - PGID=0
+      - UMASK=000
+      - PORT=3001
+      - NGINX_PORT=3000
+      - MOVIEPILOT_AUTO_UPDATE=release
+    ports:
+      - ${MOVIEPILOT_V2_PORT_3000}:3000
+    volumes:
+      - ${BASE_3}:/config
+    networks:
+      - bridge
+    restart: always
+    x-meta:
+      name: ccr-ccs-tencentyun-com-naspt-moviepilot-v2-19_backup_backup_backup_backup_backup_backup_backup
+      description: 容器服务
+      configUrl: ''

@@ -1,0 +1,51 @@
+x-meta:
+  name: Docker容器项目
+  description: Docker容器管理项目
+  version: 1.0.0
+  author: System
+  category: container
+  env:
+    CLOUD_MEDIA_SYNC_PORT_9096: '9096'
+    CLOUD_MEDIA_SYNC_PORT_9527: '9527'
+    BASE_1: /Users/lizhiqiang/testDocker
+services:
+  cloud-media-sync:
+    container_name: cloud-media-sync
+    image: imaliang/cloud-media-sync:latest
+    environment:
+      - EMBY_HOST_PORT=http://172.17.0.1:38096
+      - PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - PYTHONPATH=/cms/cms-api
+      - PYTHON_SHA256=24887b92e2afd4a2ac602419ad4b596372f67ac9b077190f459aba390faf5550
+      - EMBY_API_KEY=d5d013c65e86428ea537006b3926737a
+      - PUID=0
+      - TZ=Asia/Shanghai
+      - TERM=xterm
+      - GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305
+      - LANG=C.UTF-8
+      - DONATE_CODE=CMS_HQFO2BSD_EE104D0293B84F668F7CC0B518F3AAD2
+      - UMASK=022
+      - ADMIN_PASSWORD=admin
+      - EMBY_PROXY_PORT=9096
+      - IMAGE_CACHE_POLICY=3
+      - PGID=0
+      - CMS_API_TOKEN=cloud_media_sync
+      - PYTHON_VERSION=3.12.7
+      - RUN_ENV=online
+      - ADMIN_USERNAME=admin
+      - HOME=/cms
+    ports:
+      - ${CLOUD_MEDIA_SYNC_PORT_9096}:9096
+      - ${CLOUD_MEDIA_SYNC_PORT_9527}:9527
+    volumes:
+      - ${BASE_1}/new/media:/media
+      - ${BASE_1}/new/docker/115/naspt-115-cms/cache:/var/cache/nginx/emby
+      - ${BASE_1}/new/docker/115/naspt-115-cms/logs:/logs
+      - ${BASE_1}/new/docker/115/naspt-115-cms/config:/config
+    networks:
+      - bridge
+    restart: always
+    x-meta:
+      name: cloud-media-sync
+      description: 容器服务
+      configUrl: ''

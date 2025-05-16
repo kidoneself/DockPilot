@@ -6,8 +6,8 @@
         <div class="container-title">
           <t-icon name="server" size="24px" />
           <span class="container-name">{{ containerDetail?.containerName || '-' }}</span>
-          <t-tag :theme="getStatusTheme(containerDetail?.status)" class="status-tag">
-            {{ getStatusText(containerDetail?.status) }}
+          <t-tag :theme="getStatusTheme(containerDetail?.status as ContainerState)" class="status-tag">
+            {{ getStatusText(containerDetail?.status as ContainerState) }}
           </t-tag>
         </div>
       </div>
@@ -174,8 +174,8 @@
                 <div class="card-header">
                   <t-icon name="chart" size="20px" />
                   <span>资源监控</span>
-                  <t-tag :theme="containerDetail?.status === 'running' ? 'success' : 'danger'" class="status-tag">
-                    {{ containerDetail?.status === 'running' ? '运行中' : '已停止' }}
+                  <t-tag :theme="getStatusTheme(containerDetail?.status as ContainerState)" class="status-tag">
+                    {{ getStatusText(containerDetail?.status as ContainerState) }}
                   </t-tag>
                 </div>
               </template>
@@ -407,6 +407,7 @@ import {
   updateContainer,
 } from '@/api/websocket/container';
 import type { ContainerDetail } from '@/api/model/containerModel';
+import { ContainerState, getStatusTheme, getStatusText } from '@/pages/docker/containers/utils';
 
 const route = useRoute();
 const router = useRouter();
@@ -429,32 +430,6 @@ const isOperating = ref(false);
 
 // 自动刷新相关
 const detailTimer = ref<number | null>(null);
-
-// 获取容器状态主题
-const getStatusTheme = (state: string) => {
-  switch (state) {
-    case 'running':
-      return 'success';
-    case 'stopped':
-    case 'exited':
-      return 'danger';
-    default:
-      return 'default';
-  }
-};
-
-// 获取容器状态文本
-const getStatusText = (state: string) => {
-  switch (state) {
-    case 'running':
-      return '运行中';
-    case 'stopped':
-    case 'exited':
-      return '已停止';
-    default:
-      return '未知';
-  }
-};
 
 // 格式化日期
 const formatDate = (date: string) => {
@@ -651,7 +626,6 @@ const handleDelete = async () => {
     router.push('/docker/containers');
   } catch (error) {
     console.error('删除失败:', error);
-    MessagePlugin.error('删除失败');
   } finally {
     isOperating.value = false;
   }
@@ -671,7 +645,6 @@ const handleUpdate = async () => {
     await fetchContainerDetail();
   } catch (error) {
     console.error('更新失败:', error);
-    MessagePlugin.error('更新失败');
   } finally {
     isOperating.value = false;
   }

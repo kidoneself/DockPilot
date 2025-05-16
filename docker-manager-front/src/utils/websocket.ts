@@ -39,6 +39,8 @@ export class WebSocketClient {
   private heartbeatInterval: number | null = null;
   private readonly heartbeatIntervalTime = 15000;
   private messageHandler: ((message: WebSocketMessage) => void) | null = null;
+  private isConnecting = false;
+  private connectPromise: Promise<void> | null = null;
 
   constructor(url: string) {
     this.url = url;
@@ -55,27 +57,41 @@ export class WebSocketClient {
    * 连接WebSocket服务器
    */
   public async connect(): Promise<void> {
+    // 如果已经连接，直接返回
     if (this.ws?.readyState === WebSocket.OPEN) {
       return Promise.resolve();
     }
 
-    return new Promise((resolve, reject) => {
+    // 如果正在连接中，返回现有的连接Promise
+    if (this.isConnecting && this.connectPromise) {
+      return this.connectPromise;
+    }
+
+    // 开始新的连接
+    this.isConnecting = true;
+    this.connectPromise = new Promise((resolve, reject) => {
       try {
         this.ws = new WebSocket(this.url);
 
         this.ws.onopen = () => {
           this.reconnectAttempts = 0;
           this.startHeartbeat();
+          this.isConnecting = false;
+          this.connectPromise = null;
           resolve();
         };
 
         this.ws.onclose = () => {
           this.stopHeartbeat();
+          this.isConnecting = false;
+          this.connectPromise = null;
           this.handleDisconnect();
         };
 
         this.ws.onerror = (error) => {
           this.stopHeartbeat();
+          this.isConnecting = false;
+          this.connectPromise = null;
           reject(error);
         };
 
@@ -90,9 +106,13 @@ export class WebSocketClient {
           }
         };
       } catch (error) {
+        this.isConnecting = false;
+        this.connectPromise = null;
         reject(error);
       }
     });
+
+    return this.connectPromise;
   }
 
   /**

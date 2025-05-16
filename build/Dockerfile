@@ -17,6 +17,10 @@ RUN apk add --no-cache openjdk11-jre && \
     apk add --no-cache wget jq tzdata && \
     wget --tries=3 --retry-connrefused --timeout=30 https://github.com/regclient/regclient/releases/latest/download/regctl-linux-amd64 -O /usr/local/bin/regctl && \
     chmod +x /usr/local/bin/regctl && \
+    # 安装 Docker Compose 插件
+    mkdir -p /usr/local/lib/docker/cli-plugins && \
+    wget --tries=3 --retry-connrefused --timeout=30 https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -O /usr/local/lib/docker/cli-plugins/docker-compose && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose && \
     cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
     echo "Asia/Shanghai" > /etc/timezone
 

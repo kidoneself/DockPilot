@@ -4,8 +4,10 @@ import com.dsm.model.ContainerCreateRequest;
 import com.dsm.model.ContainerDTO;
 import com.dsm.model.ContainerStaticInfoDTO;
 import com.dsm.model.ResourceUsageDTO;
+import com.dsm.utils.MessageCallback;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 容器服务接口
@@ -65,7 +67,7 @@ public interface ContainerService {
      * @param request     新的容器配置请求
      * @return 新容器的ID
      */
-    String updateContainer(String containerId, ContainerCreateRequest request);
+//    CompletableFuture<Void> updateContainer(String containerId, ContainerCreateRequest request);
 
     /**
      * 更新容器镜像
@@ -73,7 +75,7 @@ public interface ContainerService {
      * @param containerId 容器ID
      * @return 新容器的ID
      */
-    String updateContainerImage(String containerId);
+    CompletableFuture<String> updateContainerImage(String containerId, MessageCallback callback);
 
 
     void restartContainer(String id);

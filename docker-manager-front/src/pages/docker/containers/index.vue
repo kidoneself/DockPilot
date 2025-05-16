@@ -122,12 +122,7 @@
     </t-card>
 
     <!-- 配置展示弹窗 -->
-    <t-dialog
-      v-model:visible="configDialogVisible"
-      header="容器配置"
-      :width="680"
-      :footer="false"
-    >
+    <t-dialog v-model:visible="configDialogVisible" header="容器配置" :width="680" :footer="false">
       <div class="config-dialog-content">
         <div class="config-actions">
           <t-button theme="primary" size="small" @click="handleSaveConfig">
@@ -160,17 +155,17 @@ import type { PrimaryTableCol } from 'tdesign-vue-next';
 // 导入 TDesign 组件库的消息提示组件
 import { MessagePlugin } from 'tdesign-vue-next';
 // 导入 Vue 相关功能
-import { onMounted, ref, computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 // 导入路由相关功能
-import { useRouter, useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 // 导入容器相关的 API 和类型
 import {
+  getContainerJsonConfig,
   getContainerList,
   restartContainer,
   startContainer,
   stopContainer,
   updateContainer,
-  getContainerJsonConfig,
 } from '@/api/websocket/container';
 import type { Container } from '@/api/model/containerModel';
 // 导入容器状态相关的工具函数
@@ -182,11 +177,11 @@ import {
   getStatusTheme,
   handleContainerOperation,
 } from '@/pages/docker/containers/utils';
+import { useNotificationStore } from '@/store/modules/notification';
 
 // 获取路由实例
 const router = useRouter();
 const route = useRoute();
-import { useNotificationStore } from '@/store/modules/notification';
 
 const notificationStore = useNotificationStore();
 // 响应式数据定义
@@ -273,27 +268,25 @@ const fetchContainers = async () => {
   isLoading.value = true;
   try {
     const res = await getContainerList();
+    console.log('获取到的容器列表数据:', res);
     containers.value = res || [];
-// // 发送普通通知
-// notificationStore.addNotification({
-//   id: String(Date.now()),
-//   content: '操作成功！',
-//   type: '成功',
-//   status: true,
-//   collected: false,
-//   date: new Date().toLocaleString(),
-//   quality: 'normal',
-// });
 
-// // 处理WebSocket推送
-// notificationStore.handleWebSocketNotification({
-//   content: '有新的消息啦！',
-//   type: 'WebSocket',
-// });
+    // 发送普通通知
+    notificationStore.addNotification({
+      id: String(Date.now()),
+      content: '操作成功！',
+      type: '成功',
+      status: true,
+      collected: false,
+      date: new Date().toLocaleString(),
+      quality: 'normal',
+    });
 
-
-
-
+    // 处理WebSocket推送
+    notificationStore.handleWebSocketNotification({
+      content: '有新的消息啦！',
+      type: 'WebSocket',
+    });
   } catch (error) {
     console.error('获取容器列表失败:', error);
     MessagePlugin.error('获取容器列表失败');
@@ -310,20 +303,45 @@ const handleRefresh = () => {
 };
 
 /**
- * 处理启动/停止
- * @param container 容器对象
+ * 处理容器的启动/停止操作
+ * 根据容器当前状态决定执行启动还是停止操作
+ * 
+ * @param container - 容器对象，包含容器的基本信息（ID、状态等）
  */
 const handleStartStop = async (container: Container) => {
+  // 判断容器当前是否处于运行状态
+  // container.state === 'running' 表示容器正在运行
   const isRunning = container.state === 'running';
+
+  // 根据容器状态选择要执行的操作函数
+  // 如果容器正在运行，则选择 stopContainer 函数来停止容器
+  // 如果容器未运行，则选择 startContainer 函数来启动容器
   const action = isRunning ? stopContainer : startContainer;
+
+  // 根据容器状态选择操作类型
+  // 用于在界面上显示当前正在执行的操作（启动中/停止中）
   const type = isRunning ? operatingContainers.value.stopping : operatingContainers.value.starting;
+
+  // 根据容器状态选择成功提示消息
+  // 操作成功后会显示对应的提示信息
   const successMsg = isRunning ? '停止成功' : '启动成功';
 
   try {
+    // 执行容器操作
+    // 1. 调用 handleContainerOperation 函数执行具体的启动/停止操作
+    // 2. 传入操作函数、容器ID和操作类型
     await handleContainerOperation(() => action(container.id), container.id, type);
-    await fetchContainers();
     MessagePlugin.success(successMsg);
+
+    // 操作成功后，重新获取容器列表
+    // 更新界面显示的容器状态
+    await fetchContainers();
+
+    // 显示操作成功的提示消息
   } catch (error) {
+    // 捕获并处理操作过程中可能出现的错误
+    // 如果错误是 Error 类型，显示其错误信息
+    // 否则显示默认的错误提示
     MessagePlugin.error(error instanceof Error ? error.message : '操作失败');
   }
 };
@@ -424,7 +442,8 @@ const handleSaveConfig = () => {
 const handleCopyConfig = () => {
   if (!formattedConfig.value) return;
 
-  navigator.clipboard.writeText(formattedConfig.value)
+  navigator.clipboard
+    .writeText(formattedConfig.value)
     .then(() => {
       MessagePlugin.success('配置已复制到剪贴板');
     })

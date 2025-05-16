@@ -1,0 +1,35 @@
+x-meta:
+  name: Docker容器项目
+  description: Docker容器管理项目
+  version: 1.0.0
+  author: System
+  category: container
+  env:
+    CLOUDSAVER_PORT_8008: '9009'
+    BASE_1: /Users/lizhiqiang/testDocker
+    BASE_2: /var/lib/docker
+services:
+  naspt-cloudsaver:
+    container_name: naspt-cloudsaver
+    image: jiangrui1994/cloudsaver:latest
+    environment:
+      - PUID=0
+      - PGID=0
+      - UMASK=022
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - NODE_VERSION=18.20.8
+      - YARN_VERSION=1.22.22
+    ports:
+      - ${CLOUDSAVER_PORT_8008}:8008
+    volumes:
+      - ${BASE_2}/volumes/49258b2fb8ad511aa9165737bdb0daa02869d2e2567bbfa70d0bca90df829bb4/_data:/app/data
+      - ${BASE_1}/new/docker/115/naspt-cloudsaver/data:/data
+      - ${BASE_1}/new/docker/115/naspt-cloudsaver/config:/config
+      - ${BASE_2}/volumes/4d782c403a84acfc7210e5dc26f3b1b1c3c3f2e504ac92e2f650034dd8538da0/_data:/app/config
+    networks:
+      - bridge
+    restart: always
+    x-meta:
+      name: naspt-cloudsaver
+      description: 容器服务
+      configUrl: ''
