@@ -10,12 +10,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 
 @Configuration
 public class AsyncApiConfig implements WebMvcConfigurer {
@@ -31,7 +31,8 @@ public class AsyncApiConfig implements WebMvcConfigurer {
 
     @Bean
     public String asyncApiSpec() throws IOException {
-        return new String(Files.readAllBytes(asyncApiResource.getFile().toPath()), StandardCharsets.UTF_8);
+        // 使用InputStream读取jar包内的资源文件
+        return StreamUtils.copyToString(asyncApiResource.getInputStream(), StandardCharsets.UTF_8);
     }
 
     @Bean
