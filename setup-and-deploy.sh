@@ -123,18 +123,29 @@ setup_code() {
     
     # 如果目录存在，询问是否删除
     if [ -d "DockPilot" ]; then
-        read -p "检测到现有代码目录，是否删除重新克隆？(y/n): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            print_message "删除现有代码..."
-            rm -rf DockPilot
-        else
-            print_message "使用现有代码，更新分支..."
+        # 如果是test版本，默认强制更新
+        if [ "$VERSION" == "test" ]; then
+            print_message "test版本 - 强制更新代码..."
             cd DockPilot
             git fetch origin
             git checkout $BRANCH
             git pull origin $BRANCH
+            print_message "代码已更新到最新版本"
             return
+        else
+            read -p "检测到现有代码目录，是否删除重新克隆？(y/n): " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                print_message "删除现有代码..."
+                rm -rf DockPilot
+            else
+                print_message "使用现有代码，更新分支..."
+                cd DockPilot
+                git fetch origin
+                git checkout $BRANCH
+                git pull origin $BRANCH
+                return
+            fi
         fi
     fi
 
@@ -161,15 +172,12 @@ setup_code() {
 build_frontend() {
     print_message "构建前端..."
     
-    # 智能检测前端目录
+    # 直接进入dockpilotfront目录
     if [ -d "dockpilotfront" ]; then
-        print_message "检测到前端目录: dockpilotfront"
         cd dockpilotfront
-    elif [ -d "docker-manager-front" ]; then
-        print_message "检测到前端目录: docker-manager-front"
-        cd docker-manager-front
+        print_message "进入前端目录: dockpilotfront"
     else
-        print_error "未找到前端目录 (dockpilotfront 或 docker-manager-front)"
+        print_error "未找到前端目录: dockpilotfront"
         exit 1
     fi
     
@@ -200,18 +208,23 @@ copy_build_files() {
     rm -rf build/dist
     rm -rf build/*.jar
 
-    # 复制前端构建文件 - 兼容两种目录名
-    if [ -d "docker-manager-front/dist" ]; then
-        cp -r docker-manager-front/dist build/
-    elif [ -d "dockpilotfront/dist" ]; then
+    # 复制前端构建文件
+    if [ -d "dockpilotfront/dist" ]; then
         cp -r dockpilotfront/dist build/
+        print_message "前端构建文件已复制"
     else
-        print_error "找不到前端构建目录"
+        print_error "未找到前端构建目录: dockpilotfront/dist"
         exit 1
     fi
 
     # 复制后端jar文件
-    cp docker-manager-back/target/*.jar build/
+    if ls docker-manager-back/target/*.jar 1> /dev/null 2>&1; then
+        cp docker-manager-back/target/*.jar build/
+        print_message "后端jar文件已复制"
+    else
+        print_error "未找到后端jar文件"
+        exit 1
+    fi
 }
 
 # 构建Docker镜像（仅本地）
