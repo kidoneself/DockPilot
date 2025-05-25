@@ -13,14 +13,19 @@
         header Access-Control-Allow-Origin "*"
     }
     
-    # API代理
+    # API代理 - 去掉/api前缀转发到后端
     handle /api/* {
+        uri strip_prefix /api
         reverse_proxy localhost:8080
     }
     
-    # WebSocket代理  
+    # WebSocket代理 - 去掉/ws前缀转发到后端
     handle /ws/* {
-        reverse_proxy localhost:8080
+        uri strip_prefix /ws
+        reverse_proxy localhost:8080 {
+            header_up Upgrade {http.upgrade}
+            header_up Connection {http.connection}
+        }
     }
     
     # SPA路由支持
