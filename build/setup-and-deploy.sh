@@ -50,6 +50,51 @@ print_message "版本标签: $VERSION"
 print_message "Git分支: $BRANCH" 
 print_message "=========================================="
 
+# 清理所有相关的容器和镜像
+cleanup_all_resources() {
+    print_message "🧹 清理所有相关的Docker资源..."
+    
+    # 对于非test版本，询问确认
+    if [ "$VERSION" != "test" ]; then
+        echo
+        print_warning "即将清理所有dockpilot相关的容器和镜像！"
+        read -p "确认继续清理？(y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_message "已取消清理，继续构建..."
+            return
+        fi
+    else
+        print_message "test版本 - 自动清理所有相关资源..."
+    fi
+    
+    # 停止并删除所有dockpilot相关容器
+    print_message "删除dockpilot相关容器..."
+    docker ps -a | grep -i dockpilot | awk '{print $1}' | xargs -r docker stop 2>/dev/null || true
+    docker ps -a | grep -i dockpilot | awk '{print $1}' | xargs -r docker rm 2>/dev/null || true
+    
+    # 删除所有相关镜像
+    print_message "删除kidself/dockpilot镜像..."
+    docker images | grep "kidself/dockpilot" | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+    
+    print_message "删除腾讯云镜像..."
+    docker images | grep "ccr.ccs.tencentyun.com/naspt/dockpilot" | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+    
+    # 清理悬空镜像
+    print_message "清理悬空镜像..."
+    docker image prune -f 2>/dev/null || true
+    
+    # 清理构建缓存
+    print_message "清理Docker构建缓存..."
+    docker builder prune -f 2>/dev/null || true
+    
+    # 删除并重建数据目录
+    print_message "清理数据目录..."
+    rm -rf /home/dockpilot 2>/dev/null || true
+    
+    print_message "✅ 资源清理完成！"
+}
+
 # 检查是否为root用户
 check_root() {
     if [ "$EUID" -ne 0 ]; then
@@ -331,23 +376,13 @@ build_and_push_all() {
     cd ..
 }
 
-# 自动清理并启动容器
+# 自动启动容器
 auto_deploy_container() {
-    print_message "自动部署容器..."
+    print_message "启动新容器..."
     
-    # 检查并删除现有容器
-    if docker ps -a | grep -q "dockpilot"; then
-        print_message "发现现有dockpilot容器，正在删除..."
-        docker stop dockpilot 2>/dev/null || true
-        docker rm dockpilot 2>/dev/null || true
-        print_message "现有容器已删除"
-    fi
-    
-    # 删除并重建/home/dockpilot目录
-    print_message "重建数据目录..."
-    rm -rf /home/dockpilot
+    # 确保数据目录存在
+    print_message "创建数据目录..."
     mkdir -p /home/dockpilot
-    print_message "/home/dockpilot目录已重建"
     
     # 启动新容器
     print_message "启动新的dockpilot容器..."
@@ -374,6 +409,9 @@ auto_deploy_container() {
 main() {
     check_root
     check_requirements
+    
+    # 清理所有相关资源（确保干净的构建环境）
+    cleanup_all_resources
     
     # 初始化buildx构建器
     print_message "初始化Docker buildx构建器..."
@@ -412,12 +450,13 @@ show_usage() {
     echo "  $0 v1.0.0                   # 构建test版本，使用feature/yaml-template分支（任何非latest参数都默认为test）"
     echo ""
     echo "🚀 自动化构建流程:"
-    echo "  1. 环境检查和依赖安装"
-    echo "  2. 代码拉取和更新"
-    echo "  3. 前端构建 (Vue3 + TypeScript，跳过类型检查)"
-    echo "  4. 后端构建 (Spring Boot + Maven)"
-    echo "  5. 一次性构建Docker镜像并推送到所有仓库"
-    echo "  6. 自动清理并启动新容器"
+    echo "  1. 清理所有相关Docker资源（容器、镜像、缓存）"
+    echo "  2. 环境检查和依赖安装"
+    echo "  3. 代码拉取和更新"
+    echo "  4. 前端构建 (Vue3 + TypeScript，跳过类型检查)"
+    echo "  5. 后端构建 (Spring Boot + Maven)"
+    echo "  6. 一次性构建Docker镜像并推送到所有仓库"
+    echo "  7. 启动全新容器"
 }
 
 # 如果参数为help，显示使用说明
