@@ -1,5 +1,21 @@
 #!/bin/bash
 
+#================================================================
+# DockPilot 服务器端构建部署脚本
+# 
+# 功能：构建前端、后端，打包Docker镜像并推送到镜像仓库
+# 默认：构建test版本，除非明确指定其他版本
+#
+# 使用方法：
+#   ./setup-and-deploy.sh                          # 构建test版本
+#   ./setup-and-deploy.sh v1.0.0                   # 构建v1.0.0版本
+#   ./setup-and-deploy.sh latest main              # 构建latest版本，使用main分支
+#
+# 支持的镜像仓库：
+#   - DockerHub: kidself/dockpilot
+#   - 腾讯云: ccr.ccs.tencentyun.com/naspt/dockpilot
+#================================================================
+
 # 设置颜色输出
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -63,6 +79,27 @@ install_nodejs() {
     apt-get install -y nodejs
 }
 
+# 统一管理buildx构建器的函数
+setup_buildx() {
+    print_message "设置buildx构建器..."
+    
+    # 检查是否已存在mybuilder构建器
+    if docker buildx inspect mybuilder >/dev/null 2>&1; then
+        print_warning "构建器 mybuilder 已存在，删除后重建..."
+        docker buildx rm mybuilder || true
+    fi
+    
+    # 创建新的构建器
+    print_message "创建新的构建器 mybuilder..."
+    if docker buildx create --name mybuilder --driver docker-container --bootstrap --use; then
+        print_message "✅ 构建器 mybuilder 创建成功"
+    else
+        print_error "❌ 构建器创建失败，尝试使用默认构建器..."
+        docker buildx use default
+        return 1
+    fi
+}
+
 # 安装Docker和buildx
 install_docker() {
     print_message "安装Docker和buildx..."
@@ -75,9 +112,8 @@ install_docker() {
     apt-get update
     apt-get install -y qemu-user-static
     
-    # 安装buildx
-    print_message "设置buildx..."
-    docker buildx create --name mybuilder --driver docker-container --bootstrap --use
+    # 设置buildx构建器
+    setup_buildx
     
     # 启用实验性功能
     mkdir -p /etc/docker
@@ -271,28 +307,6 @@ build_docker_image_local() {
     cd ..
 }
 
-# 构建Docker镜像（多架构）
-build_docker_image() {
-    print_message "构建多架构Docker镜像 (版本: $VERSION)..."
-    
-    # 确保使用正确的builder
-    print_message "设置buildx builder..."
-    docker buildx create --name mybuilder --driver docker-container --bootstrap --use || true
-    
-    # 使用buildx构建多架构镜像
-    print_message "构建多架构镜像..."
-    cd build
-    docker buildx build --platform linux/amd64,linux/arm64 \
-        -t kidself/dockpilot:$VERSION \
-        --push .
-    
-    if [ $? -ne 0 ]; then
-        print_error "Docker镜像构建失败"
-        exit 1
-    fi
-    cd ..
-}
-
 # 推送到DockerHub
 push_to_dockerhub() {
     print_message "推送到DockerHub (版本: $VERSION)..."
@@ -301,17 +315,18 @@ push_to_dockerhub() {
     DOCKERHUB_IMAGE="dockpilot"
 
     # 确保使用正确的builder
-    docker buildx create --name mybuilder --driver docker-container --bootstrap --use || true
+    print_message "确保buildx构建器可用..."
+    setup_buildx
 
     # 使用buildx构建并推送多架构镜像
     cd build
     docker buildx build --platform linux/amd64,linux/arm64 \
-        -t ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:$VERSION \
+        -t ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:${VERSION} \
         --push .
     cd ..
 
     print_message "DockerHub镜像推送完成！"
-    print_message "镜像地址: ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:$VERSION"
+    print_message "镜像地址: ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:${VERSION}"
 }
 
 # 推送到腾讯云容器镜像服务
@@ -322,17 +337,18 @@ push_to_tencent() {
     NAMESPACE="naspt/dockpilot"
     
     # 确保使用正确的builder
-    docker buildx create --name mybuilder --driver docker-container --bootstrap --use || true
+    print_message "确保buildx构建器可用..."
+    setup_buildx
 
     # 使用buildx构建并推送多架构镜像
     cd build
     docker buildx build --platform linux/amd64,linux/arm64 \
-        -t ${TENCENT_REGISTRY}/${NAMESPACE}:$VERSION \
+        -t ${TENCENT_REGISTRY}/${NAMESPACE}:${VERSION} \
         --push .
     cd ..
 
     print_message "镜像推送完成！"
-    print_message "镜像地址: ${TENCENT_REGISTRY}/${NAMESPACE}:$VERSION"
+    print_message "镜像地址: ${TENCENT_REGISTRY}/${NAMESPACE}:${VERSION}"
 }
 
 # 选择构建模式
@@ -371,6 +387,11 @@ choose_build_mode() {
 main() {
     check_root
     check_requirements
+    
+    # 初始化buildx构建器，确保后续构建过程顺利
+    print_message "初始化Docker buildx构建器..."
+    setup_buildx
+    
     setup_code
     build_frontend
     build_backend
@@ -389,8 +410,8 @@ main() {
     read -p "是否在本服务器运行容器？(y/n): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        cd build
-        ./build-and-run.sh $VERSION
+        print_message "使用运行脚本启动容器..."
+        ./run-dockerhub.sh $VERSION
     fi
 }
 
@@ -404,9 +425,16 @@ show_usage() {
     echo "  BRANCH   - Git分支名称 (默认: feature/yaml-template)"
     echo ""
     echo "示例:"
-    echo "  $0 test feature/yaml-template"
-    echo "  $0 v1.0.0 main"
-    echo "  $0 latest"
+    echo "  $0                          # 构建test版本"
+    echo "  $0 v1.0.0                   # 构建v1.0.0版本"
+    echo "  $0 latest main              # 构建latest版本，使用main分支"
+    echo ""
+    echo "构建流程:"
+    echo "  1. 环境检查和依赖安装"
+    echo "  2. 代码拉取和更新"
+    echo "  3. 前端构建 (Vue3 + TypeScript)"
+    echo "  4. 后端构建 (Spring Boot + Maven)"
+    echo "  5. Docker镜像构建和推送"
 }
 
 # 如果参数为help，显示使用说明
@@ -416,4 +444,4 @@ if [[ "$1" == "help" ]] || [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
 fi
 
 # 执行主函数
-main
+main 
