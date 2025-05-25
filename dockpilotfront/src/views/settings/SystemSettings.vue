@@ -17,6 +17,7 @@
       :config="currentConfig"
       @confirm="handleConfigConfirm"
       @cancel="handleConfigCancel"
+      @reset="handleConfigReset"
     >
       <!-- 使用插槽传入不同的配置组件 -->
       <template #content="{ data, update }">
@@ -51,16 +52,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useMessage } from 'naive-ui'
+import { ref, watch } from 'vue'
+import { useMessage, useDialog } from 'naive-ui'
 import FeatureCard from '@/components/FeatureCard.vue'
 import ConfigModal from '@/components/ConfigModal.vue'
 import BackgroundConfig from '@/components/config/BackgroundConfig.vue'
 import FormConfig from '@/components/config/FormConfig.vue'
 import type { ConfigModalConfig } from '@/components/ConfigModal.vue'
 import { getCurrentBackground, setCurrentBackground } from '@/api/http/background'
+import { getSetting, setSetting, testProxyLatency, testProxyLatencyWithUrl } from '@/api/http/system'
 
 const message = useMessage()
+const dialog = useDialog()
 
 // 配置相关状态
 const showConfigModal = ref(false)
@@ -73,6 +76,34 @@ const currentConfig = ref<ConfigModalConfig>({
 const currentFormFields = ref<any[]>([])
 const currentFormDescription = ref('')
 
+// 代理测速状态
+const proxyTestLoading = ref(false)
+
+// 创建代理配置表单字段的函数
+const createProxyFormFields = () => [
+  {
+    key: 'url',
+    label: '代理URL',
+    type: 'input',
+    placeholder: 'http://proxy.example.com:8080 或 http://user:pass@proxy.example.com:8080',
+    required: false,
+    suffix: {
+      type: 'button',
+      buttonType: 'primary',
+      loading: proxyTestLoading.value,
+      text: '测速',
+      onClick: testProxySpeed
+    }
+  }
+]
+
+// 监听loading状态变化，重新创建表单字段
+watch(proxyTestLoading, () => {
+  if (currentConfigType.value === 'proxy') {
+    currentFormFields.value = createProxyFormFields()
+  }
+})
+
 // 功能列表
 const features = ref([
   {
@@ -80,6 +111,12 @@ const features = ref([
     title: '系统背景设置',
     desc: '自定义系统背景图片，让界面更个性化',
     configType: 'background'
+  },
+  {
+    key: 'proxy',
+    title: '代理设置',
+    desc: '配置HTTP代理，提升Docker镜像下载速度',
+    configType: 'form'
   },
   {
     key: 'theme',
@@ -121,13 +158,31 @@ const openConfig = async (item: any) => {
         title: '🎨 背景图片配置',
         width: '700px',
         confirmText: '应用背景',
+        showResetButton: true,
+        resetText: '清除背景',
         beforeConfirm: (data) => {
           // 验证背景数据
           return true
         },
+        beforeReset: async () => {
+          // 重置前确认
+          return new Promise((resolve) => {
+            dialog.warning({
+              title: '确认重置',
+              content: '确定要清除背景图片吗？',
+              positiveText: '确定',
+              negativeText: '取消',
+              onPositiveClick: () => resolve(true),
+              onNegativeClick: () => resolve(false)
+            })
+          })
+        },
         afterConfirm: async (data) => {
           // 应用背景设置
           await applyBackground(data)
+        },
+        afterReset: async () => {
+          await clearSystemBackground()
         }
       }
       
@@ -137,6 +192,62 @@ const openConfig = async (item: any) => {
         configData.value = backgroundUrl || ''
       } catch (error) {
         configData.value = ''
+      }
+      break
+
+    case 'proxy':
+      currentConfig.value = {
+        title: '🌐 代理配置',
+        width: '600px',
+        confirmText: '保存配置',
+        showResetButton: true,
+        resetText: '清除代理',
+        beforeConfirm: async (data) => {
+          // 简单验证：如果有内容就验证URL格式
+          if (data.url && data.url.trim()) {
+            const url = data.url.trim()
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+              message.error('代理URL必须以 http:// 或 https:// 开头')
+              return false
+            }
+          }
+          return true
+        },
+        beforeReset: async () => {
+          // 重置前确认
+          return new Promise((resolve) => {
+            dialog.warning({
+              title: '确认重置',
+              content: '确定要清除代理配置吗？',
+              positiveText: '确定',
+              negativeText: '取消',
+              onPositiveClick: () => resolve(true),
+              onNegativeClick: () => resolve(false)
+            })
+          })
+        },
+        afterConfirm: async (data) => {
+          await saveProxyConfig(data)
+        },
+        afterReset: async () => {
+          await resetProxyConfig()
+        }
+      }
+
+      // 设置代理配置表单字段
+      currentFormFields.value = createProxyFormFields()
+
+      currentFormDescription.value = '配置HTTP代理以提升Docker镜像下载速度。支持格式：http://host:port 或 http://username:password@host:port。留空表示禁用代理。'
+
+      // 从后端加载当前代理配置
+      try {
+        const proxyUrl = await getSetting('proxy')
+        configData.value = {
+          url: proxyUrl || ''
+        }
+      } catch (error) {
+        console.error('加载代理配置失败:', error)
+        configData.value = { url: '' }
       }
       break
       
@@ -161,6 +272,10 @@ const handleConfigConfirm = (data: any) => {
       // 背景配置的确认逻辑已在afterConfirm中处理
       break
       
+    case 'proxy':
+      // 代理配置的确认逻辑已在afterConfirm中处理
+      break
+      
     default:
       message.success('配置已保存')
   }
@@ -169,6 +284,11 @@ const handleConfigConfirm = (data: any) => {
 // 配置取消处理
 const handleConfigCancel = () => {
   console.log('Config cancelled')
+}
+
+// 配置重置处理
+const handleConfigReset = () => {
+  console.log('Config reset:', currentConfigType.value)
 }
 
 // 应用背景
@@ -217,6 +337,134 @@ const clearSystemBackground = async () => {
   document.body.style.backgroundRepeat = ''
   
   message.success('背景已清除')
+}
+
+// 保存代理配置
+const saveProxyConfig = async (proxyData: any) => {
+  try {
+    const proxyUrl = proxyData.url ? proxyData.url.trim() : ''
+    
+    // 直接保存URL字符串到后端
+    await setSetting({ key: 'proxy', value: proxyUrl })
+    
+    if (proxyUrl) {
+      message.success('代理配置已保存')
+      console.log('✅ 代理配置已保存:', proxyUrl)
+      
+      // 测试代理连接
+      try {
+        message.info('正在测试代理连接...')
+        const testResult = await testProxyLatency()
+        
+        if (testResult.error) {
+          message.warning('代理配置已保存，但连接测试失败，请检查代理设置')
+        } else {
+          const totalTime = testResult.totalTime || 0
+          if (totalTime < 500) {
+            message.success(`代理配置已保存并测试成功，延迟: ${totalTime}ms (优秀)`)
+          } else if (totalTime < 1000) {
+            message.success(`代理配置已保存并测试成功，延迟: ${totalTime}ms (良好)`)
+          } else if (totalTime < 2000) {
+            message.warning(`代理配置已保存并测试成功，延迟: ${totalTime}ms (较慢)`)
+          } else {
+            message.warning(`代理配置已保存并测试成功，延迟: ${totalTime}ms (很慢)`)
+          }
+        }
+      } catch (testError) {
+        console.error('代理测试失败:', testError)
+        message.warning('代理配置已保存，但连接测试失败')
+      }
+    } else {
+      message.success('代理已禁用')
+      console.log('✅ 代理已禁用')
+    }
+  } catch (error) {
+    console.error('❌ 保存代理配置失败:', error)
+    message.error('保存代理配置失败')
+    throw error
+  }
+}
+
+// 重置代理配置
+const resetProxyConfig = async () => {
+  try {
+    // 清除代理配置（保存空字符串）
+    await setSetting({ key: 'proxy', value: '' })
+    
+    message.success('代理配置已清除')
+    console.log('✅ 代理配置已重置')
+    
+    // 更新当前配置数据
+    configData.value = { url: '' }
+  } catch (error) {
+    console.error('❌ 重置代理配置失败:', error)
+    message.error('重置代理配置失败')
+    throw error
+  }
+}
+
+// 测试代理速度
+const testProxySpeed = async (proxyUrl: string) => {
+  if (!proxyUrl || !proxyUrl.trim()) {
+    message.warning('请先输入代理URL')
+    return
+  }
+
+  const url = proxyUrl.trim()
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    message.error('代理URL必须以 http:// 或 https:// 开头')
+    return
+  }
+
+  proxyTestLoading.value = true
+  
+  try {
+    message.info('正在测试代理速度...')
+    // 直接使用新的API测试指定代理URL，不影响当前配置
+    const result = await testProxyLatencyWithUrl(url)
+    
+    if (result.error) {
+      // 处理后端返回的具体错误信息
+      if (result.message) {
+        message.error('代理测试失败，请检查代理设置')
+      } else {
+        message.error('代理连接失败，请检查代理设置')
+      }
+    } else {
+      const totalTime = result.totalTime || 0
+      const httpTime = result.httpConnectTime || 0
+      const httpsTime = result.httpsConnectTime || 0
+      
+      let speedLevel = ''
+      let speedColor = ''
+      
+      if (totalTime < 500) {
+        speedLevel = '优秀'
+        speedColor = '🟢'
+      } else if (totalTime < 1000) {
+        speedLevel = '良好'
+        speedColor = '🟡'
+      } else if (totalTime < 2000) {
+        speedLevel = '较慢'
+        speedColor = '🟠'
+      } else {
+        speedLevel = '很慢'
+        speedColor = '🔴'
+      }
+      
+      message.success(`${speedColor} 代理测速完成！
+📊 总延迟: ${totalTime}ms (${speedLevel})
+🌐 HTTP: ${httpTime}ms
+🔒 HTTPS: ${httpsTime}ms`, {
+        duration: 5000
+      })
+    }
+  } catch (error) {
+    console.error('测试代理速度失败:', error)
+    message.error('测试代理速度失败，请检查网络连接和代理设置')
+  } finally {
+    proxyTestLoading.value = false
+  }
 }
 </script>
 

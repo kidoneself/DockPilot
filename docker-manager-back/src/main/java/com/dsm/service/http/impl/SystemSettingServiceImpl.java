@@ -27,10 +27,25 @@ public class SystemSettingServiceImpl implements SystemSettingService {
 
     @Override
     public Map<String, Long> testProxyLatency() {
-
+        return testProxyLatency(appConfig.getProxyUrl());
+    }
+    
+    /**
+     * 测试指定代理的延迟
+     * @param proxyUrl 要测试的代理URL
+     * @return 延迟测试结果
+     */
+    public Map<String, Long> testProxyLatency(String proxyUrl) {
         Map<String, Long> result = new HashMap<>();
         try {
-            String proxyUrl = appConfig.getProxyUrl();
+            // 检查代理URL是否为空
+            if (proxyUrl == null || proxyUrl.isBlank()) {
+                LogUtil.logSysError("代理URL为空，无法进行测试");
+                result.put("error", 1L);
+                result.put("message", (long) "代理URL为空，请先配置代理".hashCode());
+                return result;
+            }
+            
             Map<String, String> proxyInfo = parseProxyUrl(proxyUrl);
 
             // 设置代理认证（只有当用户名和密码都存在时才设置）
@@ -125,12 +140,36 @@ public class SystemSettingServiceImpl implements SystemSettingService {
     private Map<String, String> parseProxyUrl(String proxyUrl) {
         Map<String, String> result = new HashMap<>();
         try {
+            // 添加参数检查
+            if (proxyUrl == null || proxyUrl.isBlank()) {
+                throw new IllegalArgumentException("代理URL不能为空");
+            }
+            
             URL url = new URL(proxyUrl);
             String userInfo = url.getUserInfo();
 
+            // 检查主机和端口是否有效
+            String host = url.getHost();
+            int port = url.getPort();
+            
+            if (host == null || host.isBlank()) {
+                throw new IllegalArgumentException("代理URL中未包含有效的主机地址");
+            }
+            
+            if (port == -1) {
+                // 如果没有指定端口，使用默认端口
+                if ("http".equals(url.getProtocol())) {
+                    port = 80;
+                } else if ("https".equals(url.getProtocol())) {
+                    port = 443;
+                } else {
+                    throw new IllegalArgumentException("无法确定代理端口，请在URL中指定端口号");
+                }
+            }
+
             // 设置主机和端口
-            result.put("host", url.getHost());
-            result.put("port", String.valueOf(url.getPort()));
+            result.put("host", host);
+            result.put("port", String.valueOf(port));
 
             // 如果有用户认证信息
             if (userInfo != null && !userInfo.isEmpty()) {

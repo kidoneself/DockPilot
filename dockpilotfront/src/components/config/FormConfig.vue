@@ -20,7 +20,20 @@
           v-model:value="formData[field.key]"
           :placeholder="field.placeholder"
           :disabled="field.disabled"
-        />
+        >
+          <template v-if="field.suffix" #suffix>
+            <n-button 
+              v-if="field.suffix.type === 'button'"
+              text
+              size="small"
+              :type="field.suffix.buttonType || 'primary'"
+              :loading="field.suffix.loading"
+              @click="field.suffix.onClick?.(formData[field.key])"
+            >
+              {{ field.suffix.text }}
+            </n-button>
+          </template>
+        </n-input>
         
         <!-- 数字输入框 -->
         <n-input-number
@@ -123,6 +136,13 @@ interface FormField {
   options?: Array<{ label: string; value: any }>
   required?: boolean
   validator?: (value: any) => boolean | string
+  suffix?: {
+    type: 'button'
+    buttonType?: 'primary' | 'success' | 'warning' | 'error'
+    loading?: boolean
+    text: string
+    onClick?: (value: any) => void
+  }
 }
 
 interface Props {

@@ -22,7 +22,7 @@ RUN wget --tries=3 --retry-connrefused --timeout=30 \
     -O /usr/local/bin/regctl && \
     chmod +x /usr/local/bin/regctl
 
-# 安装 Docker Compose 插件
+    # 安装 Docker Compose 插件
 RUN mkdir -p /usr/local/lib/docker/cli-plugins && \
     wget --tries=3 --retry-connrefused --timeout=30 \
     https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) \

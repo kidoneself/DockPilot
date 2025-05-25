@@ -26,14 +26,33 @@
 
     <template #footer>
       <div class="modal-actions">
-        <n-button @click="handleCancel">{{ config.cancelText || '取消' }}</n-button>
-        <n-button 
-          type="primary" 
-          @click="handleConfirm"
-          :loading="loading"
-        >
-          {{ config.confirmText || '确定' }}
-        </n-button>
+        <div class="left-actions">
+          <n-button 
+            v-if="config.showResetButton"
+            secondary
+            type="error"
+            size="medium"
+            @click="handleReset"
+          >
+            <template #icon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"></polyline>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+              </svg>
+            </template>
+            {{ config.resetText || '重置配置' }}
+          </n-button>
+        </div>
+        <div class="right-actions">
+          <n-button @click="handleCancel">{{ config.cancelText || '取消' }}</n-button>
+          <n-button 
+            type="primary" 
+            @click="handleConfirm"
+            :loading="loading"
+          >
+            {{ config.confirmText || '确定' }}
+          </n-button>
+        </div>
       </div>
     </template>
   </n-modal>
@@ -51,8 +70,12 @@ export interface ConfigModalConfig {
   componentProps?: Record<string, any>;   // 组件属性
   cancelText?: string;                    // 取消按钮文字
   confirmText?: string;                   // 确认按钮文字
+  showResetButton?: boolean;              // 是否显示重置按钮
+  resetText?: string;                     // 重置按钮文字
   beforeConfirm?: (data: any) => boolean | Promise<boolean>; // 确认前的验证
   afterConfirm?: (data: any) => void | Promise<void>;       // 确认后的回调
+  beforeReset?: () => boolean | Promise<boolean>;           // 重置前的确认
+  afterReset?: () => void | Promise<void>;                  // 重置后的回调
 }
 
 interface Props {
@@ -67,6 +90,7 @@ interface Emits {
   (e: 'update:modelValue', value: any): void
   (e: 'confirm', data: any): void
   (e: 'cancel'): void
+  (e: 'reset'): void
 }
 
 const props = defineProps<Props>()
@@ -117,6 +141,33 @@ const handleCancel = () => {
   visible.value = false
 }
 
+// 处理重置
+const handleReset = async () => {
+  try {
+    // 如果有重置前确认，先执行确认
+    if (props.config.beforeReset) {
+      const confirmed = await props.config.beforeReset()
+      if (!confirmed) {
+        return
+      }
+    }
+
+    // 触发重置事件
+    emit('reset')
+
+    // 如果有重置后回调，执行回调
+    if (props.config.afterReset) {
+      await props.config.afterReset()
+    }
+
+    // 关闭模态框
+    visible.value = false
+  } catch (error) {
+    console.error('Config reset error:', error)
+    message.error('重置失败，请重试')
+  }
+}
+
 // 模态框关闭后的清理
 const handleAfterLeave = () => {
   // 可以在这里做一些清理工作
@@ -132,7 +183,18 @@ const handleAfterLeave = () => {
 
 .modal-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.left-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.right-actions {
+  display: flex;
   gap: 12px;
 }
 </style> 

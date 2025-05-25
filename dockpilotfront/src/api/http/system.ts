@@ -40,6 +40,13 @@ export const testProxyLatency = () => {
   return request.get<Record<string, number>>('/system/proxy/test')
 }
 
+// 测试指定代理URL的延迟
+export const testProxyLatencyWithUrl = (proxyUrl: string) => {
+  return request.post<Record<string, number>>('/system/proxy/test', null, {
+    params: { proxyUrl }
+  })
+}
+
 // 获取授权菜单
 export const getMenu = () => {
   return request.get<Route[]>('/system/getMenu')

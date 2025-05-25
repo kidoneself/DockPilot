@@ -76,6 +76,17 @@ public class SystemController {
         return ApiResponse.success(systemSettingService.testProxyLatency());
     }
 
+    /**
+     * 测试指定代理URL的延迟
+     * @param proxyUrl 代理URL
+     * @return 代理延迟信息
+     */
+    @Operation(summary = "测试指定代理延迟", description = "测试指定代理URL的延迟，不会影响当前代理配置")
+    @PostMapping("/proxy/test")
+    public ApiResponse<Map<String, Long>> testProxyLatency(@RequestParam String proxyUrl) {
+        return ApiResponse.success(systemSettingService.testProxyLatency(proxyUrl));
+    }
+
     @Operation(summary = "获取网站Logo", description = "获取指定网站的favicon图标URL")
     @GetMapping("/favicon")
     public ApiResponse<String> getFavicon(@RequestParam String url) {
