@@ -8,7 +8,10 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import javax.servlet.http.HttpServletRequest;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 安全元数据源
@@ -30,12 +33,12 @@ public class SecurityMetadataSource implements FilterInvocationSecurityMetadataS
         // 获取请求的URL
         HttpServletRequest request = ((FilterInvocation) object).getRequest();
         String url = request.getRequestURI();
-        
+
         // 如果是登录相关的URL，允许匿名访问
         if (url.startsWith("/api/auth/")) {
             return Collections.emptyList();
         }
-        
+
         // 其他URL都需要认证
         return Collections.singletonList(new SecurityConfig("ROLE_USER"));
     }

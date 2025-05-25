@@ -5,7 +5,8 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerCmd;
 import com.github.dockerjava.api.model.*;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 将配置文件中的模板转换成cmd
@@ -48,22 +49,22 @@ public class ContainerCmdFactory {
         if (portsNode != null && !portsNode.isEmpty()) {
             List<PortBinding> portBindings = new ArrayList<>();
             List<ExposedPort> exposedPorts = new ArrayList<>();
-            
+
             portsNode.fields().forEachRemaining(entry -> {
                 String[] parts = entry.getKey().split("/");
                 String port = parts[0];
                 String protocol = parts.length > 1 ? parts[1] : "tcp";
-                
+
                 ExposedPort exposedPort = ExposedPort.tcp(Integer.parseInt(port));
                 exposedPorts.add(exposedPort);
-                
+
                 String hostPort = entry.getValue().asText();
                 portBindings.add(new PortBinding(
-                    Ports.Binding.bindPort(Integer.parseInt(hostPort)),
-                    exposedPort
+                        Ports.Binding.bindPort(Integer.parseInt(hostPort)),
+                        exposedPort
                 ));
             });
-            
+
             cmd.withExposedPorts(exposedPorts);
             cmd.withPortBindings(portBindings);
         }

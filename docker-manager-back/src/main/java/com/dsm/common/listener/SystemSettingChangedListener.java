@@ -16,16 +16,16 @@ public class SystemSettingChangedListener {
 
     @EventListener
     public void handleSystemSettingChanged(SystemSettingChangedEvent event) {
-        String key = event.getKey();
-        String newValue = event.getNewValue();
-        JSONObject jsonObject = JSONObject.parseObject(newValue);
-        if ("proxy".equals(key)) {
-            String url = jsonObject.getString("url");
-            if (url != null && !url.isBlank()) {
-                appConfig.setProxyUrl(url);
-                LogUtil.logSysInfo("✅已设置系统 HTTP 代理: " + url);
-            }
-        }
+//        String key = event.getKey();
+//        String newValue = event.getNewValue();
+//        JSONObject jsonObject = JSONObject.parseObject(newValue);
+//        if ("proxy".equals(key)) {
+//            String url = jsonObject.getString("url");
+//            if (url != null && !url.isBlank()) {
+//                appConfig.setProxyUrl(url);
+//                LogUtil.logSysInfo("✅已设置系统 HTTP 代理: " + url);
+//            }
+//        }
 
     }
 } 

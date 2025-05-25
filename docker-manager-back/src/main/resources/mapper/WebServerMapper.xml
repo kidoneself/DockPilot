@@ -3,37 +3,37 @@
 <mapper namespace="com.dsm.mapper.WebServerMapper">
     <!-- 基础列 -->
     <sql id="Base_Column_List">
-        id, name, icon, internal_url, external_url, description, category, item_sort,
+        id
+        , name, icon, internal_url, external_url, description, category, item_sort,
         created_at, updated_at
     </sql>
 
     <!-- 新增服务器 -->
     <insert id="insert" parameterType="com.dsm.model.entity.WebServer">
-        INSERT INTO web_servers (
-            id, name, icon, internal_url, external_url, description, category, item_sort,
-            created_at, updated_at
-        ) VALUES (
-            #{id}, #{name}, #{icon}, #{internalUrl}, #{externalUrl}, #{description}, #{category},
-            #{itemSort}, datetime('now'), datetime('now')
-        )
+        INSERT INTO web_servers (id, name, icon, internal_url, external_url, description, category, item_sort,
+                                 created_at, updated_at)
+        VALUES (#{id}, #{name}, #{icon}, #{internalUrl}, #{externalUrl}, #{description}, #{category},
+                #{itemSort}, datetime('now'), datetime('now'))
     </insert>
 
     <!-- 根据ID删除服务器 -->
     <delete id="deleteById">
-        DELETE FROM web_servers WHERE id = #{id}
+        DELETE
+        FROM web_servers
+        WHERE id = #{id}
     </delete>
 
     <!-- 更新服务器信息 -->
     <update id="update" parameterType="com.dsm.model.entity.WebServer">
         UPDATE web_servers
-        SET name = #{name},
-            icon = #{icon},
+        SET name         = #{name},
+            icon         = #{icon},
             internal_url = #{internalUrl},
             external_url = #{externalUrl},
-            description = #{description},
-            category = #{category},
-            item_sort = #{itemSort},
-            updated_at = datetime('now')
+            description  = #{description},
+            category     = #{category},
+            item_sort    = #{itemSort},
+            updated_at   = datetime('now')
         WHERE id = #{id}
     </update>
 
@@ -72,7 +72,7 @@
     <!-- 更新服务器排序 -->
     <update id="updateSort">
         UPDATE web_servers
-        SET item_sort = #{itemSort},
+        SET item_sort  = #{itemSort},
             updated_at = datetime('now')
         WHERE id = #{id}
     </update>
@@ -81,9 +81,9 @@
     <update id="batchUpdateSort">
         UPDATE web_servers
         SET item_sort = CASE id
-            <foreach collection="servers" item="server">
-                WHEN #{server.id} THEN #{server.itemSort}
-            </foreach>
+        <foreach collection="servers" item="server">
+            WHEN #{server.id} THEN #{server.itemSort}
+        </foreach>
         END,
         updated_at = datetime('now')
         WHERE id IN

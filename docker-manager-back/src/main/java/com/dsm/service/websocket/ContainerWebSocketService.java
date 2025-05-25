@@ -3,14 +3,22 @@ package com.dsm.service.websocket;
 import com.alibaba.fastjson.JSON;
 import com.dsm.api.DockerService;
 import com.dsm.model.ContainerCreateRequest;
+import com.dsm.model.ContainerInfo;
 import com.dsm.model.JsonContainerRequest;
 import com.dsm.model.MessageType;
+import com.dsm.service.http.ContainerInfoService;
 import com.dsm.service.http.ContainerService;
+import com.dsm.service.http.ContainerSyncService;
+import com.dsm.service.http.NetworkService;
 import com.dsm.utils.AsyncTaskRunner;
+import com.dsm.utils.ErrorMessageExtractor;
 import com.dsm.utils.JsonContainerRequestToContainerCreateRequestConverter;
 import com.dsm.utils.MessageCallback;
 import com.dsm.websocket.model.DockerWebSocketMessage;
 import com.dsm.websocket.sender.WebSocketMessageSender;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -25,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
  */
 @Slf4j
 @Service
+@Tag(name = "容器 WebSocket 服务", description = "处理容器相关的 WebSocket 消息")
 public class ContainerWebSocketService implements BaseService {
 
     @Autowired
@@ -36,6 +45,15 @@ public class ContainerWebSocketService implements BaseService {
     @Autowired
     private DockerService dockerService;
 
+    @Autowired
+    private NetworkService networkService;
+
+    @Autowired
+    private ContainerInfoService containerInfoService;
+
+    @Autowired
+    private ContainerSyncService containerSyncService;
+
     /**
      * 处理WebSocket消息的主入口方法
      *
@@ -43,7 +61,29 @@ public class ContainerWebSocketService implements BaseService {
      * @param message 接收到的消息
      */
     @Override
-    public void handle(WebSocketSession session, DockerWebSocketMessage message) {
+    @Operation(
+            summary = "处理容器相关的WebSocket消息",
+            description = "根据消息类型处理不同的容器操作，包括：\n" +
+                    "- CONTAINER_LIST: 获取容器列表\n" +
+                    "- CONTAINER_DETAIL: 获取容器详情\n" +
+                    "- CONTAINER_START: 启动容器\n" +
+                    "- CONTAINER_STOP: 停止容器\n" +
+                    "- CONTAINER_RESTART: 重启容器\n" +
+                    "- CONTAINER_DELETE: 删除容器\n" +
+                    "- CONTAINER_UPDATE: 更新容器\n" +
+                    "- CONTAINER_CREATE: 创建容器\n" +
+                    "- CONTAINER_LOGS: 获取容器日志\n" +
+                    "- CONTAINER_STATS: 获取容器状态\n" +
+                    "- CONTAINER_STATE_CHANGE: 容器状态变更\n" +
+                    "- CONTAINER_JSON_CONFIG: 获取容器配置\n" +
+                    "- NETWORK_DETAIL: 获取网络详情\n" +
+                    "- CONTAINER_UPDATE_INFO: 更新容器信息\n" +
+                    "- CONTAINER_CLEANUP_DUPLICATES: 清理重复记录"
+    )
+    public void handle(
+            @Parameter(description = "WebSocket会话") WebSocketSession session,
+            @Parameter(description = "接收到的消息") DockerWebSocketMessage message
+    ) {
         MessageType type = MessageType.valueOf(message.getType());
         String taskId = message.getTaskId();
 
@@ -58,48 +98,57 @@ public class ContainerWebSocketService implements BaseService {
                     result = handleContainerDetail(message);
                     break;
                 case CONTAINER_START:          // 启动容器
-                    result = handleContainerStart(message);
-                    break;
+                    AsyncTaskRunner.runWithoutResult(() -> {
+                        handleContainerStart(message);
+                        return CompletableFuture.completedFuture(null);
+                    }, messageSender, session, taskId);
+                    return; // 不发送同步响应
                 case CONTAINER_STOP:           // 停止容器
-                    result = handleContainerStop(message);
-                    break;
+                    AsyncTaskRunner.runWithoutResult(() -> {
+                        handleContainerStop(message);
+                        return CompletableFuture.completedFuture(null);
+                    }, messageSender, session, taskId);
+                    return; // 不发送同步响应
                 case CONTAINER_RESTART:        // 重启容器
-                    result = handleContainerRestart(message);
-                    break;
+                    AsyncTaskRunner.runWithoutResult(() -> {
+                        handleContainerRestart(message);
+                        return CompletableFuture.completedFuture(null);
+                    }, messageSender, session, taskId);
+                    return; // 不发送同步响应
                 case CONTAINER_DELETE:         // 删除容器
-                    result = handleContainerDelete(message);
-                    break;
+                    AsyncTaskRunner.runWithoutResult(() -> {
+                        handleContainerDelete(message);
+                        return CompletableFuture.completedFuture(null);
+                    }, messageSender, session, taskId);
+                    return; // 不发送同步响应
                 case CONTAINER_UPDATE:         // 更新容器
-                    // 假设以下变量已经定义好：
-                    CompletableFuture<String> updateFuture = AsyncTaskRunner.runWithResult(() -> handleContainerUpdate(message, new MessageCallback() {
-                        @Override
-                        public void onProgress(int progress) {
-                            System.out.println("进度: " + progress + "%");
-                            messageSender.sendProgress(session, taskId, progress);
-                        }
+                    AsyncTaskRunner.runWithResult(() -> {
+                        return handleContainerUpdate(message, new MessageCallback() {
+                            @Override
+                            public void onProgress(int progress) {
+                                System.out.println("进度: " + progress + "%");
+                                messageSender.sendProgress(session, taskId, progress);
+                            }
 
-                        @Override
-                        public void onLog(String log) {
-                            System.out.println("日志: " + log);
-                            messageSender.sendLog(session, taskId, log);
-                        }
+                            @Override
+                            public void onLog(String log) {
+                                System.out.println("日志: " + log);
+                                messageSender.sendLog(session, taskId, log);
+                            }
 
-                        @Override
-                        public void onComplete() {
-                            System.out.println("镜像拉取完成！");
-                            messageSender.sendComplete(session, taskId, true);
-                        }
+                            @Override
+                            public void onComplete() {
+                                System.out.println("容器更新完成！");
+                            }
 
-                        @Override
-                        public void onError(String error) {
-                            System.err.println("错误: " + error);
-                            messageSender.sendError(session, taskId, error);
-                        }
-                    }), messageSender, session, taskId);
-
-                    // 阻塞等待结果，也可以用异步方式处理
-                    result = updateFuture.join();
-                    break;
+                            @Override
+                            public void onError(String error) {
+                                System.err.println("错误: " + error);
+                                throw new RuntimeException(error);
+                            }
+                        });
+                    }, messageSender, session, taskId);
+                    return; // 不发送同步响应
                 case CONTAINER_CREATE:         // 创建容器
                     result = handleContainerCreate(message);
                     break;
@@ -115,6 +164,18 @@ public class ContainerWebSocketService implements BaseService {
                 case CONTAINER_JSON_CONFIG:    // 获取容器配置
                     result = handleContainerJsonConfig(message);
                     break;
+                case NETWORK_DETAIL:           // 获取网络详情
+                    result = handleNetworkDetail(message);
+                    break;
+                case CONTAINER_UPDATE_INFO:    // 更新容器信息
+                    result = handleUpdateContainerInfo(message);
+                    break;
+                case CONTAINER_CLEANUP_DUPLICATES: // 清理重复记录
+                    AsyncTaskRunner.runWithoutResult(() -> {
+                        handleCleanupDuplicates();
+                        return CompletableFuture.completedFuture(null);
+                    }, messageSender, session, taskId);
+                    return; // 不发送同步响应
                 default:
                     log.warn("未知的容器消息类型: {}", type);
             }
@@ -123,7 +184,8 @@ public class ContainerWebSocketService implements BaseService {
             messageSender.sendComplete(session, taskId, result);
         } catch (Exception e) {
             log.error("处理容器消息时发生错误: {}", type, e);
-            messageSender.sendError(session, taskId, e.getMessage());
+            String userFriendlyError = ErrorMessageExtractor.extractUserFriendlyError(e);
+            messageSender.sendError(session, taskId, userFriendlyError);
         }
     }
 
@@ -154,11 +216,10 @@ public class ContainerWebSocketService implements BaseService {
      * @param message WebSocket消息
      * @return 启动操作结果
      */
-    private Object handleContainerStart(DockerWebSocketMessage message) {
+    private void handleContainerStart(DockerWebSocketMessage message) {
         Map<String, Object> data = (Map<String, Object>) message.getData();
         String containerId = (String) data.get("containerId");
         containerService.startContainer(containerId);
-        return null;
     }
 
     /**
@@ -167,11 +228,10 @@ public class ContainerWebSocketService implements BaseService {
      * @param message WebSocket消息
      * @return 停止操作结果
      */
-    private Object handleContainerStop(DockerWebSocketMessage message) {
+    private void handleContainerStop(DockerWebSocketMessage message) {
         Map<String, Object> data = (Map<String, Object>) message.getData();
         String containerId = (String) data.get("containerId");
         containerService.stopContainer(containerId);
-        return null;
     }
 
     /**
@@ -180,11 +240,10 @@ public class ContainerWebSocketService implements BaseService {
      * @param message WebSocket消息
      * @return 重启操作结果
      */
-    private Object handleContainerRestart(DockerWebSocketMessage message) {
+    private void handleContainerRestart(DockerWebSocketMessage message) {
         Map<String, Object> data = (Map<String, Object>) message.getData();
         String containerId = (String) data.get("containerId");
         containerService.restartContainer(containerId);
-        return null;
     }
 
     /**
@@ -193,11 +252,10 @@ public class ContainerWebSocketService implements BaseService {
      * @param message WebSocket消息
      * @return 删除操作结果
      */
-    private Object handleContainerDelete(DockerWebSocketMessage message) {
+    private void handleContainerDelete(DockerWebSocketMessage message) {
         Map<String, Object> data = (Map<String, Object>) message.getData();
         String containerId = (String) data.get("containerId");
         containerService.removeContainer(containerId);
-        return null;
     }
 
     /**
@@ -213,10 +271,9 @@ public class ContainerWebSocketService implements BaseService {
         if (onlyContainerId) {
             return containerService.updateContainerImage(containerId, callback);
         }
-        JsonContainerRequest json = JSON.parseObject(JSON.toJSONString(data), JsonContainerRequest.class);
+        JsonContainerRequest json = JSON.parseObject(JSON.toJSONString(data.get("config")), JsonContainerRequest.class);
         ContainerCreateRequest request = JsonContainerRequestToContainerCreateRequestConverter.convert(json);
-//        return containerService.updateContainer(containerId, request, callback);
-        return null;
+        return containerService.updateContainer(containerId, request, callback);
     }
 
     /**
@@ -278,6 +335,54 @@ public class ContainerWebSocketService implements BaseService {
         String containerId = (String) data.get("containerId");
         String jsonConfig = dockerService.generateJsonFromContainerId(containerId);
         return JSON.parseObject(jsonConfig);
+    }
 
+    /**
+     * 处理获取网络详情的请求
+     *
+     * @param message WebSocket消息
+     * @return 网络详情信息
+     */
+    private Object handleNetworkDetail(DockerWebSocketMessage message) {
+        Map<String, Object> data = (Map<String, Object>) message.getData();
+        String networkId = (String) data.get("networkId");
+        return networkService.getNetworkDetail(networkId);
+    }
+
+    /**
+     * 处理更新容器信息的请求
+     *
+     * @param message WebSocket消息
+     * @return 更新操作结果
+     */
+    private Object handleUpdateContainerInfo(DockerWebSocketMessage message) {
+        Map<String, Object> data = (Map<String, Object>) message.getData();
+        String containerId = (String) data.get("containerId");
+        String webUrl = (String) data.get("webUrl");
+        String iconUrl = (String) data.get("iconUrl");
+
+        // 获取现有的容器信息
+        ContainerInfo containerInfo = containerInfoService.getContainerInfoByContainerId(containerId);
+        if (containerInfo == null) {
+            throw new RuntimeException("容器信息不存在: " + containerId);
+        }
+
+        // 更新字段
+        containerInfo.setWebUrl(webUrl);
+        containerInfo.setIconUrl(iconUrl);
+
+        // 保存更新
+        containerInfoService.updateContainerInfo(containerInfo);
+
+        return "更新成功";
+    }
+
+    /**
+     * 处理清理容器重复记录的请求
+     */
+    private void handleCleanupDuplicates() {
+        log.info("开始清理容器重复记录...");
+        containerSyncService.cleanupDuplicateRecords();
+        log.info("容器重复记录清理完成");
     }
 } 

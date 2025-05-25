@@ -1,0 +1,667 @@
+asyncapi: 2.0.0
+info:
+  title: Docker Manager WebSocket API
+  version: 1.0.0
+  description: Docker容器管理系统的WebSocket API文档
+
+servers:
+  production:
+    url: ws://localhost:8080/ws/docker
+    protocol: ws
+    description: 生产环境WebSocket服务器
+
+channels:
+  /ws/docker:
+    description: Docker容器管理的WebSocket通道
+    publish:
+      message:
+        name: dockerMessage
+        title: Docker消息
+        summary: 接收Docker相关的消息
+        payload:
+          type: object
+          properties:
+            type:
+              type: string
+              description: 消息类型
+              enum: [
+                # 镜像相关
+                IMAGE_LIST, IMAGE_DETAIL, IMAGE_DELETE, IMAGE_UPDATE, IMAGE_BATCH_UPDATE,
+                PULL_IMAGE, PULL_START, PULL_PROGRESS, PULL_COMPLETE, CANCEL_PULL,
+                IMAGE_CANCEL_PULL, IMAGE_CHECK_UPDATES,
+                # 容器相关
+                CONTAINER_LIST, CONTAINER_DETAIL, CONTAINER_START, CONTAINER_STOP,
+                CONTAINER_RESTART, CONTAINER_DELETE, CONTAINER_UPDATE, CONTAINER_CREATE,
+                CONTAINER_LOGS, CONTAINER_STATS, CONTAINER_STATE_CHANGE, CONTAINER_JSON_CONFIG,
+                # 应用商店相关
+                INSTALL_CHECK_IMAGES, INSTALL_VALIDATE, INSTALL_START, INSTALL_LOG,
+                NETWORK_LIST, IMPORT_TEMPLATE, DELETE_TEMPLATE,
+                # 通用消息类型
+                COMPLETE, ERROR, PROGRESS, LOG
+              ]
+            taskId:
+              type: string
+              description: 任务ID，用于标识一个完整流程
+              example: "123e4567-e89b-12d3-a456-426614174000"
+            data:
+              type: object
+              description: 消息数据，具体结构由消息类型决定
+              oneOf:
+                # 镜像相关消息
+                - $ref: '#/components/schemas/ImageListMessage'
+                - $ref: '#/components/schemas/ImageDetailMessage'
+                - $ref: '#/components/schemas/ImageDeleteMessage'
+                - $ref: '#/components/schemas/ImageUpdateMessage'
+                - $ref: '#/components/schemas/ImageBatchUpdateMessage'
+                - $ref: '#/components/schemas/PullImageMessage'
+                - $ref: '#/components/schemas/ImageCheckUpdatesMessage'
+                # 容器相关消息
+                - $ref: '#/components/schemas/ContainerListMessage'
+                - $ref: '#/components/schemas/ContainerDetailMessage'
+                - $ref: '#/components/schemas/ContainerStartMessage'
+                - $ref: '#/components/schemas/ContainerStopMessage'
+                - $ref: '#/components/schemas/ContainerRestartMessage'
+                - $ref: '#/components/schemas/ContainerDeleteMessage'
+                - $ref: '#/components/schemas/ContainerUpdateMessage'
+                - $ref: '#/components/schemas/ContainerCreateMessage'
+                - $ref: '#/components/schemas/ContainerLogsMessage'
+                - $ref: '#/components/schemas/ContainerStatsMessage'
+                - $ref: '#/components/schemas/ContainerStateChangeMessage'
+                - $ref: '#/components/schemas/ContainerJsonConfigMessage'
+                # 应用商店相关消息
+                - $ref: '#/components/schemas/InstallCheckImagesMessage'
+                - $ref: '#/components/schemas/InstallValidateMessage'
+                - $ref: '#/components/schemas/InstallStartMessage'
+                - $ref: '#/components/schemas/InstallLogMessage'
+                - $ref: '#/components/schemas/NetworkListMessage'
+                - $ref: '#/components/schemas/ImportTemplateMessage'
+                - $ref: '#/components/schemas/DeleteTemplateMessage'
+            timestamp:
+              type: integer
+              format: int64
+              description: 发送时间戳（毫秒）
+              example: 1647123456789
+            errorMessage:
+              type: string
+              description: 错误信息
+            progress:
+              type: integer
+              description: 进度信息（0-100）
+              example: 50
+              minimum: 0
+              maximum: 100
+    subscribe:
+      message:
+        name: dockerCommand
+        title: Docker命令
+        summary: 发送Docker容器管理命令
+        payload:
+          type: object
+          properties:
+            type:
+              type: string
+              description: 消息类型
+              enum: [
+                # 镜像相关
+                IMAGE_LIST, IMAGE_DETAIL, IMAGE_DELETE, IMAGE_UPDATE, IMAGE_BATCH_UPDATE,
+                PULL_IMAGE, IMAGE_CHECK_UPDATES,
+                # 容器相关
+                CONTAINER_LIST, CONTAINER_DETAIL, CONTAINER_START, CONTAINER_STOP,
+                CONTAINER_RESTART, CONTAINER_DELETE, CONTAINER_UPDATE, CONTAINER_CREATE,
+                CONTAINER_LOGS, CONTAINER_STATS, CONTAINER_STATE_CHANGE, CONTAINER_JSON_CONFIG,
+                # 应用商店相关
+                INSTALL_CHECK_IMAGES, INSTALL_VALIDATE, INSTALL_START, INSTALL_LOG,
+                NETWORK_LIST, IMPORT_TEMPLATE, DELETE_TEMPLATE
+              ]
+            taskId:
+              type: string
+              description: 任务ID，用于标识一个完整流程
+              example: "123e4567-e89b-12d3-a456-426614174000"
+            data:
+              type: object
+              description: 命令参数，具体结构由命令类型决定
+              oneOf:
+                # 镜像相关命令
+                - $ref: '#/components/schemas/ImageListCommand'
+                - $ref: '#/components/schemas/ImageDetailCommand'
+                - $ref: '#/components/schemas/ImageDeleteCommand'
+                - $ref: '#/components/schemas/ImageUpdateCommand'
+                - $ref: '#/components/schemas/ImageBatchUpdateCommand'
+                - $ref: '#/components/schemas/PullImageCommand'
+                - $ref: '#/components/schemas/ImageCheckUpdatesCommand'
+                # 容器相关命令
+                - $ref: '#/components/schemas/ContainerListCommand'
+                - $ref: '#/components/schemas/ContainerDetailCommand'
+                - $ref: '#/components/schemas/ContainerStartCommand'
+                - $ref: '#/components/schemas/ContainerStopCommand'
+                - $ref: '#/components/schemas/ContainerRestartCommand'
+                - $ref: '#/components/schemas/ContainerDeleteCommand'
+                - $ref: '#/components/schemas/ContainerUpdateCommand'
+                - $ref: '#/components/schemas/ContainerCreateCommand'
+                - $ref: '#/components/schemas/ContainerLogsCommand'
+                - $ref: '#/components/schemas/ContainerStatsCommand'
+                - $ref: '#/components/schemas/ContainerStateChangeCommand'
+                - $ref: '#/components/schemas/ContainerJsonConfigCommand'
+                # 应用商店相关命令
+                - $ref: '#/components/schemas/InstallCheckImagesCommand'
+                - $ref: '#/components/schemas/InstallValidateCommand'
+                - $ref: '#/components/schemas/InstallStartCommand'
+                - $ref: '#/components/schemas/InstallLogCommand'
+                - $ref: '#/components/schemas/NetworkListCommand'
+                - $ref: '#/components/schemas/ImportTemplateCommand'
+                - $ref: '#/components/schemas/DeleteTemplateCommand'
+            timestamp:
+              type: integer
+              format: int64
+              description: 发送时间戳（毫秒）
+              example: 1647123456789
+
+components:
+  schemas:
+    # 镜像相关消息
+    ImageListMessage:
+      type: object
+      description: 获取镜像列表的消息
+      properties: { }
+
+    ImageDetailMessage:
+      type: object
+      description: 获取镜像详情的消息
+      properties:
+        imageId:
+          type: string
+          description: 镜像ID
+
+    ImageDeleteMessage:
+      type: object
+      description: 删除镜像的消息
+      properties:
+        imageId:
+          type: string
+          description: 镜像ID
+        removeStatus:
+          type: boolean
+          description: 是否强制删除镜像
+          default: true
+
+    ImageUpdateMessage:
+      type: object
+      description: 更新镜像的消息
+      properties:
+        image:
+          type: string
+          description: 镜像名称
+        tag:
+          type: string
+          description: 镜像标签
+
+    ImageBatchUpdateMessage:
+      type: object
+      description: 批量更新镜像的消息
+      properties: { }
+
+    PullImageMessage:
+      type: object
+      description: 拉取镜像的消息
+      properties:
+        imageName:
+          type: string
+          description: 完整的镜像名称（包含标签）
+
+    ImageCheckUpdatesMessage:
+      type: object
+      description: 检查镜像更新的消息
+      properties: { }
+
+    # 容器相关消息
+    ContainerListMessage:
+      type: object
+      description: 获取容器列表的消息
+      properties: { }
+
+    ContainerDetailMessage:
+      type: object
+      description: 获取容器详情的消息
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerStartMessage:
+      type: object
+      description: 启动容器的消息
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerStopMessage:
+      type: object
+      description: 停止容器的消息
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerRestartMessage:
+      type: object
+      description: 重启容器的消息
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerDeleteMessage:
+      type: object
+      description: 删除容器的消息
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerUpdateMessage:
+      type: object
+      description: 更新容器的消息
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerCreateMessage:
+      type: object
+      description: 创建容器的消息
+      properties: { }
+
+    ContainerLogsMessage:
+      type: object
+      description: 获取容器日志的消息
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+        follow:
+          type: boolean
+          description: 是否持续跟踪日志
+        tail:
+          type: integer
+          description: 获取最后N行日志
+        since:
+          type: string
+          format: date-time
+          description: 获取指定时间之后的日志
+
+    ContainerStatsMessage:
+      type: object
+      description: 获取容器状态的消息
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerStateChangeMessage:
+      type: object
+      description: 容器状态变更的消息
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerJsonConfigMessage:
+      type: object
+      description: 获取容器配置的消息
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    # 应用商店相关消息
+    InstallCheckImagesMessage:
+      type: object
+      description: 检查安装所需镜像的消息
+      properties:
+        images:
+          type: array
+          description: 镜像列表
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: 镜像名称
+              tag:
+                type: string
+                description: 镜像标签
+
+    InstallValidateMessage:
+      type: object
+      description: 验证安装参数的消息
+      properties:
+        params:
+          type: object
+          description: 安装参数
+          properties:
+            ports:
+              type: array
+              description: 端口映射配置
+              items:
+                type: object
+                properties:
+                  hostPort:
+                    type: integer
+                    description: 主机端口
+                  containerPort:
+                    type: integer
+                    description: 容器端口
+                  protocol:
+                    type: string
+                    enum: [ tcp, udp ]
+                    description: 协议类型
+            paths:
+              type: array
+              description: 路径映射配置
+              items:
+                type: object
+                properties:
+                  hostPath:
+                    type: string
+                    description: 主机路径
+                  containerPath:
+                    type: string
+                    description: 容器路径
+                  mode:
+                    type: string
+                    description: 挂载模式
+
+    InstallStartMessage:
+      type: object
+      description: 开始安装的消息
+      properties:
+        appId:
+          type: string
+          description: 应用ID
+        params:
+          type: object
+          description: 安装参数
+
+    InstallLogMessage:
+      type: object
+      description: 安装日志的消息
+      properties:
+        appId:
+          type: string
+          description: 应用ID
+
+    NetworkListMessage:
+      type: object
+      description: 获取网络列表的消息
+      properties: { }
+
+    ImportTemplateMessage:
+      type: object
+      description: 导入模板的消息
+      properties:
+        content:
+          type: string
+          description: 模板内容
+
+    DeleteTemplateMessage:
+      type: object
+      description: 删除模板的消息
+      properties:
+        templateId:
+          type: string
+          description: 模板ID
+
+    # 镜像相关命令
+    ImageListCommand:
+      type: object
+      description: 获取镜像列表的命令
+      properties: { }
+
+    ImageDetailCommand:
+      type: object
+      description: 获取镜像详情的命令
+      properties:
+        imageId:
+          type: string
+          description: 镜像ID
+
+    ImageDeleteCommand:
+      type: object
+      description: 删除镜像的命令
+      properties:
+        imageId:
+          type: string
+          description: 镜像ID
+        removeStatus:
+          type: boolean
+          description: 是否强制删除镜像
+          default: true
+
+    ImageUpdateCommand:
+      type: object
+      description: 更新镜像的命令
+      properties:
+        image:
+          type: string
+          description: 镜像名称
+        tag:
+          type: string
+          description: 镜像标签
+
+    ImageBatchUpdateCommand:
+      type: object
+      description: 批量更新镜像的命令
+      properties: { }
+
+    PullImageCommand:
+      type: object
+      description: 拉取镜像的命令
+      properties:
+        imageName:
+          type: string
+          description: 完整的镜像名称（包含标签）
+
+    ImageCheckUpdatesCommand:
+      type: object
+      description: 检查镜像更新的命令
+      properties: { }
+
+    # 容器相关命令
+    ContainerListCommand:
+      type: object
+      description: 获取容器列表的命令
+      properties: { }
+
+    ContainerDetailCommand:
+      type: object
+      description: 获取容器详情的命令
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerStartCommand:
+      type: object
+      description: 启动容器的命令
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerStopCommand:
+      type: object
+      description: 停止容器的命令
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerRestartCommand:
+      type: object
+      description: 重启容器的命令
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerDeleteCommand:
+      type: object
+      description: 删除容器的命令
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerUpdateCommand:
+      type: object
+      description: 更新容器的命令
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerCreateCommand:
+      type: object
+      description: 创建容器的命令
+      properties: { }
+
+    ContainerLogsCommand:
+      type: object
+      description: 获取容器日志的命令
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+        follow:
+          type: boolean
+          description: 是否持续跟踪日志
+        tail:
+          type: integer
+          description: 获取最后N行日志
+        since:
+          type: string
+          format: date-time
+          description: 获取指定时间之后的日志
+
+    ContainerStatsCommand:
+      type: object
+      description: 获取容器状态的命令
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerStateChangeCommand:
+      type: object
+      description: 容器状态变更的命令
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    ContainerJsonConfigCommand:
+      type: object
+      description: 获取容器配置的命令
+      properties:
+        containerId:
+          type: string
+          description: 容器ID
+
+    # 应用商店相关命令
+    InstallCheckImagesCommand:
+      type: object
+      description: 检查安装所需镜像的命令
+      properties:
+        images:
+          type: array
+          description: 镜像列表
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: 镜像名称
+              tag:
+                type: string
+                description: 镜像标签
+
+    InstallValidateCommand:
+      type: object
+      description: 验证安装参数的命令
+      properties:
+        params:
+          type: object
+          description: 安装参数
+          properties:
+            ports:
+              type: array
+              description: 端口映射配置
+              items:
+                type: object
+                properties:
+                  hostPort:
+                    type: integer
+                    description: 主机端口
+                  containerPort:
+                    type: integer
+                    description: 容器端口
+                  protocol:
+                    type: string
+                    enum: [ tcp, udp ]
+                    description: 协议类型
+            paths:
+              type: array
+              description: 路径映射配置
+              items:
+                type: object
+                properties:
+                  hostPath:
+                    type: string
+                    description: 主机路径
+                  containerPath:
+                    type: string
+                    description: 容器路径
+                  mode:
+                    type: string
+                    description: 挂载模式
+
+    InstallStartCommand:
+      type: object
+      description: 开始安装的命令
+      properties:
+        appId:
+          type: string
+          description: 应用ID
+        params:
+          type: object
+          description: 安装参数
+
+    InstallLogCommand:
+      type: object
+      description: 安装日志的命令
+      properties:
+        appId:
+          type: string
+          description: 应用ID
+
+    NetworkListCommand:
+      type: object
+      description: 获取网络列表的命令
+      properties: { }
+
+    ImportTemplateCommand:
+      type: object
+      description: 导入模板的命令
+      properties:
+        content:
+          type: string
+          description: 模板内容
+
+    DeleteTemplateCommand:
+      type: object
+      description: 删除模板的命令
+      properties:
+        templateId:
+          type: string
+          description: 模板ID 

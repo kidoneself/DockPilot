@@ -12,7 +12,7 @@ import java.util.List;
 @Mapper
 public interface WebServerMapper {
     /**
-     * 新增服务 
+     * 新增服务
      */
     int insert(WebServer webServer);
 

@@ -183,6 +183,15 @@ public class DockerService {
         return dockerClientWrapper.listNetworks();
     }
 
+    /**
+     * 获取网络详情
+     *
+     * @param networkId 网络ID
+     * @return 网络详情
+     */
+    public Network inspectNetwork(String networkId) {
+        return dockerClientWrapper.inspectNetwork(networkId);
+    }
 
     public void recreateContainerWithNewImage(String containerId, String imageName) {
         dockerClientWrapper.recreateContainerWithNewImage(containerId, imageName);
@@ -291,7 +300,7 @@ public class DockerService {
             String osName = System.getProperty("os.name").toLowerCase();
             String osArch = System.getProperty("os.arch").toLowerCase();
             if (osName.contains("mac") && (osArch.contains("aarch64") || osArch.contains("arm64"))) {
-                LogUtil.logSysInfo("检测到Mac ARM架构，强制指定arm64/linux架构参数");
+//                LogUtil.logSysInfo("检测到Mac ARM架构，强制指定arm64/linux架构参数");
                 command.add("--override-arch");
                 command.add("arm64");
                 command.add("--override-os");
@@ -299,8 +308,10 @@ public class DockerService {
             }
 
             command.add("--insecure-policy");
-            command.add("--tls-verify=false");
+            command.add("--src-tls-verify=false");
+            command.add("--dest-tls-verify=false");
             command.add("docker://" + fullImageName);
+            command.add("docker-daemon:" + fullImageName);
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
             // 如果代理配置不为空就使用代理
@@ -576,6 +587,10 @@ public class DockerService {
                     command.add("linux");
                 }
 
+                // 添加安全策略参数
+                command.add("--insecure-policy");
+                command.add("--src-tls-verify=false");
+                command.add("--dest-tls-verify=false");
                 command.add("docker://" + fullImageName);
                 command.add("docker-daemon:" + fullImageName);
 
@@ -586,15 +601,37 @@ public class DockerService {
                     pb.environment().put("HTTP_PROXY", proxyUrl);
                     pb.environment().put("HTTPS_PROXY", proxyUrl);
                 }
-                pb.redirectErrorStream(true);
+
+                // 不合并错误流，分别处理标准输出和错误输出
+                // pb.redirectErrorStream(true); // 移除这行
 
                 LogUtil.logSysInfo("执行命令: " + String.join(" ", command));
-                Process process = pb.start();
+                final Process process = pb.start();
 
+                // 用于收集标准输出和错误输出
+                StringBuilder outputBuffer = new StringBuilder();
+                StringBuilder errorBuffer = new StringBuilder();
+
+                // 创建线程读取错误输出
+                Thread errorReaderThread = new Thread(() -> {
+                    try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+                        String line;
+                        while ((line = errorReader.readLine()) != null) {
+                            errorBuffer.append(line).append("\n");
+                        }
+                    } catch (Exception e) {
+                        LogUtil.logSysError("读取错误输出失败: " + e.getMessage());
+                    }
+                });
+                errorReaderThread.start();
+
+                // 读取标准输出并解析进度
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
                     int progress = 0;
                     while ((line = reader.readLine()) != null) {
+                        outputBuffer.append(line).append("\n");
+
                         // 解析进度并回调
                         if (line.contains("Getting image source signatures")) {
                             progress = 10;
@@ -604,9 +641,10 @@ public class DockerService {
                             progress = 80;
                         } else if (line.contains("Writing manifest")) {
                             progress = 100;
-                        }else if (line.contains("timeout")) {
-                            line = "网络链接错误，请配置代理或增加加速地址";
+                        } else if (line.contains("timeout")) {
+                            line = "网络连接超时，请检查网络连接或配置代理";
                         }
+
                         if (callback != null) {
                             callback.onProgress(progress); // 进度回调
                             callback.onLog(line); // 日志回调
@@ -614,13 +652,81 @@ public class DockerService {
                     }
                 }
 
+                // 等待错误输出读取完成
+                errorReaderThread.join(5000); // 最多等待5秒
+
                 int exitCode = process.waitFor();
                 if (exitCode != 0) {
-                    String error = "skopeo 命令执行失败，退出码: " + exitCode;
-                    if (callback != null) {
-                        callback.onError(error); // 错误回调
+                    // 构建详细的错误消息
+                    String errorOutput = errorBuffer.toString().trim();
+                    String standardOutput = outputBuffer.toString().trim();
+
+                    StringBuilder detailedError = new StringBuilder();
+                    detailedError.append("skopeo 命令执行失败");
+
+                    // 首先尝试从错误输出中解析具体错误类型
+                    String specificErrorType = parseSkopeoErrorType(errorOutput, standardOutput);
+
+                    // 解释常见的退出码，如果有具体错误类型则使用具体类型
+                    switch (exitCode) {
+                        case 1:
+                            if (specificErrorType != null) {
+                                detailedError.append("(").append(specificErrorType).append(")");
+                            } else {
+                                detailedError.append("(一般错误)");
+                            }
+                            break;
+                        case 2:
+                            detailedError.append("(参数错误)");
+                            break;
+                        case 125:
+                            detailedError.append("(skopeo命令本身运行错误)");
+                            break;
+                        case 126:
+                            detailedError.append("(skopeo命令无法执行)");
+                            break;
+                        case 127:
+                            detailedError.append("(skopeo命令未找到)");
+                            break;
+                        case 130:
+                            detailedError.append("(操作被中断)");
+                            break;
+                        default:
+                            detailedError.append("(退出码: ").append(exitCode).append(")");
+                            break;
                     }
-                    throw new RuntimeException(error);
+
+                    // 添加详细错误信息
+                    if (!errorOutput.isEmpty()) {
+                        detailedError.append("\n错误详情: ").append(errorOutput);
+                    } else if (!standardOutput.isEmpty()) {
+                        // 如果没有错误输出，但有标准输出，也包含进来
+                        detailedError.append("\n输出信息: ").append(standardOutput);
+                    }
+
+                    // 根据错误内容提供建议
+                    String errorStr = detailedError.toString().toLowerCase();
+                    if (errorStr.contains("timeout") || errorStr.contains("time out")) {
+                        detailedError.append("\n建议: 网络连接超时，请检查网络连接或配置代理");
+                    } else if (errorStr.contains("unauthorized") || errorStr.contains("401")) {
+                        detailedError.append("\n建议: 镜像仓库认证失败，请检查镜像名称是否正确或配置认证信息");
+                    } else if (errorStr.contains("not found") || errorStr.contains("404")) {
+                        detailedError.append("\n建议: 镜像未找到，请检查镜像名称和标签是否正确");
+                    } else if (errorStr.contains("connection refused") || errorStr.contains("network")) {
+                        detailedError.append("\n建议: 网络连接被拒绝，请检查网络连接或配置代理");
+                    } else if (errorStr.contains("permission denied") || errorStr.contains("403")) {
+                        detailedError.append("\n建议: 权限不足，请检查是否有拉取该镜像的权限");
+                    } else if (exitCode == 127) {
+                        detailedError.append("\n建议: skopeo命令未安装，请先安装skopeo工具");
+                    }
+
+                    String finalError = detailedError.toString();
+                    LogUtil.logSysError(finalError);
+
+                    if (callback != null) {
+                        callback.onError(finalError); // 错误回调
+                    }
+                    throw new RuntimeException(finalError);
                 }
 
                 if (callback != null) {
@@ -628,9 +734,19 @@ public class DockerService {
                 }
 
                 LogUtil.logSysInfo("镜像拉取完成: " + fullImageName);
+            } catch (InterruptedException e) {
+                String errorMessage = "镜像拉取被中断: " + e.getMessage();
+                LogUtil.logSysError(errorMessage);
+
+                if (callback != null) {
+                    callback.onError(errorMessage);
+                }
+                Thread.currentThread().interrupt(); // 重置中断状态
+                throw new RuntimeException(errorMessage);
             } catch (Exception e) {
                 String errorMessage = "使用 skopeo 拉取镜像失败: " + e.getMessage();
                 LogUtil.logSysError(errorMessage);
+
                 if (callback != null) {
                     callback.onError(errorMessage); // 错误回调
                 }
@@ -691,7 +807,7 @@ public class DockerService {
     /**
      * 使用 Compose 部署容器
      *
-     * @param projectName 项目名称
+     * @param projectName    项目名称
      * @param composeContent Compose 配置内容
      * @return 部署结果
      */
@@ -702,7 +818,7 @@ public class DockerService {
     /**
      * 使用 Compose 更新容器
      *
-     * @param projectName 项目名称
+     * @param projectName    项目名称
      * @param composeContent 新的 Compose 配置内容
      * @return 更新结果
      */
@@ -727,6 +843,123 @@ public class DockerService {
      */
     public Map<String, Object> getComposeStatus(String projectName) {
         return dockerComposeWrapper.getComposeStatus(projectName);
+    }
+
+    /**
+     * 解析skopeo错误输出，提取具体的错误类型
+     *
+     * @param errorOutput    错误输出
+     * @param standardOutput 标准输出
+     * @return 具体的错误类型描述，如果无法解析则返回null
+     */
+    private String parseSkopeoErrorType(String errorOutput, String standardOutput) {
+        // 合并错误输出和标准输出进行分析
+        String allOutput = (errorOutput + " " + standardOutput).toLowerCase();
+
+        // 解析skopeo的结构化日志消息
+        if (allOutput.contains("level=fatal") && allOutput.contains("msg=")) {
+            // 提取fatal级别的错误消息
+            String fatalMsg = extractFatalMessage(errorOutput + " " + standardOutput);
+            if (fatalMsg != null) {
+                return analyzeFatalMessage(fatalMsg);
+            }
+        }
+
+        // 如果没有结构化日志，则根据关键词进行分析
+        if (allOutput.contains("requested access to the resource is denied") ||
+                allOutput.contains("access denied")) {
+            return "镜像访问被拒绝";
+        }
+
+        if (allOutput.contains("manifest unknown") || allOutput.contains("not found")) {
+            return "镜像或标签不存在";
+        }
+
+        if (allOutput.contains("unauthorized") || allOutput.contains("authentication required")) {
+            return "认证失败";
+        }
+
+        if (allOutput.contains("connection refused") || allOutput.contains("connection reset")) {
+            return "网络连接被拒绝";
+        }
+
+        if (allOutput.contains("timeout") || allOutput.contains("deadline exceeded")) {
+            return "网络连接超时";
+        }
+
+        if (allOutput.contains("no such host") || allOutput.contains("name resolution")) {
+            return "域名解析失败";
+        }
+
+        if (allOutput.contains("certificate") || allOutput.contains("tls") || allOutput.contains("ssl")) {
+            return "TLS/SSL证书错误";
+        }
+
+        if (allOutput.contains("too many requests") || allOutput.contains("rate limit")) {
+            return "请求频率限制";
+        }
+
+        if (allOutput.contains("disk") || allOutput.contains("space")) {
+            return "磁盘空间不足";
+        }
+
+        return null; // 无法解析出具体错误类型
+    }
+
+    /**
+     * 从skopeo日志中提取fatal级别的消息内容
+     */
+    private String extractFatalMessage(String output) {
+        // 查找 level=fatal msg="..." 模式
+        int fatalIndex = output.indexOf("level=fatal");
+        if (fatalIndex == -1) return null;
+
+        int msgIndex = output.indexOf("msg=\"", fatalIndex);
+        if (msgIndex == -1) return null;
+
+        int startQuote = msgIndex + 5; // msg=" 的长度
+        int endQuote = output.indexOf("\"", startQuote);
+        if (endQuote == -1) return null;
+
+        return output.substring(startQuote, endQuote);
+    }
+
+    /**
+     * 分析fatal消息内容，提取具体错误类型
+     */
+    private String analyzeFatalMessage(String fatalMsg) {
+        String lowerMsg = fatalMsg.toLowerCase();
+
+        if (lowerMsg.contains("requested access to the resource is denied")) {
+            return "镜像访问被拒绝 - 镜像可能不存在或需要认证";
+        }
+
+        if (lowerMsg.contains("reading manifest") && lowerMsg.contains("not found")) {
+            return "镜像清单未找到 - 镜像或标签不存在";
+        }
+
+        if (lowerMsg.contains("initializing source") && lowerMsg.contains("connection")) {
+            return "初始化镜像源失败 - 网络连接问题";
+        }
+
+        if (lowerMsg.contains("unauthorized")) {
+            return "未授权访问 - 需要登录认证";
+        }
+
+        if (lowerMsg.contains("forbidden")) {
+            return "访问被禁止 - 权限不足";
+        }
+
+        if (lowerMsg.contains("timeout")) {
+            return "操作超时 - 网络或服务响应慢";
+        }
+
+        // 如果包含具体的错误关键词，返回原始消息的简化版本
+        if (lowerMsg.length() < 100) {
+            return "skopeo错误: " + fatalMsg;
+        }
+
+        return null;
     }
 
 }

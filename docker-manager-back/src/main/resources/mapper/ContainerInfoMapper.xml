@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dsm.mapper.ContainerInfoMapper">
+
+    <resultMap id="BaseResultMap" type="com.dsm.model.ContainerInfo">
+        <id column="id" property="id"/>
+        <result column="container_id" property="containerId"/>
+        <result column="name" property="name"/>
+        <result column="image" property="image"/>
+        <result column="status" property="status"/>
+        <result column="operation_status" property="operationStatus"/>
+        <result column="last_error" property="lastError"/>
+        <result column="need_update" property="needUpdate"/>
+        <result column="icon_url" property="iconUrl"/>
+        <result column="web_url" property="webUrl"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id
+        , container_id, name, image, status, operation_status, last_error, need_update, icon_url, web_url, created_at, updated_at
+    </sql>
+
+    <insert id="insert" parameterType="com.dsm.model.ContainerInfo" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO container_info (container_id, name, image, status, operation_status, last_error, need_update,
+                                    icon_url, web_url, created_at, updated_at)
+        VALUES (#{containerId}, #{name}, #{image}, #{status}, #{operationStatus}, #{lastError}, #{needUpdate},
+                #{iconUrl}, #{webUrl}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="update" parameterType="com.dsm.model.ContainerInfo">
+        UPDATE container_info
+        <set>
+            <if test="containerId != null">
+                container_id = #{containerId},
+            </if>
+            <if test="name != null">
+                name = #{name},
+            </if>
+            <if test="image != null">
+                image = #{image},
+            </if>
+            <if test="status != null">
+                status = #{status},
+            </if>
+            <if test="operationStatus != null">
+                operation_status = #{operationStatus},
+            </if>
+            <if test="lastError != null">
+                last_error = #{lastError},
+            </if>
+            <if test="needUpdate != null">
+                need_update = #{needUpdate},
+            </if>
+            <if test="iconUrl != null">
+                icon_url = #{iconUrl},
+            </if>
+            <if test="webUrl != null">
+                web_url = #{webUrl},
+            </if>
+            updated_at = CURRENT_TIMESTAMP
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE
+        FROM container_info
+        WHERE id = #{id}
+    </delete>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM container_info
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByContainerId" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM container_info
+        WHERE container_id = #{containerId}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM container_info
+    </select>
+
+    <update id="updateStatus">
+        UPDATE container_info
+        SET status           = #{status},
+            operation_status = #{operationStatus},
+            updated_at       = CURRENT_TIMESTAMP
+        WHERE container_id = #{containerId}
+    </update>
+
+    <update id="updateError">
+        UPDATE container_info
+        SET last_error = #{lastError},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE container_id = #{containerId}
+    </update>
+</mapper> 

@@ -41,9 +41,9 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 # 创建启动脚本
 RUN echo '#!/bin/sh' > /start.sh && \
     echo '# 创建容器内目录' >> /start.sh && \
-    echo 'mkdir -p /dockpilot/data /dockpilot/logs && chmod 700 /dockpilot/data && chmod 755 /dockpilot/logs' >> /start.sh && \
+    echo 'mkdir -p /dockpilot/data /dockpilot/logs /dockpilot/uploads && chmod 700 /dockpilot/data && chmod 755 /dockpilot/logs && chmod 755 /dockpilot/uploads' >> /start.sh && \
     echo '# 创建宿主机目录' >> /start.sh && \
-    echo 'mkdir -p /mnt/host/dockpilot/data /mnt/host/dockpilot/logs && chmod 777 /mnt/host/dockpilot/data && chmod 777 /mnt/host/dockpilot/logs' >> /start.sh && \
+    echo 'mkdir -p /mnt/host/dockpilot/data /mnt/host/dockpilot/logs /mnt/host/dockpilot/uploads && chmod 777 /mnt/host/dockpilot/data && chmod 777 /mnt/host/dockpilot/logs && chmod 777 /mnt/host/dockpilot/uploads' >> /start.sh && \
     echo 'nginx -g "daemon off;" &' >> /start.sh && \
     echo 'export SPRING_PROFILES_ACTIVE=prod' >> /start.sh && \
     echo 'export LOG_PATH=/dockpilot/logs' >> /start.sh && \

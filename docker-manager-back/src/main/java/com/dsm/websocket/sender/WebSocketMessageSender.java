@@ -55,9 +55,9 @@ public class WebSocketMessageSender {
     /**
      * 发送日志消息
      *
-     * @param session WebSocket会话
-     * @param taskId  任务ID
-     * @param logMessage    进度（0-100）
+     * @param session    WebSocket会话
+     * @param taskId     任务ID
+     * @param logMessage 进度（0-100）
      */
     public void sendLog(WebSocketSession session, String taskId, String logMessage) {
         try {

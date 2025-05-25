@@ -66,4 +66,14 @@ public class ImageStatusDTO {
      * 上次检查时间
      */
     private Date lastChecked;
+
+    /**
+     * 是否正在拉取中
+     */
+    private Boolean pulling;
+
+    /**
+     * 拉取进度，JSON格式存储进度信息
+     */
+    private String progress;
 } 

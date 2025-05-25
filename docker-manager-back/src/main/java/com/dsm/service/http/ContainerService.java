@@ -65,9 +65,10 @@ public interface ContainerService {
      *
      * @param containerId 原容器ID
      * @param request     新的容器配置请求
+     * @param callback
      * @return 新容器的ID
      */
-//    CompletableFuture<Void> updateContainer(String containerId, ContainerCreateRequest request);
+    CompletableFuture<String> updateContainer(String containerId, ContainerCreateRequest request, MessageCallback callback);
 
     /**
      * 更新容器镜像

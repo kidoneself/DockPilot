@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        
+
         // 检查是否有 @Anonymous 注解
         try {
             Object handler = handlerMapping.getHandler(request).getHandler();
@@ -52,7 +52,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (Exception e) {
             // 如果获取不到处理器方法，继续执行JWT认证
         }
-        
+
         final String authorizationHeader = request.getHeader("Authorization");
 
         String username = null;

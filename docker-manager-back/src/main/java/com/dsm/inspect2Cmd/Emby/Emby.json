@@ -1,57 +1,80 @@
 {
-  "name" : "Emby",
-  "category" : "媒体",
-  "version" : "1.0",
-  "description" : "一个强大的媒体管理应用",
-  "iconUrl" : "https://example.com/icon.jpg",
-  "services" : [ {
-    "id" : "naspt-allinone",
-    "name" : "naspt-allinone",
-    "template" : {
-      "name" : "naspt-allinone",
-      "category" : "媒体",
-      "version" : "1.0",
-      "description" : "一个强大的媒体管理应用",
-      "iconUrl" : "https://example.com/icon.jpg",
-      "services" : [ {
-        "id" : "naspt-allinone",
-        "name" : "naspt-allinone",
-        "template" : {
-          "name" : "naspt-allinone",
-          "image" : "youshandefeiyang/allinone:latest",
-          "cmd" : [ "-tv=true", "-aesKey=swj6pnb4h6xyvhpq69fgae2bbpjlb8y2", "-userid=5892131247", "-token=9209187973c38fb7ee461017e1147ebe43ef7d73779840ba57447aaa439bac301b02ad7189d2f1b58d3de8064ba9d52f46ec2de6a834d1373071246ac0eed55bb3ff4ccd79d137" ],
-          "env" : {
-            "PATH" : "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          },
-          "ports" : {
-            "35455/tcp" : "35455/tcp"
-          },
-          "volumes" : { },
-          "restartPolicy" : "always"
-        }
-      } ],
-      "parameters" : [ {
-        "key" : "MEDIA_PATH",
-        "value" : "/volume2/media",
-        "name" : "媒体文件路径"
-      } ],
-      "configs" : [ {
-        "target" : "{{DOCKER_PATH}}",
-        "urls" : [ "https://example.com/config1.tgz" ]
-      } ]
+  "name": "Emby",
+  "category": "媒体",
+  "version": "1.0",
+  "description": "一个强大的媒体管理应用",
+  "iconUrl": "https://example.com/icon.jpg",
+  "services": [
+    {
+      "id": "naspt-allinone",
+      "name": "naspt-allinone",
+      "template": {
+        "name": "naspt-allinone",
+        "category": "媒体",
+        "version": "1.0",
+        "description": "一个强大的媒体管理应用",
+        "iconUrl": "https://example.com/icon.jpg",
+        "services": [
+          {
+            "id": "naspt-allinone",
+            "name": "naspt-allinone",
+            "template": {
+              "name": "naspt-allinone",
+              "image": "youshandefeiyang/allinone:latest",
+              "cmd": [
+                "-tv=true",
+                "-aesKey=swj6pnb4h6xyvhpq69fgae2bbpjlb8y2",
+                "-userid=5892131247",
+                "-token=9209187973c38fb7ee461017e1147ebe43ef7d73779840ba57447aaa439bac301b02ad7189d2f1b58d3de8064ba9d52f46ec2de6a834d1373071246ac0eed55bb3ff4ccd79d137"
+              ],
+              "env": {
+                "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              },
+              "ports": {
+                "35455/tcp": "35455/tcp"
+              },
+              "volumes": {},
+              "restartPolicy": "always"
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "key": "MEDIA_PATH",
+            "value": "/volume2/media",
+            "name": "媒体文件路径"
+          }
+        ],
+        "configs": [
+          {
+            "target": "{{DOCKER_PATH}}",
+            "urls": [
+              "https://example.com/config1.tgz"
+            ]
+          }
+        ]
+      }
     }
-  } ],
-  "parameters" : [ {
-    "key" : "DOCKER_PATH",
-    "name" : "Docker配置路径",
-    "value" : "/volume1/docker"
-  }, {
-    "key" : "MEDIA_PATH",
-    "name" : "媒体文件路径",
-    "value" : "/volume2/media"
-  } ],
-  "configs" : [ {
-    "target" : "{{DOCKER_PATH}}",
-    "urls" : [ "https://example.com/config1.tgz", "https://example.com/config2.tgz" ]
-  } ]
+  ],
+  "parameters": [
+    {
+      "key": "DOCKER_PATH",
+      "name": "Docker配置路径",
+      "value": "/volume1/docker"
+    },
+    {
+      "key": "MEDIA_PATH",
+      "name": "媒体文件路径",
+      "value": "/volume2/media"
+    }
+  ],
+  "configs": [
+    {
+      "target": "{{DOCKER_PATH}}",
+      "urls": [
+        "https://example.com/config1.tgz",
+        "https://example.com/config2.tgz"
+      ]
+    }
+  ]
 }

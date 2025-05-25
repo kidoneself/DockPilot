@@ -3,6 +3,7 @@
 # 设置颜色输出
 GREEN='\033[0;32m'
 RED='\033[0;31m'
+YELLOW='\033[0;33m'
 NC='\033[0m'
 
 print_message() {
@@ -12,6 +13,21 @@ print_message() {
 print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+# 默认参数
+VERSION=${1:-test}
+BRANCH=${2:-feature/yaml-template}
+GIT_REPO="https://github.com/kidoneself/DockPilot.git"
+
+print_message "=========================================="
+print_message "DockPilot 服务器端构建部署脚本"
+print_message "版本标签: $VERSION"
+print_message "Git分支: $BRANCH" 
+print_message "=========================================="
 
 # 检查是否为root用户
 check_root() {
@@ -71,44 +87,60 @@ install_docker() {
 
 # 检查是否安装了必要的工具
 check_requirements() {
+    print_message "检查环境依赖..."
+    
     if ! command -v git &> /dev/null; then
-        print_error "git 未安装"
+        print_warning "git 未安装，正在安装..."
         install_basic_tools
     fi
     if ! command -v docker &> /dev/null; then
-        print_error "docker 未安装"
+        print_warning "docker 未安装，正在安装..."
         install_docker
     fi
     if ! command -v java &> /dev/null; then
-        print_error "java 未安装"
+        print_warning "java 未安装，正在安装..."
         install_java
     fi
     if ! command -v mvn &> /dev/null; then
-        print_error "maven 未安装"
+        print_warning "maven 未安装，正在安装..."
         install_maven
     fi
     if ! command -v node &> /dev/null; then
-        print_error "node 未安装"
+        print_warning "node 未安装，正在安装..."
         install_nodejs
     fi
     if ! command -v npm &> /dev/null; then
-        print_error "npm 未安装"
+        print_warning "npm 未安装，正在安装..."
         install_nodejs
     fi
+    
+    print_message "环境检查完成"
 }
 
 # 克隆或更新代码
 setup_code() {
     print_message "设置代码..."
-    # 如果目录存在，直接删除
+    
+    # 如果目录存在，询问是否删除
     if [ -d "DockPilot" ]; then
-        print_message "删除现有代码..."
-        rm -rf DockPilot
+        read -p "检测到现有代码目录，是否删除重新克隆？(y/n): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            print_message "删除现有代码..."
+            rm -rf DockPilot
+        else
+            print_message "使用现有代码，更新分支..."
+            cd DockPilot
+            git fetch origin
+            git checkout $BRANCH
+            git pull origin $BRANCH
+            return
+        fi
     fi
 
     # 克隆代码
     print_message "克隆代码仓库..."
-    git clone https://github.com/kidoneself/DockPilot.git
+    git clone $GIT_REPO
     if [ $? -ne 0 ]; then
         print_error "克隆代码失败"
         exit 1
@@ -117,9 +149,8 @@ setup_code() {
     cd DockPilot
 
     # 切换到指定分支
-    BRANCH_NAME="feature/websocket"
-    print_message "切换到分支: $BRANCH_NAME"
-    git checkout $BRANCH_NAME
+    print_message "切换到分支: $BRANCH"
+    git checkout $BRANCH
     if [ $? -ne 0 ]; then
         print_error "切换分支失败"
         exit 1
@@ -130,6 +161,12 @@ setup_code() {
 build_frontend() {
     print_message "构建前端..."
     cd docker-manager-front
+    
+    # 检查是否为新的前端目录名
+    if [ ! -d "../docker-manager-front" ] && [ -d "../dockpilotfront" ]; then
+        cd ../dockpilotfront
+    fi
+    
     npm install
     npm run build
     if [ $? -ne 0 ]; then
@@ -157,16 +194,35 @@ copy_build_files() {
     rm -rf build/dist
     rm -rf build/*.jar
 
-    # 复制前端构建文件
-    cp -r docker-manager-front/dist build/
+    # 复制前端构建文件 - 兼容两种目录名
+    if [ -d "docker-manager-front/dist" ]; then
+        cp -r docker-manager-front/dist build/
+    elif [ -d "dockpilotfront/dist" ]; then
+        cp -r dockpilotfront/dist build/
+    else
+        print_error "找不到前端构建目录"
+        exit 1
+    fi
 
     # 复制后端jar文件
     cp docker-manager-back/target/*.jar build/
 }
 
-# 构建Docker镜像
+# 构建Docker镜像（仅本地）
+build_docker_image_local() {
+    print_message "构建本地Docker镜像 (版本: $VERSION)..."
+    cd build
+    docker build -t kidself/dockpilot:$VERSION .
+    if [ $? -ne 0 ]; then
+        print_error "Docker镜像构建失败"
+        exit 1
+    fi
+    cd ..
+}
+
+# 构建Docker镜像（多架构）
 build_docker_image() {
-    print_message "构建Docker镜像..."
+    print_message "构建多架构Docker镜像 (版本: $VERSION)..."
     
     # 确保使用正确的builder
     print_message "设置buildx builder..."
@@ -176,7 +232,7 @@ build_docker_image() {
     print_message "构建多架构镜像..."
     cd build
     docker buildx build --platform linux/amd64,linux/arm64 \
-        -t kidself/dockpilot:latest \
+        -t kidself/dockpilot:$VERSION \
         --push .
     
     if [ $? -ne 0 ]; then
@@ -188,7 +244,7 @@ build_docker_image() {
 
 # 推送到DockerHub
 push_to_dockerhub() {
-    print_message "推送到DockerHub..."
+    print_message "推送到DockerHub (版本: $VERSION)..."
     # DockerHub信息
     DOCKERHUB_USERNAME="kidself"
     DOCKERHUB_IMAGE="dockpilot"
@@ -199,17 +255,17 @@ push_to_dockerhub() {
     # 使用buildx构建并推送多架构镜像
     cd build
     docker buildx build --platform linux/amd64,linux/arm64 \
-        -t ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest \
+        -t ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:$VERSION \
         --push .
     cd ..
 
     print_message "DockerHub镜像推送完成！"
-    print_message "镜像地址: ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:latest"
+    print_message "镜像地址: ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:$VERSION"
 }
 
 # 推送到腾讯云容器镜像服务
 push_to_tencent() {
-    print_message "推送到腾讯云容器镜像服务..."
+    print_message "推送到腾讯云容器镜像服务 (版本: $VERSION)..."
     # 腾讯云容器镜像服务信息
     TENCENT_REGISTRY="ccr.ccs.tencentyun.com"
     NAMESPACE="naspt/dockpilot"
@@ -220,12 +276,44 @@ push_to_tencent() {
     # 使用buildx构建并推送多架构镜像
     cd build
     docker buildx build --platform linux/amd64,linux/arm64 \
-        -t ${TENCENT_REGISTRY}/${NAMESPACE}:latest \
+        -t ${TENCENT_REGISTRY}/${NAMESPACE}:$VERSION \
         --push .
     cd ..
 
     print_message "镜像推送完成！"
-    print_message "镜像地址: ${TENCENT_REGISTRY}/${NAMESPACE}:latest"
+    print_message "镜像地址: ${TENCENT_REGISTRY}/${NAMESPACE}:$VERSION"
+}
+
+# 选择构建模式
+choose_build_mode() {
+    echo
+    print_message "请选择构建模式："
+    echo "1. 仅构建本地镜像"
+    echo "2. 构建并推送到DockerHub"
+    echo "3. 构建并推送到腾讯云"
+    echo "4. 构建并推送到所有仓库"
+    read -p "请输入选择 (1-4): " -n 1 -r
+    echo
+    
+    case $REPLY in
+        1)
+            build_docker_image_local
+            ;;
+        2)
+            push_to_dockerhub
+            ;;
+        3)
+            push_to_tencent
+            ;;
+        4)
+            push_to_tencent
+            push_to_dockerhub
+            ;;
+        *)
+            print_error "无效选择"
+            exit 1
+            ;;
+    esac
 }
 
 # 主函数
@@ -236,12 +324,45 @@ main() {
     build_frontend
     build_backend
     copy_build_files
-    build_docker_image
-    push_to_tencent
-    push_to_dockerhub
+    choose_build_mode
     
-    print_message "部署完成！"
+    print_message "=========================================="
+    print_message "部署完成！版本: $VERSION"
+    print_message "Git分支: $BRANCH"
+    print_message "可用镜像:"
+    print_message "  - kidself/dockpilot:$VERSION"
+    print_message "  - ccr.ccs.tencentyun.com/naspt/dockpilot:$VERSION"
+    print_message "=========================================="
+    
+    # 询问是否运行容器
+    read -p "是否在本服务器运行容器？(y/n): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        cd build
+        ./build-and-run.sh $VERSION
+    fi
 }
+
+# 显示使用说明
+show_usage() {
+    echo "使用说明:"
+    echo "$0 [VERSION] [BRANCH]"
+    echo ""
+    echo "参数:"
+    echo "  VERSION  - 镜像版本标签 (默认: test)"
+    echo "  BRANCH   - Git分支名称 (默认: feature/yaml-template)"
+    echo ""
+    echo "示例:"
+    echo "  $0 test feature/yaml-template"
+    echo "  $0 v1.0.0 main"
+    echo "  $0 latest"
+}
+
+# 如果参数为help，显示使用说明
+if [[ "$1" == "help" ]] || [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+    show_usage
+    exit 0
+fi
 
 # 执行主函数
 main

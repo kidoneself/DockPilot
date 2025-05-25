@@ -20,7 +20,7 @@ public class JsonContainerRequestToContainerCreateRequestConverter {
         ContainerCreateRequest request = new ContainerCreateRequest();
 
         // ========= 基本配置 =========
-        request.setImage(jsonRequest.getImage() + ":" + jsonRequest.getTag()); // 拼接 image:tag
+        request.setImage(jsonRequest.getImage());
         request.setName(jsonRequest.getName());
         request.setCmd(jsonRequest.getCommand()); // 转为 List<String>
         request.setEntrypoint(null); // 可根据需要转换 entrypoint

@@ -13,26 +13,31 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# 获取版本标签参数，默认为test
+VERSION=${1:-test}
+
 # 进入build目录
 cd "$(dirname "$0")"
 
 # 构建Docker镜像
-print_message "开始构建Docker镜像..."
-docker build -t dockpilot .
+print_message "开始构建Docker镜像 (版本: $VERSION)..."
+docker build -t dockpilot:$VERSION .
 
 # 停止并删除旧容器
-docker stop dockpilot 2>/dev/null || true
-docker rm dockpilot 2>/dev/null || true
+docker stop dockpilot-$VERSION 2>/dev/null || true
+docker rm dockpilot-$VERSION 2>/dev/null || true
 
 # 运行新容器
-print_message "启动新容器..."
+print_message "启动新容器 (版本: $VERSION)..."
 docker run -d --privileged \
    -p 8888:8888 \
-   --name dockpilot \
+   --name dockpilot-$VERSION \
    -v /var/run/docker.sock:/var/run/docker.sock \
    -v /:/mnt/host \
-  -v /dockpilot:/dockpilot \
-   kidself/dockpilot:latest
+   -v /dockpilot-$VERSION:/dockpilot \
+   dockpilot:$VERSION
 
 print_message "容器已启动！"
+print_message "版本: $VERSION"
+print_message "容器名称: dockpilot-$VERSION"
 print_message "前端访问地址: http://localhost:8888"

@@ -26,37 +26,65 @@ public class DockerWebSocketMessage implements Serializable {
     /**
      * 消息类型，使用枚举 WebSocketMessageType 定义所有类型
      */
-    @Schema(description = "消息类型", example = "PULL_IMAGE")
+    @Schema(
+            description = "消息类型",
+            example = "PULL_IMAGE",
+            allowableValues = {
+                    "PULL_IMAGE", "PUSH_IMAGE", "BUILD_IMAGE",
+                    "CREATE_CONTAINER", "START_CONTAINER", "STOP_CONTAINER", "REMOVE_CONTAINER",
+                    "COMPLETE", "ERROR", "PROGRESS", "LOG"
+            }
+    )
     private String type;
 
     /**
      * 任务 ID（用于标识一个完整流程）
      */
-    @Schema(description = "任务 ID", example = "123e4567-e89b-12d3-a456-426614174000")
+    @Schema(
+            description = "任务 ID",
+            example = "123e4567-e89b-12d3-a456-426614174000"
+    )
     private String taskId;
 
     /**
      * 消息数据体，类型可由具体业务决定
      */
-    @Schema(description = "消息数据（任意结构）")
+    @Schema(
+            description = "消息数据（任意结构）",
+            example = "{\"imageName\":\"nginx:latest\",\"tag\":\"latest\"}"
+    )
     private Object data;
 
     /**
      * 时间戳（毫秒）
      */
-    @Schema(description = "发送时间戳", example = "1647123456789")
+    @Schema(
+            description = "发送时间戳",
+            example = "1647123456789",
+            type = "integer",
+            format = "int64"
+    )
     private long timestamp;
 
     /**
      * 错误信息
      */
-    @Schema(description = "错误信息")
+    @Schema(
+            description = "错误信息",
+            example = "Failed to pull image: nginx:latest"
+    )
     private String errorMessage;
 
     /**
      * 进度信息（0-100）
      */
-    @Schema(description = "进度信息", example = "50")
+    @Schema(
+            description = "进度信息",
+            example = "50",
+            minimum = "0",
+            maximum = "100",
+            type = "integer"
+    )
     private Integer progress;
 
     /**
@@ -78,39 +106,11 @@ public class DockerWebSocketMessage implements Serializable {
         this.progress = 0;
     }
 
-    public String toJson() {
-        return JSON.toJSONString(this);
-    }
-
     /**
      * 静态工厂方法，构造标准消息体
      */
     public static DockerWebSocketMessage of(String type, String taskId, Object data) {
         return new DockerWebSocketMessage(type, taskId, data);
-    }
-
-    /**
-     * 设置成功状态（即进度100）
-     */
-    public DockerWebSocketMessage success() {
-        this.progress = 100;
-        return this;
-    }
-
-    /**
-     * 设置错误状态
-     */
-    public DockerWebSocketMessage error(String errorMessage) {
-        this.errorMessage = errorMessage;
-        return this;
-    }
-
-    /**
-     * 更新进度
-     */
-    public DockerWebSocketMessage updateProgress(Integer progress) {
-        this.progress = progress;
-        return this;
     }
 
     /**
@@ -139,5 +139,33 @@ public class DockerWebSocketMessage implements Serializable {
      */
     public static DockerWebSocketMessage log(String taskId, String logMessage) {
         return new DockerWebSocketMessage(MessageType.LOG.name(), taskId, logMessage);
+    }
+
+    public String toJson() {
+        return JSON.toJSONString(this);
+    }
+
+    /**
+     * 设置成功状态（即进度100）
+     */
+    public DockerWebSocketMessage success() {
+        this.progress = 100;
+        return this;
+    }
+
+    /**
+     * 设置错误状态
+     */
+    public DockerWebSocketMessage error(String errorMessage) {
+        this.errorMessage = errorMessage;
+        return this;
+    }
+
+    /**
+     * 更新进度
+     */
+    public DockerWebSocketMessage updateProgress(Integer progress) {
+        this.progress = progress;
+        return this;
     }
 }

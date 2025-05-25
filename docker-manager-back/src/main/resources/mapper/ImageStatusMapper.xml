@@ -13,12 +13,15 @@
         <result column="last_checked" property="lastChecked"/>
         <result column="created_at" property="createdAt"/>
         <result column="updated_at" property="updatedAt"/>
+        <result column="image_id" property="imageId"/>
+        <result column="pulling" property="pulling"/>
+        <result column="progress" property="progress"/>
     </resultMap>
 
     <!-- 公共列 -->
     <sql id="Base_Column_List">
         id
-        , name, tag, local_create_time, remote_create_time, need_update, last_checked, created_at, updated_at
+        , name, tag, local_create_time, remote_create_time, need_update, last_checked, created_at, updated_at, image_id, pulling, progress
     </sql>
 
     <!-- 查询所有镜像状态 -->
@@ -26,6 +29,7 @@
         SELECT
         <include refid="Base_Column_List"/>
         FROM image_status
+        ORDER BY created_at DESC
     </select>
 
     <!-- 根据ID查询镜像状态 -->
@@ -46,11 +50,13 @@
 
     <!-- 插入镜像状态记录 -->
     <insert id="insert" parameterType="com.dsm.model.ImageStatus" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO image_status (name, tag, local_create_time, remote_create_time, need_update, last_checked)
-        VALUES (#{name}, #{tag}, #{localCreateTime}, #{remoteCreateTime}, #{needUpdate}, #{lastChecked})
+        INSERT INTO image_status (name, tag, local_create_time, remote_create_time, need_update, last_checked, image_id,
+                                  pulling, progress, created_at, updated_at)
+        VALUES (#{name}, #{tag}, #{localCreateTime}, #{remoteCreateTime}, #{needUpdate}, #{lastChecked}, #{imageId},
+                #{pulling}, #{progress}, datetime('now'), datetime('now'))
     </insert>
 
-    <!-- 更新镜像状态记录 -->
+    <!-- 通用更新镜像状态记录 -->
     <update id="update" parameterType="com.dsm.model.ImageStatus">
         UPDATE image_status
         <set>
@@ -58,6 +64,10 @@
             <if test="remoteCreateTime != null">remote_create_time = #{remoteCreateTime},</if>
             <if test="needUpdate != null">need_update = #{needUpdate},</if>
             <if test="lastChecked != null">last_checked = #{lastChecked},</if>
+            <if test="imageId != null">image_id = #{imageId},</if>
+            <if test="pulling != null">pulling = #{pulling},</if>
+            <if test="progress != null">progress = #{progress},</if>
+            updated_at = datetime('now')
         </set>
         WHERE id = #{id}
     </update>
@@ -67,7 +77,8 @@
         UPDATE image_status
         SET remote_create_time = #{remoteCreateTime},
             need_update        = #{needUpdate},
-            last_checked       = #{lastChecked}
+            last_checked       = #{lastChecked},
+            updated_at         = datetime('now')
         WHERE id = #{id}
     </update>
 
@@ -75,7 +86,8 @@
     <update id="updateLocalCreateTime">
         UPDATE image_status
         SET local_create_time = #{localCreateTime},
-            need_update       = false
+            need_update       = false,
+            updated_at        = datetime('now')
         WHERE id = #{id}
     </update>
 
@@ -93,4 +105,21 @@
         WHERE name = #{name}
           AND tag = #{tag}
     </delete>
+
+    <!-- 插入或更新镜像状态记录 -->
+    <insert id="insertOrUpdate" parameterType="com.dsm.model.ImageStatus" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO image_status (name, tag, local_create_time, remote_create_time, need_update, last_checked, image_id,
+                                  pulling, progress, created_at, updated_at)
+        VALUES (#{name}, #{tag}, #{localCreateTime}, #{remoteCreateTime}, #{needUpdate}, #{lastChecked}, #{imageId},
+                #{pulling}, #{progress}, datetime('now'), datetime('now')) ON CONFLICT(name, tag) DO
+        UPDATE SET
+            local_create_time = excluded.local_create_time,
+            remote_create_time = excluded.remote_create_time,
+            need_update = excluded.need_update,
+            last_checked = excluded.last_checked,
+            image_id = excluded.image_id,
+            pulling = excluded.pulling,
+            progress = excluded.progress,
+            updated_at = datetime('now')
+    </insert>
 </mapper> 

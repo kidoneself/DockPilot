@@ -5,7 +5,7 @@ package com.dsm.common.exception;
  * 用于处理需要特定角色才能访问的接口
  */
 public class UnauthorizedException extends BusinessException {
-    
+
     public UnauthorizedException(String message) {
         super(message);
     }

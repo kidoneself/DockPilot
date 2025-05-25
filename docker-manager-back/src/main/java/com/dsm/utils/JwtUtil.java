@@ -5,11 +5,11 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -51,7 +51,7 @@ public class JwtUtil {
     /**
      * 从token中获取指定的claim
      *
-     * @param token JWT token
+     * @param token          JWT token
      * @param claimsResolver claim解析器
      * @return claim值
      */
@@ -96,7 +96,7 @@ public class JwtUtil {
     /**
      * 生成token的具体方法
      *
-     * @param claims 需要存储的数据
+     * @param claims  需要存储的数据
      * @param subject 主题（用户名）
      * @return JWT token
      */
@@ -113,7 +113,7 @@ public class JwtUtil {
     /**
      * 验证token
      *
-     * @param token JWT token
+     * @param token       JWT token
      * @param userDetails 用户信息
      * @return 是否有效
      */
@@ -133,17 +133,17 @@ public class JwtUtil {
         if (username == null) {
             return null;
         }
-        
+
         // 创建用户对象
         User user = new User();
         user.setUsername(username);
-        
+
         // 从token中获取用户等级
         String token = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes())
                 .getRequest().getHeader("Authorization").substring(7);
         Claims claims = getAllClaimsFromToken(token);
         user.setLevel((String) claims.get("level"));
-        
+
         return user;
     }
 } 

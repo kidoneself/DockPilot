@@ -2,10 +2,13 @@ package com.dsm.service.websocket;
 
 import com.dsm.model.MessageType;
 import com.dsm.service.http.ImageService;
-import com.dsm.utils.AsyncTaskRunner;
+import com.dsm.utils.ErrorMessageExtractor;
 import com.dsm.utils.MessageCallback;
 import com.dsm.websocket.model.DockerWebSocketMessage;
 import com.dsm.websocket.sender.WebSocketMessageSender;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
  */
 @Slf4j
 @Service
+@Tag(name = "镜像 WebSocket 服务", description = "处理镜像相关的 WebSocket 消息")
 public class ImageWebSocketService implements BaseService {
 
     @Resource
@@ -36,7 +40,21 @@ public class ImageWebSocketService implements BaseService {
      * @param message 接收到的消息
      */
     @Override
-    public void handle(WebSocketSession session, DockerWebSocketMessage message) {
+    @Operation(
+            summary = "处理镜像相关的WebSocket消息",
+            description = "根据消息类型处理不同的镜像操作，包括：\n" +
+                    "- IMAGE_LIST: 获取镜像列表\n" +
+                    "- IMAGE_DETAIL: 获取镜像详情\n" +
+                    "- IMAGE_DELETE: 删除镜像\n" +
+                    "- IMAGE_UPDATE: 更新镜像\n" +
+                    "- IMAGE_BATCH_UPDATE: 批量更新镜像\n" +
+                    "- PULL_IMAGE: 拉取镜像\n" +
+                    "- IMAGE_CHECK_UPDATES: 检查镜像更新"
+    )
+    public void handle(
+            @Parameter(description = "WebSocket会话") WebSocketSession session,
+            @Parameter(description = "接收到的消息") DockerWebSocketMessage message
+    ) {
         MessageType type = MessageType.valueOf(message.getType());
         String taskId = message.getTaskId();
 
@@ -60,8 +78,8 @@ public class ImageWebSocketService implements BaseService {
                     result = handleImageBatchUpdate(message);
                     break;
                 case PULL_IMAGE:
-                    // 假设以下变量已经定义好：
-                    AsyncTaskRunner.runWithoutResult(() -> handlePullImage(message, new MessageCallback() {
+                    // 创建回调对象
+                    MessageCallback callback = new MessageCallback() {
                         @Override
                         public void onProgress(int progress) {
                             messageSender.sendProgress(session, taskId, progress);
@@ -81,11 +99,22 @@ public class ImageWebSocketService implements BaseService {
                         public void onError(String error) {
                             messageSender.sendError(session, taskId, error);
                         }
-                    }), messageSender, session, taskId);
-                    break;
-                case PULL_START:      // 开始拉取镜像
-                case PULL_PROGRESS:   // 拉取镜像进度
-                case PULL_COMPLETE:   // 拉取镜像完成
+                    };
+
+                    // 执行异步任务
+                    CompletableFuture<Void> future = handlePullImage(message, callback);
+
+                    // 等待异步任务完成
+                    future.whenComplete((voidResult, error) -> {
+                        if (error != null) {
+                            log.error("拉取镜像失败", error);
+                            String userFriendlyError = ErrorMessageExtractor.extractUserFriendlyError(error);
+                            messageSender.sendError(session, taskId, userFriendlyError);
+                        }
+                    });
+
+                    // 关键修复：使用 return 而不是 break，避免执行后面的 sendComplete
+                    return;
                 case CANCEL_PULL:     // 取消拉取镜像
                 case IMAGE_CANCEL_PULL:   // 取消镜像拉取
                 case IMAGE_CHECK_UPDATES: // 检查镜像更新
@@ -97,7 +126,8 @@ public class ImageWebSocketService implements BaseService {
             messageSender.sendComplete(session, taskId, result);
         } catch (Exception e) {
             log.error("处理镜像消息时发生错误: {}", type, e);
-            messageSender.sendError(session, taskId, e.getMessage());
+            String userFriendlyError = ErrorMessageExtractor.extractUserFriendlyError(e);
+            messageSender.sendError(session, taskId, userFriendlyError);
         }
     }
 
@@ -180,14 +210,68 @@ public class ImageWebSocketService implements BaseService {
             tag = "latest";
         }
 
-        // 通知开始
-        if (callback != null) {
-            callback.onProgress(0);  // 初始进度为0
-            callback.onLog("开始拉取镜像: " + repo + ":" + tag);
+        // 检查是否已经在拉取中
+        if (imageService.isPulling(repo, tag)) {
+            String error = "镜像 " + repo + ":" + tag + " 已经在拉取中";
+            if (callback != null) {
+                callback.onError(error);
+            }
+            return CompletableFuture.failedFuture(new RuntimeException(error));
         }
 
-        // 使用 skopeo 拉取镜像
-        return imageService.pullImage(repo, tag, callback);
+        // 开始拉取，记录到数据库
+        imageService.startPullImage(repo, tag);
+
+        // 创建增强的回调对象，集成数据库状态更新
+        MessageCallback enhancedCallback = new MessageCallback() {
+            @Override
+            public void onProgress(int progress) {
+                // 更新数据库进度
+                imageService.updatePullProgress(repo, tag, progress, "拉取进度: " + progress + "%");
+
+                // 调用原始回调
+                if (callback != null) {
+                    callback.onProgress(progress);
+                }
+            }
+
+            @Override
+            public void onLog(String log) {
+                // 更新数据库进度，包含日志信息
+                imageService.updatePullProgress(repo, tag, -1, log); // -1 表示进度不变，只更新消息
+
+                // 调用原始回调
+                if (callback != null) {
+                    callback.onLog(log);
+                }
+            }
+
+            @Override
+            public void onComplete() {
+                // 拉取成功，更新数据库状态
+                // 注意：实际的镜像ID获取可以后续优化，这里先用null
+                imageService.completePullImage(repo, tag, null);
+
+                // 调用原始回调
+                if (callback != null) {
+                    callback.onComplete();
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                // 更新数据库为拉取失败状态
+                imageService.failPullImage(repo, tag, error);
+
+                // 调用原始回调
+                if (callback != null) {
+                    callback.onError(error);
+                }
+            }
+        };
+
+        // 使用增强回调执行拉取
+        return imageService.pullImage(repo, tag, enhancedCallback);
     }
 
     /**

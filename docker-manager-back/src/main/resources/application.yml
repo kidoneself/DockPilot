@@ -11,6 +11,18 @@ spring:
     driver-class-name: org.sqlite.JDBC
   main:
     allow-circular-references: true
+  # 文件上传配置
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 20MB
+  # 静态资源配置
+  mvc:
+    static-path-pattern: /uploads/**
+  web:
+    resources:
+      static-locations: file:${file.upload.path:uploads/}
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
@@ -29,6 +41,11 @@ jwt:
   secret: DockPilot
   expiration: 86400
 
+# 文件上传配置
+file:
+  upload:
+    path: ${FILE_UPLOAD_PATH:uploads/}
+
 ---
 spring:
   config:
@@ -37,6 +54,10 @@ spring:
   datasource:
     url: jdbc:sqlite:data.db
 
+file:
+  upload:
+    path: uploads/
+
 ---
 spring:
   config:
@@ -44,6 +65,10 @@ spring:
       on-profile: prod
   datasource:
     url: jdbc:sqlite:/dockpilot/data/data.db
+
+file:
+  upload:
+    path: /dockpilot/uploads/
 
 ## 文件下载配置
 #file:

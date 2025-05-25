@@ -63,16 +63,17 @@
     </select>
 
     <insert id="insert" parameterType="com.dsm.model.Template">
-        INSERT INTO application_templates (
-            id, name, category, version, description, icon_url, template, created_at, updated_at, sort_weight
-        ) VALUES (
-            #{id}, #{name}, #{category}, #{version}, #{description}, #{iconUrl}, #{template}, #{createdAt}, #{updatedAt}, #{sortWeight}
-        )
+        INSERT INTO application_templates (id, name, category, version, description, icon_url, template, created_at,
+                                           updated_at, sort_weight)
+        VALUES (#{id}, #{name}, #{category}, #{version}, #{description}, #{iconUrl}, #{template}, #{createdAt},
+                #{updatedAt}, #{sortWeight})
     </insert>
 
     <!-- 删除模板 -->
     <delete id="deleteById">
-        DELETE FROM application_templates WHERE id = #{id}
+        DELETE
+        FROM application_templates
+        WHERE id = #{id}
     </delete>
 
 </mapper> 

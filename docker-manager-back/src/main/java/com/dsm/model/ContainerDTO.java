@@ -26,7 +26,10 @@ public class ContainerDTO implements Serializable {
     private ContainerNetworkSettingsDTO networkSettings;
     private List<ContainerMountDTO> mounts;
     private boolean needUpdate;  // 是否需要更新
-
+    private String operationStatus;
+    private String lastError;
+    private String webUrl;
+    private String iconUrl;
 
     // 转换方法：将 DockerJava 的 Container 转换为自定义 DTO
     public static ContainerDTO convertToDTO(com.github.dockerjava.api.model.Container container) {

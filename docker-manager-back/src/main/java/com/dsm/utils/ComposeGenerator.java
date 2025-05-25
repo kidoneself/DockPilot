@@ -19,9 +19,10 @@ public class ComposeGenerator {
 
     /**
      * 生成 Docker Compose 文件
-     * @param containers 容器信息列表
-     * @param outputPath 输出文件路径
-     * @param templateFile 模板文件路径（可选）
+     *
+     * @param containers    容器信息列表
+     * @param outputPath    输出文件路径
+     * @param templateFile  模板文件路径（可选）
      * @param excludeFields 需要排除的字段集合
      * @throws IOException 文件操作异常
      */
@@ -30,7 +31,7 @@ public class ComposeGenerator {
         Map<String, Object> compose = new LinkedHashMap<>();
         Map<String, Object> services = new LinkedHashMap<>();
         Map<String, Object> networks = new LinkedHashMap<>();
-        
+
         // 收集所有容器的端口映射和路径
         Map<String, String> portMappings = new LinkedHashMap<>();
         Set<String> allPaths = new HashSet<>();
@@ -169,7 +170,7 @@ public class ComposeGenerator {
         projectMeta.put("version", "1.0.0");
         projectMeta.put("author", "System");
         projectMeta.put("category", "container");  // 添加到顶级配置
-        
+
         // 配置环境变量
         Map<String, String> envVars = new LinkedHashMap<>();
         envVars.putAll(portMappings);
@@ -179,7 +180,7 @@ public class ComposeGenerator {
         // 组装最终的 Compose 配置
         compose.put("x-meta", projectMeta);
         compose.put("services", services);
-        
+
         // 只有当有网络配置时才添加 networks 部分
         if (!networks.isEmpty()) {
             compose.put("networks", networks);
@@ -202,23 +203,23 @@ public class ComposeGenerator {
         String yamlContent = yaml.dump(compose);
         // 在根节点之间添加双换行
         yamlContent = yamlContent.replace("\nx-meta:", "\n\nx-meta:")
-                               .replace("\nservices:", "\n\nservices:")
-                               .replace("\nnetworks:", "\n\nnetworks:");
-        
+                .replace("\nservices:", "\n\nservices:")
+                .replace("\nnetworks:", "\n\nnetworks:");
+
         // 在每个服务配置块之间添加换行
         StringBuilder formattedContent = new StringBuilder();
         String[] lines = yamlContent.split("\n");
         boolean inService = false;
         boolean firstService = true;
         int currentIndent = 0;
-        
+
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
             String trimmedLine = line.trim();
-            
+
             // 计算当前行的缩进级别
             int indent = line.length() - line.replaceAll("^\\s+", "").length();
-            
+
             // 检查是否是新服务的开始（缩进为2且以冒号结尾）
             if (indent == 2 && trimmedLine.endsWith(":") && !trimmedLine.startsWith("x-meta") && !trimmedLine.startsWith("services") && !trimmedLine.startsWith("networks")) {
                 if (inService && !firstService) {
@@ -227,10 +228,10 @@ public class ComposeGenerator {
                 inService = true;
                 firstService = false;
             }
-            
+
             formattedContent.append(line).append("\n");
         }
-        
+
         try (FileWriter writer = new FileWriter(outputPath)) {
             writer.write(formattedContent.toString());
         }
@@ -238,7 +239,8 @@ public class ComposeGenerator {
 
     /**
      * 生成 Docker Compose YAML 内容
-     * @param containers 容器信息列表
+     *
+     * @param containers    容器信息列表
      * @param excludeFields 需要排除的字段集合
      * @return YAML 格式的字符串
      */
@@ -308,7 +310,7 @@ public class ComposeGenerator {
         projectMeta.put("version", "1.0.0");
         projectMeta.put("author", "System");
         projectMeta.put("category", "container");  // 添加到顶级配置
-        
+
         // 配置环境变量
         Map<String, String> envVars = new LinkedHashMap<>();
         envVars.putAll(portMappings);
@@ -316,7 +318,7 @@ public class ComposeGenerator {
 
         compose.put("x-meta", projectMeta);
         compose.put("services", services);
-        
+
         // 只有当有网络配置时才添加 networks 部分
         if (!networks.isEmpty()) {
             compose.put("networks", networks);
@@ -339,23 +341,23 @@ public class ComposeGenerator {
         String yamlContent = yaml.dump(compose);
         // 在根节点之间添加双换行
         yamlContent = yamlContent.replace("\nx-meta:", "\n\nx-meta:")
-                               .replace("\nservices:", "\n\nservices:")
-                               .replace("\nnetworks:", "\n\nnetworks:");
-        
+                .replace("\nservices:", "\n\nservices:")
+                .replace("\nnetworks:", "\n\nnetworks:");
+
         // 在每个服务配置块之间添加换行
         StringBuilder formattedContent = new StringBuilder();
         String[] lines = yamlContent.split("\n");
         boolean inService = false;
         boolean firstService = true;
         int currentIndent = 0;
-        
+
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
             String trimmedLine = line.trim();
-            
+
             // 计算当前行的缩进级别
             int indent = line.length() - line.replaceAll("^\\s+", "").length();
-            
+
             // 检查是否是新服务的开始（缩进为2且以冒号结尾）
             if (indent == 2 && trimmedLine.endsWith(":") && !trimmedLine.startsWith("x-meta") && !trimmedLine.startsWith("services") && !trimmedLine.startsWith("networks")) {
                 if (inService && !firstService) {
@@ -364,15 +366,16 @@ public class ComposeGenerator {
                 inService = true;
                 firstService = false;
             }
-            
+
             formattedContent.append(line).append("\n");
         }
-        
+
         return formattedContent.toString();
     }
 
     /**
      * 将多服务的 compose 内容拆分成多个单服务的 compose 内容
+     *
      * @param composeContent 原始的 compose 内容
      * @return 拆分后的 compose 内容列表，key 为服务名，value 为对应的 compose 内容
      */
@@ -408,7 +411,7 @@ public class ComposeGenerator {
 
             // 收集服务使用的环境变量
             Set<String> usedEnvVars = new HashSet<>();
-            
+
             // 检查端口映射
             if (serviceConfig.containsKey("ports")) {
                 @SuppressWarnings("unchecked")
@@ -470,6 +473,7 @@ public class ComposeGenerator {
 
     /**
      * 获取服务名称
+     *
      * @param container 容器信息
      * @return 服务名称
      */
@@ -483,7 +487,8 @@ public class ComposeGenerator {
 
     /**
      * 检查字段是否应该被包含
-     * @param fieldName 字段名
+     *
+     * @param fieldName     字段名
      * @param excludeFields 排除字段集合
      * @return 是否应该包含该字段
      */
@@ -493,9 +498,10 @@ public class ComposeGenerator {
 
     /**
      * 如果字段未被排除，则添加到映射中
-     * @param map 目标映射
-     * @param key 键
-     * @param value 值
+     *
+     * @param map           目标映射
+     * @param key           键
+     * @param value         值
      * @param excludeFields 排除字段集合
      */
     private void addFieldIfNotExcluded(Map<String, Object> map, String key, Object value, Set<String> excludeFields) {
@@ -512,7 +518,8 @@ public class ComposeGenerator {
 
     /**
      * 将容器信息转换为服务配置
-     * @param container 容器信息
+     *
+     * @param container     容器信息
      * @param excludeFields 需要排除的字段集合
      * @return 服务配置映射
      */
@@ -609,6 +616,7 @@ public class ComposeGenerator {
 
     /**
      * 将字符串数组转换为列表
+     *
      * @param arr 字符串数组
      * @return 字符串列表
      */

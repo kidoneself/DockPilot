@@ -34,20 +34,20 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .cors().and()  // 启用 CORS
-            .csrf().disable()
-            .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            .and()
-            .authorizeRequests()
-            // 允许匿名访问的接口
-            .antMatchers("/users/login").permitAll()  // 登录接口
-            .antMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()  // Swagger文档
-            .antMatchers("/ws/**").permitAll()  // WebSocket端点
-            // 其他所有请求需要认证
-            .anyRequest().permitAll()  // 临时允许所有请求，让方法级别的权限控制生效
-            .and()
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        
+                .cors().and()  // 启用 CORS
+                .csrf().disable()
+                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                .and()
+                .authorizeRequests()
+                // 允许匿名访问的接口
+                .antMatchers("/users/login").permitAll()  // 登录接口
+                .antMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()  // Swagger文档
+                .antMatchers("/ws/**").permitAll()  // WebSocket端点
+                // 其他所有请求需要认证
+                .anyRequest().permitAll()  // 临时允许所有请求，让方法级别的权限控制生效
+                .and()
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 

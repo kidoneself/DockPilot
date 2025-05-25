@@ -1,8 +1,8 @@
 package com.dsm.service.http;
 
+import com.dsm.model.User;
 import com.dsm.model.dto.ChangePasswordRequest;
 import com.dsm.model.dto.LoginRequest;
-import com.dsm.model.User;
 import com.dsm.utils.ApiResponse;
 
 /**

@@ -27,11 +27,11 @@ public class AsyncTaskRunner {
             }
         }, executor).whenComplete((result, ex) -> {
             if (ex != null) {
-                System.err.println("异步任务出错：" + ex.getMessage());
-                messageSender.sendError(session, taskId, "任务失败：" + ex.getMessage());
+                String userFriendlyError = ErrorMessageExtractor.extractUserFriendlyError(ex);
+                System.err.println("异步任务出错：" + userFriendlyError);
+                messageSender.sendError(session, taskId, userFriendlyError);
             } else {
-//                messageSender.sendLog(session, taskId, "任务完成，结果: " + result);
-//                messageSender.sendComplete(session, taskId, result);
+                messageSender.sendComplete(session, taskId, result);
             }
         });
     }
@@ -44,13 +44,13 @@ public class AsyncTaskRunner {
             String taskId) {
 
         return CompletableFuture.runAsync(() -> {
-                taskSupplier.get().join();
+            taskSupplier.get().join();
         }, executor).whenComplete((v, ex) -> {
             if (ex != null) {
-                messageSender.sendError(session, taskId, "任务失败：" + ex.getMessage());
+                String userFriendlyError = ErrorMessageExtractor.extractUserFriendlyError(ex);
+                messageSender.sendError(session, taskId, userFriendlyError);
             } else {
-//                messageSender.sendLog(session, taskId, "任务完成");
-//                messageSender.sendComplete(session, taskId, true);
+                messageSender.sendComplete(session, taskId, true);
             }
         });
     }

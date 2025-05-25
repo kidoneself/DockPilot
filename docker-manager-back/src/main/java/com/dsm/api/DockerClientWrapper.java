@@ -159,7 +159,19 @@ public class DockerClientWrapper {
     }
 
     public List<Network> listNetworks() {
-        return executeDockerCommandWithResult(() -> dockerClient.listNetworksCmd().exec(), "获取网络列表", "all");
+        return executeDockerCommandWithResult(() ->
+                dockerClient.listNetworksCmd().exec(), "获取网络列表", "all");
+    }
+
+    /**
+     * 获取网络详情
+     *
+     * @param networkId 网络ID
+     * @return 网络详情
+     */
+    public Network inspectNetwork(String networkId) {
+        return executeDockerCommandWithResult(() ->
+                dockerClient.inspectNetworkCmd().withNetworkId(networkId).exec(), "获取网络详情", networkId);
     }
 
     public CreateContainerResponse createContainer(CreateContainerCmd cmd) {
@@ -215,7 +227,6 @@ public class DockerClientWrapper {
         dockerClient.startContainerCmd(containerId).exec();
         return containerId;
     }
-
 
 
     public void recreateContainerWithNewImage(String containerId, String imageName) {

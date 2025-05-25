@@ -3,179 +3,15 @@ package com.dsm.utils;
 import com.dsm.model.ContainerCreateRequest;
 import com.github.dockerjava.api.model.*;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * 比较两个ContainerCreateRequest对象的工具类
  */
 public class ContainerCreateRequestComparator {
-
-    public static class ComparisonResult {
-        private final Map<String, FieldDifference> differences = new HashMap<>();
-        private final Map<String, FieldDifference> allFields = new HashMap<>();
-
-        public void addDifference(String fieldName, Object value1, Object value2) {
-            differences.put(fieldName, new FieldDifference(value1, value2));
-            allFields.put(fieldName, new FieldDifference(value1, value2));
-        }
-
-        public void addField(String fieldName, Object value1, Object value2) {
-            allFields.put(fieldName, new FieldDifference(value1, value2));
-        }
-
-        public boolean hasDifferences() {
-            return !differences.isEmpty();
-        }
-
-        public Map<String, FieldDifference> getDifferences() {
-            return differences;
-        }
-
-        public Map<String, FieldDifference> getAllFields() {
-            return allFields;
-        }
-
-        private String formatValue(Object value) {
-            if (value == null) {
-                return "null";
-            }
-            if (value instanceof Ports) {
-                Ports ports = (Ports) value;
-                Map<ExposedPort, Ports.Binding[]> bindings = ports.getBindings();
-                if (bindings == null || bindings.isEmpty()) {
-                    return "{}";
-                }
-                StringBuilder sb = new StringBuilder();
-                sb.append("{");
-                bindings.forEach((exposedPort, bindingArray) -> {
-                    if (bindingArray != null && bindingArray.length > 0) {
-                        for (Ports.Binding binding : bindingArray) {
-                            sb.append(exposedPort.toString())
-                              .append(" -> ")
-                              .append(binding.getHostPortSpec())
-                              .append(", ");
-                        }
-                    }
-                });
-                if (sb.length() > 1) {
-                    sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
-                }
-                sb.append("}");
-                return sb.toString();
-            }
-            if (value instanceof List) {
-                List<?> list = (List<?>) value;
-                if (list.isEmpty()) {
-                    return "[]";
-                }
-                StringBuilder sb = new StringBuilder();
-                sb.append("[");
-                for (Object item : list) {
-                    sb.append(formatValue(item)).append(", ");
-                }
-                sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
-                sb.append("]");
-                return sb.toString();
-            }
-            if (value instanceof Map) {
-                Map<?, ?> map = (Map<?, ?>) value;
-                if (map.isEmpty()) {
-                    return "{}";
-                }
-                StringBuilder sb = new StringBuilder();
-                sb.append("{");
-                map.forEach((k, v) -> sb.append(formatValue(k))
-                        .append(": ")
-                        .append(formatValue(v))
-                        .append(", "));
-                sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
-                sb.append("}");
-                return sb.toString();
-            }
-            if (value instanceof Device[]) {
-                Device[] devices = (Device[]) value;
-                if (devices.length == 0) {
-                    return "[]";
-                }
-                StringBuilder sb = new StringBuilder();
-                sb.append("[");
-                for (Device device : devices) {
-                    sb.append(device.getPathOnHost())
-                      .append(":")
-                      .append(device.getPathInContainer())
-                      .append(", ");
-                }
-                sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
-                sb.append("]");
-                return sb.toString();
-            }
-            if (value instanceof RestartPolicy) {
-                RestartPolicy policy = (RestartPolicy) value;
-                return String.format("%s(maxRetry=%d)", 
-                    policy.getName(), 
-                    policy.getMaximumRetryCount());
-            }
-            if (value instanceof Bind[]) {
-                Bind[] binds = (Bind[]) value;
-                if (binds.length == 0) {
-                    return "[]";
-                }
-                StringBuilder sb = new StringBuilder();
-                sb.append("[");
-                for (Bind bind : binds) {
-                    sb.append(bind.getPath())
-                      .append(":")
-                      .append(bind.getVolume().getPath())
-                      .append(", ");
-                }
-                sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
-                sb.append("]");
-                return sb.toString();
-            }
-            if (value instanceof Volume[]) {
-                Volume[] volumes = (Volume[]) value;
-                if (volumes.length == 0) {
-                    return "[]";
-                }
-                StringBuilder sb = new StringBuilder();
-                sb.append("[");
-                for (Volume volume : volumes) {
-                    sb.append(volume.getPath()).append(", ");
-                }
-                sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
-                sb.append("]");
-                return sb.toString();
-            }
-            return value.toString();
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("比较结果:\n");
-            for (Map.Entry<String, FieldDifference> entry : allFields.entrySet()) {
-                sb.append(String.format("字段: %s\n", entry.getKey()));
-                sb.append(String.format("  原值: %s\n", formatValue(entry.getValue().value1)));
-                sb.append(String.format("  新值: %s\n", formatValue(entry.getValue().value2)));
-                if (differences.containsKey(entry.getKey())) {
-                    sb.append("  [已修改]\n");
-                } else {
-                    sb.append("  [未修改]\n");
-                }
-            }
-            return sb.toString();
-        }
-    }
-
-    public static class FieldDifference {
-        public final Object value1;
-        public final Object value2;
-
-        public FieldDifference(Object value1, Object value2) {
-            this.value1 = value1;
-            this.value2 = value2;
-        }
-    }
 
     public static ComparisonResult compare(ContainerCreateRequest request1, ContainerCreateRequest request2) {
         ComparisonResult result = new ComparisonResult();
@@ -318,7 +154,7 @@ public class ContainerCreateRequestComparator {
         boolean hasDifference = false;
         for (int i = 0; i < devices1.length; i++) {
             if (!Objects.equals(devices1[i].getPathOnHost(), devices2[i].getPathOnHost()) ||
-                !Objects.equals(devices1[i].getPathInContainer(), devices2[i].getPathInContainer())) {
+                    !Objects.equals(devices1[i].getPathInContainer(), devices2[i].getPathInContainer())) {
                 hasDifference = true;
                 break;
             }
@@ -340,7 +176,7 @@ public class ContainerCreateRequestComparator {
             return;
         }
         if (!Objects.equals(policy1.getName(), policy2.getName()) ||
-            !Objects.equals(policy1.getMaximumRetryCount(), policy2.getMaximumRetryCount())) {
+                !Objects.equals(policy1.getMaximumRetryCount(), policy2.getMaximumRetryCount())) {
             result.addDifference(fieldName, policy1, policy2);
         } else {
             result.addField(fieldName, policy1, policy2);
@@ -363,7 +199,7 @@ public class ContainerCreateRequestComparator {
         boolean hasDifference = false;
         for (int i = 0; i < binds1.size(); i++) {
             if (!Objects.equals(binds1.get(i).getPath(), binds2.get(i).getPath()) ||
-                !Objects.equals(binds1.get(i).getVolume().getPath(), binds2.get(i).getVolume().getPath())) {
+                    !Objects.equals(binds1.get(i).getVolume().getPath(), binds2.get(i).getVolume().getPath())) {
                 hasDifference = true;
                 break;
             }
@@ -372,6 +208,173 @@ public class ContainerCreateRequestComparator {
             result.addDifference(fieldName, binds1, binds2);
         } else {
             result.addField(fieldName, binds1, binds2);
+        }
+    }
+
+    public static class ComparisonResult {
+        private final Map<String, FieldDifference> differences = new HashMap<>();
+        private final Map<String, FieldDifference> allFields = new HashMap<>();
+
+        public void addDifference(String fieldName, Object value1, Object value2) {
+            differences.put(fieldName, new FieldDifference(value1, value2));
+            allFields.put(fieldName, new FieldDifference(value1, value2));
+        }
+
+        public void addField(String fieldName, Object value1, Object value2) {
+            allFields.put(fieldName, new FieldDifference(value1, value2));
+        }
+
+        public boolean hasDifferences() {
+            return !differences.isEmpty();
+        }
+
+        public Map<String, FieldDifference> getDifferences() {
+            return differences;
+        }
+
+        public Map<String, FieldDifference> getAllFields() {
+            return allFields;
+        }
+
+        private String formatValue(Object value) {
+            if (value == null) {
+                return "null";
+            }
+            if (value instanceof Ports) {
+                Ports ports = (Ports) value;
+                Map<ExposedPort, Ports.Binding[]> bindings = ports.getBindings();
+                if (bindings == null || bindings.isEmpty()) {
+                    return "{}";
+                }
+                StringBuilder sb = new StringBuilder();
+                sb.append("{");
+                bindings.forEach((exposedPort, bindingArray) -> {
+                    if (bindingArray != null && bindingArray.length > 0) {
+                        for (Ports.Binding binding : bindingArray) {
+                            sb.append(exposedPort.toString())
+                                    .append(" -> ")
+                                    .append(binding.getHostPortSpec())
+                                    .append(", ");
+                        }
+                    }
+                });
+                if (sb.length() > 1) {
+                    sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
+                }
+                sb.append("}");
+                return sb.toString();
+            }
+            if (value instanceof List) {
+                List<?> list = (List<?>) value;
+                if (list.isEmpty()) {
+                    return "[]";
+                }
+                StringBuilder sb = new StringBuilder();
+                sb.append("[");
+                for (Object item : list) {
+                    sb.append(formatValue(item)).append(", ");
+                }
+                sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
+                sb.append("]");
+                return sb.toString();
+            }
+            if (value instanceof Map) {
+                Map<?, ?> map = (Map<?, ?>) value;
+                if (map.isEmpty()) {
+                    return "{}";
+                }
+                StringBuilder sb = new StringBuilder();
+                sb.append("{");
+                map.forEach((k, v) -> sb.append(formatValue(k))
+                        .append(": ")
+                        .append(formatValue(v))
+                        .append(", "));
+                sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
+                sb.append("}");
+                return sb.toString();
+            }
+            if (value instanceof Device[]) {
+                Device[] devices = (Device[]) value;
+                if (devices.length == 0) {
+                    return "[]";
+                }
+                StringBuilder sb = new StringBuilder();
+                sb.append("[");
+                for (Device device : devices) {
+                    sb.append(device.getPathOnHost())
+                            .append(":")
+                            .append(device.getPathInContainer())
+                            .append(", ");
+                }
+                sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
+                sb.append("]");
+                return sb.toString();
+            }
+            if (value instanceof RestartPolicy) {
+                RestartPolicy policy = (RestartPolicy) value;
+                return String.format("%s(maxRetry=%d)",
+                        policy.getName(),
+                        policy.getMaximumRetryCount());
+            }
+            if (value instanceof Bind[]) {
+                Bind[] binds = (Bind[]) value;
+                if (binds.length == 0) {
+                    return "[]";
+                }
+                StringBuilder sb = new StringBuilder();
+                sb.append("[");
+                for (Bind bind : binds) {
+                    sb.append(bind.getPath())
+                            .append(":")
+                            .append(bind.getVolume().getPath())
+                            .append(", ");
+                }
+                sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
+                sb.append("]");
+                return sb.toString();
+            }
+            if (value instanceof Volume[]) {
+                Volume[] volumes = (Volume[]) value;
+                if (volumes.length == 0) {
+                    return "[]";
+                }
+                StringBuilder sb = new StringBuilder();
+                sb.append("[");
+                for (Volume volume : volumes) {
+                    sb.append(volume.getPath()).append(", ");
+                }
+                sb.setLength(sb.length() - 2); // 移除最后的逗号和空格
+                sb.append("]");
+                return sb.toString();
+            }
+            return value.toString();
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("比较结果:\n");
+            for (Map.Entry<String, FieldDifference> entry : allFields.entrySet()) {
+                sb.append(String.format("字段: %s\n", entry.getKey()));
+                sb.append(String.format("  原值: %s\n", formatValue(entry.getValue().value1)));
+                sb.append(String.format("  新值: %s\n", formatValue(entry.getValue().value2)));
+                if (differences.containsKey(entry.getKey())) {
+                    sb.append("  [已修改]\n");
+                } else {
+                    sb.append("  [未修改]\n");
+                }
+            }
+            return sb.toString();
+        }
+    }
+
+    public static class FieldDifference {
+        public final Object value1;
+        public final Object value2;
+
+        public FieldDifference(Object value1, Object value2) {
+            this.value1 = value1;
+            this.value2 = value2;
         }
     }
 } 

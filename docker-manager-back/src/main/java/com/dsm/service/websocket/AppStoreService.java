@@ -9,6 +9,7 @@ import com.dsm.model.MessageType;
 import com.dsm.model.Template;
 import com.dsm.service.http.ImageService;
 import com.dsm.service.http.NetworkService;
+import com.dsm.utils.ErrorMessageExtractor;
 import com.dsm.utils.JsonPlaceholderReplacerUtil;
 import com.dsm.utils.MessageCallback;
 import com.dsm.websocket.model.DockerWebSocketMessage;
@@ -19,6 +20,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.dockerjava.api.command.CreateContainerCmd;
 import com.github.dockerjava.api.model.Bind;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -43,6 +47,7 @@ import java.util.concurrent.CompletableFuture;
  */
 @Slf4j
 @Service
+@Tag(name = "应用商店 WebSocket 服务", description = "处理应用商店相关的 WebSocket 消息，包括应用安装和模板管理")
 public class AppStoreService implements BaseService {
 
     public static final String MNT_HOST = "/mnt/host";
@@ -71,16 +76,28 @@ public class AppStoreService implements BaseService {
      * @param message 接收到的消息
      */
     @Override
-    public void handle(WebSocketSession session, DockerWebSocketMessage message) {
+    @Operation(
+            summary = "处理应用商店相关的WebSocket消息",
+            description = "根据消息类型处理不同的应用商店操作，包括：\n" +
+                    "- INSTALL_CHECK_IMAGES: 检查安装所需的镜像\n" +
+                    "- INSTALL_VALIDATE: 验证安装参数\n" +
+                    "- INSTALL_START: 开始安装\n" +
+                    "- INSTALL_LOG: 安装日志\n" +
+                    "- PULL_IMAGE: 拉取镜像\n" +
+                    "- IMPORT_TEMPLATE: 导入模板\n" +
+                    "- DELETE_TEMPLATE: 删除模板"
+    )
+    public void handle(
+            @Parameter(description = "WebSocket会话") WebSocketSession session,
+            @Parameter(description = "接收到的消息") DockerWebSocketMessage message
+    ) {
         MessageType type = MessageType.valueOf(message.getType());
         String taskId = message.getTaskId();
 
         try {
-
             // 处理消息
             Object result = null;
             switch (type) {
-                // 安装相关
                 case INSTALL_CHECK_IMAGES:    // 检查安装所需的镜像
                     result = handleInstallCheckImages(message);
                     break;
@@ -93,49 +110,8 @@ public class AppStoreService implements BaseService {
                 case INSTALL_LOG:             // 安装日志
                     result = handleInstallLog(session, message);
                     break;
-                case PULL_IMAGE:
-                    CompletableFuture.runAsync(() -> {
-                        CompletableFuture<Void> pullFuture = handlePullImage(message, new MessageCallback() {
-                            @Override
-                            public void onProgress(int progress) {
-                                // 处理进度
-                                System.out.println("进度: " + progress + "%");
-                                messageSender.sendProgress(session, taskId, progress);
-                            }
-
-                            @Override
-                            public void onLog(String log) {
-                                // 处理日志
-                                System.out.println("日志: " + log);
-                                messageSender.sendLog(session, taskId, log);
-                            }
-
-                            @Override
-                            public void onComplete() {
-                                // 完成时的操作
-                                System.out.println("镜像拉取完成！");
-                                messageSender.sendComplete(session, taskId, true);
-                            }
-
-                            @Override
-                            public void onError(String error) {
-                                // 错误时的操作
-                                System.err.println("错误: " + error);
-                                messageSender.sendError(session, taskId, error);
-                            }
-                        });
-
-                        pullFuture.thenRun(() -> {
-                            messageSender.sendComplete(session, taskId, null); // 拉取完成
-                        }).exceptionally(ex -> {
-                            messageSender.sendError(session, taskId, ex.getMessage()); // 错误处理
-                            return null;
-                        });
-                    });
-                    break;
-                // 模板相关
-                case NETWORK_LIST:            // 获取网络列表
-                    result = handleNetworkList();
+                case PULL_IMAGE:              // 拉取镜像
+                    result = handlePullImage(message, null);
                     break;
                 case IMPORT_TEMPLATE:         // 导入模板
                     result = handleImportTemplate(message);
@@ -143,7 +119,6 @@ public class AppStoreService implements BaseService {
                 case DELETE_TEMPLATE:         // 删除模板
                     result = handleDeleteTemplate(message);
                     break;
-
                 default:
                     log.warn("未知的应用商店消息类型: {}", type);
             }
@@ -152,7 +127,8 @@ public class AppStoreService implements BaseService {
             messageSender.sendComplete(session, taskId, result);
         } catch (Exception e) {
             log.error("处理应用商店消息时发生错误: {}", type, e);
-            messageSender.sendError(session, taskId, e.getMessage());
+            String userFriendlyError = ErrorMessageExtractor.extractUserFriendlyError(e);
+            messageSender.sendError(session, taskId, userFriendlyError);
         }
     }
 
@@ -436,13 +412,6 @@ public class AppStoreService implements BaseService {
     }
 
     /**
-     * 处理获取网络列表的请求
-     */
-    private Object handleNetworkList() {
-        return networkService.listNetworks();
-    }
-
-    /**
      * 处理导入模板的请求
      *
      * @param message WebSocket消息
@@ -618,7 +587,7 @@ public class AppStoreService implements BaseService {
             Files.createDirectories(path);
             messageSender.sendMessage(session, MessageType.INSTALL_LOG, taskId, Map.of("level", "success", "message", String.format("创建宿主机目录成功: %s", hostPath)));
         } catch (IOException e) {
-            messageSender.sendError(session, taskId, String.format("创建宿主机目录失败: %s, 错误: %s", hostPath, e.getMessage()));
+            messageSender.sendError(session, taskId, String.format("创建宿主机目录失败: %s, 错误: %s", hostPath, ErrorMessageExtractor.extractUserFriendlyError(e)));
         }
     }
 } 

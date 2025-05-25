@@ -1,68 +1,78 @@
 {
-  "name" : "mp",
-  "category" : "媒体",
-  "version" : "1.0",
-  "description" : "一个强大的媒体管理应用",
-  "iconUrl" : "https://example.com/icon.jpg",
-  "services" : [ {
-    "id" : "naspt-mpv2",
-    "name" : "naspt-mpv2",
-    "template" : {
-      "name" : "naspt-mpv2",
-      "image" : "jxxghp/moviepilot-v2:latest",
-      "cmd" : [ ],
-      "env" : {
-        "LEAVES_UID" : "10971",
-        "LEAVES_PASSKEY" : "e0405a9d0de9e3b112ef78ac3d9c7975",
-        "TZ" : "Asia/Shanghai",
-        "SUPERUSER" : "admin",
-        "API_TOKEN" : "nasptnasptnasptnasptnaspt",
-        "AUTO_UPDATE_RESOURCE" : "false",
-        "MOVIEPILOT_AUTO_UPDATE" : "false",
-        "AUTH_SITE" : "icc2022,leaves",
-        "ICC2022_UID" : "24730",
-        "ICC2022_PASSKEY" : "49c421073514d4d981a0cbc4174f4b23",
-        "PATH" : "/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-        "LANG" : "C.UTF-8",
-        "GPG_KEY" : "7169605F62C751356D054A26A821E680E5FA6305",
-        "PYTHON_VERSION" : "3.12.8",
-        "PYTHON_SHA256" : "c909157bb25ec114e5869124cc2a9c4a4d4c1e957ca4ff553f1edc692101154e",
-        "HOME" : "/moviepilot",
-        "CONFIG_DIR" : "/config",
-        "TERM" : "xterm",
-        "DISPLAY" : ":987",
-        "PUID" : "0",
-        "PGID" : "0",
-        "UMASK" : "000",
-        "PORT" : "3001",
-        "NGINX_PORT" : "3000"
-      },
-      "ports" : {
-        "3000/tcp" : "3000",
-        "3001/tcp" : "3001"
-      },
-      "volumes" : {
-        "/home/docker/naspt-qb/config/qBittorrent/BT_backup" : "/qbtr",
-        "/home/docker/naspt-mpv2/core" : "/moviepilot/.cache/ms-playwright",
-        "/home/docker/naspt-mpv2/config" : "/config",
-        "/home/media" : "/media"
-      },
-      "restartPolicy" : "always",
-      "networkMode" : "bridge",
-      "privileged" : true
+  "name": "mp",
+  "category": "媒体",
+  "version": "1.0",
+  "description": "一个强大的媒体管理应用",
+  "iconUrl": "https://example.com/icon.jpg",
+  "services": [
+    {
+      "id": "naspt-mpv2",
+      "name": "naspt-mpv2",
+      "template": {
+        "name": "naspt-mpv2",
+        "image": "jxxghp/moviepilot-v2:latest",
+        "cmd": [],
+        "env": {
+          "LEAVES_UID": "10971",
+          "LEAVES_PASSKEY": "e0405a9d0de9e3b112ef78ac3d9c7975",
+          "TZ": "Asia/Shanghai",
+          "SUPERUSER": "admin",
+          "API_TOKEN": "nasptnasptnasptnasptnaspt",
+          "AUTO_UPDATE_RESOURCE": "false",
+          "MOVIEPILOT_AUTO_UPDATE": "false",
+          "AUTH_SITE": "icc2022,leaves",
+          "ICC2022_UID": "24730",
+          "ICC2022_PASSKEY": "49c421073514d4d981a0cbc4174f4b23",
+          "PATH": "/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "LANG": "C.UTF-8",
+          "GPG_KEY": "7169605F62C751356D054A26A821E680E5FA6305",
+          "PYTHON_VERSION": "3.12.8",
+          "PYTHON_SHA256": "c909157bb25ec114e5869124cc2a9c4a4d4c1e957ca4ff553f1edc692101154e",
+          "HOME": "/moviepilot",
+          "CONFIG_DIR": "/config",
+          "TERM": "xterm",
+          "DISPLAY": ":987",
+          "PUID": "0",
+          "PGID": "0",
+          "UMASK": "000",
+          "PORT": "3001",
+          "NGINX_PORT": "3000"
+        },
+        "ports": {
+          "3000/tcp": "3000",
+          "3001/tcp": "3001"
+        },
+        "volumes": {
+          "/home/docker/naspt-qb/config/qBittorrent/BT_backup": "/qbtr",
+          "/home/docker/naspt-mpv2/core": "/moviepilot/.cache/ms-playwright",
+          "/home/docker/naspt-mpv2/config": "/config",
+          "/home/media": "/media"
+        },
+        "restartPolicy": "always",
+        "networkMode": "bridge",
+        "privileged": true
+      }
     }
-  } ],
-  "parameters" : [ {
-    "key" : "DOCKER_PATH",
-    "name" : "Docker配置路径",
-    "value" : "/volume1/docker"
-  }, {
-    "key" : "MEDIA_PATH",
-    "name" : "媒体文件路径",
-    "value" : "/volume2/media"
-  } ],
-  "configs" : [ {
-    "target" : "{{DOCKER_PATH}}",
-    "urls" : [ "https://example.com/config1.tgz", "https://example.com/config2.tgz" ]
-  } ]
+  ],
+  "parameters": [
+    {
+      "key": "DOCKER_PATH",
+      "name": "Docker配置路径",
+      "value": "/volume1/docker"
+    },
+    {
+      "key": "MEDIA_PATH",
+      "name": "媒体文件路径",
+      "value": "/volume2/media"
+    }
+  ],
+  "configs": [
+    {
+      "target": "{{DOCKER_PATH}}",
+      "urls": [
+        "https://example.com/config1.tgz",
+        "https://example.com/config2.tgz"
+      ]
+    }
+  ]
 }

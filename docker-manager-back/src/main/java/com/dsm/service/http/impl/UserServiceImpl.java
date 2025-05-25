@@ -1,9 +1,9 @@
 package com.dsm.service.http.impl;
 
-import com.dsm.model.dto.ChangePasswordRequest;
-import com.dsm.model.dto.LoginRequest;
 import com.dsm.mapper.UserMapper;
 import com.dsm.model.User;
+import com.dsm.model.dto.ChangePasswordRequest;
+import com.dsm.model.dto.LoginRequest;
 import com.dsm.service.http.UserService;
 import com.dsm.utils.ApiResponse;
 import com.dsm.utils.JwtUtil;
@@ -94,7 +94,7 @@ public class UserServiceImpl implements UserService {
 
         // 加密新密码
         String encodedNewPassword = passwordEncoder.encode(request.getNewPassword());
-        
+
         // 更新密码
         dbUser.setPassword(encodedNewPassword);
         userMapper.updatePassword(dbUser);

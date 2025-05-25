@@ -20,6 +20,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -30,7 +31,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * 容器服务实现类
@@ -46,30 +46,81 @@ public class ImageServiceImpl implements ImageService {
     @Autowired
     private AppConfig appConfig;
 
+    @PostConstruct
+    public void init() {
+        // 在服务启动时清理所有拉取中的状态
+        cleanAllPullingImages();
+    }
 
     @Override
     @Transactional
     public void removeImage(String imageId, boolean removeStatus) {
         LogUtil.logSysInfo("删除镜像: " + imageId + ", 同时删除状态记录: " + removeStatus);
-        // 获取镜像详情
-        InspectImageResponse imageInfo = dockerService.getInspectImage(imageId);
-        String[] repoTags = imageInfo.getRepoTags().toArray(new String[0]);
-        // 删除Docker镜像
-        dockerService.removeImage(imageId);
-        // 如果需要同时删除状态记录
+
+        boolean dockerImageExists = false;
+        String[] repoTags = null;
+
+        try {
+            // 尝试获取镜像详情
+            InspectImageResponse imageInfo = dockerService.getInspectImage(imageId);
+            repoTags = imageInfo.getRepoTags().toArray(new String[0]);
+            dockerImageExists = true;
+
+            // 删除Docker镜像
+            dockerService.removeImage(imageId);
+            LogUtil.logSysInfo("已删除Docker镜像: " + imageId);
+        } catch (Exception e) {
+            // Docker镜像不存在或删除失败，记录日志但继续执行删除数据库记录的操作
+            LogUtil.logSysInfo("Docker镜像不存在或删除失败: " + imageId + ", 错误: " + e.getMessage());
+
+            // 如果Docker中不存在镜像，尝试从imageId解析name和tag
+            if (imageId.contains(":")) {
+                String[] parts = imageId.split(":", 2);
+                repoTags = new String[]{imageId}; // 直接使用imageId作为repoTag
+            }
+        }
+
+        // 删除数据库记录
         if (removeStatus) {
-            for (String repoTag : repoTags) {
-                String[] parts = repoTag.split(":");
-                if (parts.length >= 2) {
+            if (repoTags != null && repoTags.length > 0) {
+                // 从repoTags中解析并删除记录
+                for (String repoTag : repoTags) {
+                    String[] parts = repoTag.split(":", 2);
+                    if (parts.length >= 2) {
+                        String name = parts[0];
+                        String tag = parts[1];
+                        // 删除数据库记录
+                        int deletedRows = imageStatusMapper.deleteByNameAndTag(name, tag);
+                        if (deletedRows > 0) {
+                            LogUtil.logSysInfo("已删除镜像状态记录: " + name + ":" + tag);
+                        } else {
+                            LogUtil.logSysInfo("未找到要删除的镜像状态记录: " + name + ":" + tag);
+                        }
+                    }
+                }
+            } else {
+                // 如果无法解析repoTags，尝试直接从imageId解析
+                if (imageId.contains(":")) {
+                    String[] parts = imageId.split(":", 2);
                     String name = parts[0];
                     String tag = parts[1];
-                    // 删除数据库记录
-                    imageStatusMapper.deleteByNameAndTag(name, tag);
-                    LogUtil.logSysInfo("已删除镜像状态记录: " + name + ":" + tag);
+                    int deletedRows = imageStatusMapper.deleteByNameAndTag(name, tag);
+                    if (deletedRows > 0) {
+                        LogUtil.logSysInfo("已删除镜像状态记录: " + name + ":" + tag);
+                    } else {
+                        LogUtil.logSysInfo("未找到要删除的镜像状态记录: " + name + ":" + tag);
+                    }
                 }
             }
         }
-        LogUtil.logOpe("成功删除镜像: " + imageId + (removeStatus ? " (已删除状态记录)" : ""));
+
+        String successMessage = dockerImageExists
+                ? "成功删除镜像: " + imageId
+                : "成功删除镜像记录: " + imageId;
+        if (removeStatus) {
+            successMessage += " (已删除状态记录)";
+        }
+        LogUtil.logOpe(successMessage);
     }
 
 
@@ -81,22 +132,47 @@ public class ImageServiceImpl implements ImageService {
     public void checkAllImagesStatus() {
         LogUtil.logSysInfo("开始定时检查所有镜像更新状态...");
         try {
-            // 首先同步宿主机所有镜像到数据库
-            syncAllLocalImagesToDb();
-            // 然后查询所有镜像记录进行更新检查
+            // 获取Docker中真实存在的镜像
+            List<Image> dockerImages = dockerService.listImages();
+            Map<String, Image> dockerImageMap = new HashMap<>();
+
+            for (Image dockerImage : dockerImages) {
+                if (dockerImage.getRepoTags() != null) {
+                    for (String repoTag : dockerImage.getRepoTags()) {
+                        if (!"<none>:<none>".equals(repoTag)) {
+                            dockerImageMap.put(repoTag, dockerImage);
+                        }
+                    }
+                }
+            }
+
+            // 同步真实存在的镜像到数据库
+            syncExistingImagesToDb(dockerImageMap);
+
+            // 只检查真实存在镜像的远程更新状态
             List<ImageStatus> imageRecords = imageStatusMapper.selectAll();
             for (ImageStatus record : imageRecords) {
+                // 只检查Docker中真实存在的镜像，跳过拉取记录
+                String fullName = record.getName() + ":" + record.getTag();
+                if (!dockerImageMap.containsKey(fullName)) {
+                    continue; // 跳过不存在的镜像（拉取失败或拉取中的记录）
+                }
+
                 try {
                     String name = record.getName();
                     String tag = record.getTag();
                     String storedLocalCreateTime = record.getLocalCreateTime();
                     Long id = record.getId();
+
+                    // 获取远程镜像创建时间进行比较
                     String remoteCreateTime = dockerService.getRemoteImageCreateTime(name, tag);
                     Instant localInstant = Instant.parse(storedLocalCreateTime);
                     Instant remoteInstant = Instant.parse(remoteCreateTime);
+
                     // 如果远程时间晚于本地时间，说明需要更新
                     boolean needUpdate = remoteInstant.isAfter(localInstant);
-                    // 更新数据库记录 - 使用ISO格式日期
+
+                    // 更新数据库记录
                     String currentTime = getCurrentIsoDateTime();
                     imageStatusMapper.updateRemoteCreateTime(id, remoteCreateTime, needUpdate, currentTime);
                 } catch (Exception e) {
@@ -161,58 +237,152 @@ public class ImageServiceImpl implements ImageService {
     public List<ImageStatusDTO> listImages() {
         LogUtil.logSysInfo("获取镜像状态列表");
         try {
-            // 先同步宿主机镜像到数据库，确保显示最新数据
-            syncAllLocalImagesToDb();
+            // 第一步：获取Docker中真实存在的所有镜像
+            List<Image> dockerImages = dockerService.listImages();
+            Map<String, Image> dockerImageMap = new HashMap<>();
 
-            // 获取所有本地镜像
-            List<Image> images = dockerService.listImages();
-
-            // 获取数据库中的所有镜像状态记录
-            List<ImageStatus> dbRecords = imageStatusMapper.selectAll();
-
-            // 构建数据库记录的映射表，键为"name:tag"
-            Map<String, ImageStatus> dbRecordsMap = dbRecords.stream().collect(Collectors.toMap(record -> record.getName() + ":" + record.getTag(), record -> record, (existing, replacement) -> existing // 如果有重复，保留第一个
-            ));
-
-            // 合并本地镜像和数据库记录
-            List<ImageStatusDTO> result = new ArrayList<>();
-
-            for (Image image : images) {
-                String[] repoTags = image.getRepoTags();
-                if (repoTags != null) {
-                    for (String repoTag : repoTags) {
+            for (Image dockerImage : dockerImages) {
+                if (dockerImage.getRepoTags() != null) {
+                    for (String repoTag : dockerImage.getRepoTags()) {
                         if (!"<none>:<none>".equals(repoTag)) {
-                            String[] parts = repoTag.split(":");
-                            String name = parts[0];
-                            String tag = parts.length > 1 ? parts[1] : "latest";
-
-                            ImageStatusDTO imageStatusDTO = ImageStatusDTO.builder().id(image.getId()).name(name).tag(tag).size(image.getSize()).created(new Date(image.getCreated() * 1000L)).build();
-
-                            // 添加状态信息
-                            ImageStatus statusRecord = dbRecordsMap.get(name + ":" + tag);
-                            if (statusRecord != null) {
-                                imageStatusDTO.setNeedUpdate(statusRecord.getNeedUpdate());
-                                imageStatusDTO.setStatusId(statusRecord.getId());
-                                imageStatusDTO.setLocalCreateTime(statusRecord.getLocalCreateTime());
-                                imageStatusDTO.setRemoteCreateTime(statusRecord.getRemoteCreateTime());
-
-                                // 将ISO格式日期字符串转换为Date对象
-                                String lastCheckedStr = statusRecord.getLastChecked();
-                                if (lastCheckedStr != null && !lastCheckedStr.isEmpty()) {
-                                    imageStatusDTO.setLastChecked(parseIsoDate(lastCheckedStr));
-                                }
-                            }
-                            result.add(imageStatusDTO);
+                            dockerImageMap.put(repoTag, dockerImage);
                         }
                     }
                 }
             }
 
+            // 第二步：同步真实存在的镜像到数据库
+            syncExistingImagesToDb(dockerImageMap);
+
+            // 第三步：获取所有数据库记录（包括拉取成功、失败、进行中的）
+            List<ImageStatus> dbRecords = imageStatusMapper.selectAll();
+
+            // 第四步：转换为DTO并分类
+            List<ImageStatusDTO> result = new ArrayList<>();
+            for (ImageStatus record : dbRecords) {
+                String fullName = record.getName() + ":" + record.getTag();
+                Image dockerImage = dockerImageMap.get(fullName);
+
+                ImageStatusDTO dto = ImageStatusDTO.builder()
+                        .id(record.getId() != null ? record.getId().toString() : "unknown")
+                        .name(record.getName())
+                        .tag(record.getTag())
+                        .needUpdate(record.getNeedUpdate() != null ? record.getNeedUpdate() : false)
+                        .statusId(record.getId())
+                        .localCreateTime(record.getLocalCreateTime())
+                        .remoteCreateTime(record.getRemoteCreateTime())
+                        .pulling(record.getPulling() != null ? record.getPulling() : false)
+                        .progress(record.getProgress())
+                        .build();
+
+                // 判断镜像类型并设置相应信息
+                if (dockerImage != null) {
+                    // 真实存在的镜像（拉取成功）
+                    dto.setSize(dockerImage.getSize());
+                    dto.setCreated(new Date(dockerImage.getCreated() * 1000L));
+                } else {
+                    // Docker中不存在的记录（拉取失败或拉取中）
+                    dto.setSize(0L);
+                    dto.setCreated(new Date());
+                }
+
+                // 处理时间格式转换
+                String lastCheckedStr = record.getLastChecked();
+                if (lastCheckedStr != null && !lastCheckedStr.isEmpty()) {
+                    dto.setLastChecked(parseIsoDate(lastCheckedStr));
+                }
+
+                result.add(dto);
+            }
+
+//            LogUtil.logSysInfo("获取镜像列表完成，总计: " + result.size() + " 条记录");
             return result;
         } catch (Exception e) {
             LogUtil.logSysError("获取镜像状态列表失败: " + e.getMessage());
             throw new BusinessException("获取镜像状态列表失败");
         }
+    }
+
+    /**
+     * 同步Docker中真实存在的镜像到数据库
+     * 只处理已经存在的镜像，不影响拉取记录
+     */
+    private void syncExistingImagesToDb(Map<String, Image> dockerImageMap) {
+//        LogUtil.logSysInfo("开始同步Docker中真实存在的镜像到数据库...");
+
+        int syncCount = 0;
+        int skipCount = 0;
+
+        for (Map.Entry<String, Image> entry : dockerImageMap.entrySet()) {
+            String fullName = entry.getKey();
+            Image dockerImage = entry.getValue();
+
+            String[] parts = fullName.split(":");
+            String name = parts[0];
+            String tag = parts.length > 1 ? parts[1] : "latest";
+
+            try {
+                // 获取本地镜像创建时间
+                String localCreateTime = dockerService.getLocalImageCreateTime(name, tag);
+                if (localCreateTime == null || localCreateTime.isEmpty()) {
+                    skipCount++;
+                    continue;
+                }
+
+                // 检查数据库是否已有记录
+                ImageStatus existingRecord = imageStatusMapper.selectByNameAndTag(name, tag);
+                String currentTime = getCurrentIsoDateTime();
+
+                if (existingRecord == null) {
+                    // 新镜像，插入记录
+                    ImageStatus imageStatus = ImageStatus.builder()
+                            .name(name)
+                            .tag(tag)
+                            .localCreateTime(localCreateTime)
+                            .remoteCreateTime(localCreateTime) // 初始设置与本地相同
+                            .needUpdate(false)
+                            .lastChecked(currentTime)
+                            .pulling(false) // 已存在的镜像肯定不在拉取中
+                            .progress(null) // 已存在的镜像没有拉取进度
+                            .build();
+
+                    imageStatusMapper.insert(imageStatus);
+                    syncCount++;
+                } else {
+                    // 已有记录，只更新必要字段
+                    boolean needUpdate = false;
+
+                    // 如果本地创建时间变化了，说明镜像被更新过
+                    if (!localCreateTime.equals(existingRecord.getLocalCreateTime())) {
+                        existingRecord.setLocalCreateTime(localCreateTime);
+                        needUpdate = true;
+                    }
+
+                    // 如果之前是拉取失败或拉取中，现在Docker中存在了，说明拉取成功了
+                    if (Boolean.TRUE.equals(existingRecord.getPulling()) ||
+                            (existingRecord.getProgress() != null && existingRecord.getProgress().contains("\"status\":\"failed\""))) {
+                        existingRecord.setPulling(false);
+                        existingRecord.setProgress(String.format(
+                                "{\"status\":\"success\",\"percentage\":100,\"message\":\"拉取完成\",\"end_time\":\"%s\"}",
+                                java.time.Instant.now().toString()
+                        ));
+                        needUpdate = true;
+                    }
+
+                    if (needUpdate) {
+                        existingRecord.setLastChecked(currentTime);
+                        imageStatusMapper.update(existingRecord);
+                        syncCount++;
+                    } else {
+                        skipCount++;
+                    }
+                }
+            } catch (Exception e) {
+                LogUtil.logSysError("同步镜像 " + name + ":" + tag + " 失败: " + e.getMessage());
+            }
+        }
+
+//        LogUtil.logSysInfo("同步真实镜像完成 - 处理: " + syncCount + ", 跳过: " + skipCount);
     }
 
     @Transactional
@@ -293,7 +463,7 @@ public class ImageServiceImpl implements ImageService {
                                 String localCreateTime = dockerService.getLocalImageCreateTime(name, tag);
 
                                 if (localCreateTime == null || localCreateTime.isEmpty()) {
-                                    LogUtil.logSysInfo("镜像 " + name + ":" + tag + " 无法获取有效创建时间，跳过同步");
+//                                    LogUtil.logSysInfo("镜像 " + name + ":" + tag + " 无法获取有效创建时间，跳过同步");
                                     skipCount++;
                                     continue;
                                 }
@@ -307,17 +477,17 @@ public class ImageServiceImpl implements ImageService {
                                             .needUpdate(false).lastChecked(currentTime).build();
 
                                     imageStatusMapper.insert(imageStatus);
-                                    LogUtil.logSysInfo("已创建镜像状态记录: " + name + ":" + tag);
+//                                    LogUtil.logSysInfo("已创建镜像状态记录: " + name + ":" + tag);
                                     syncCount++;
                                 } else if (!localCreateTime.equals(existingRecord.getLocalCreateTime())) {
                                     // 仅当创建时间不同时更新记录，避免不必要的数据库操作
                                     existingRecord.setLocalCreateTime(localCreateTime);
                                     existingRecord.setLastChecked(currentTime);
                                     imageStatusMapper.update(existingRecord);
-                                    LogUtil.logSysInfo("已更新镜像状态记录: " + name + ":" + tag);
+//                                    LogUtil.logSysInfo("已更新镜像状态记录: " + name + ":" + tag);
                                     syncCount++;
                                 } else {
-                                    LogUtil.logSysInfo("镜像 " + name + ":" + tag + " 无变化，跳过更新");
+//                                    LogUtil.logSysInfo("镜像 " + name + ":" + tag + " 无变化，跳过更新");
                                     skipCount++;
                                 }
                             } catch (Exception e) {
@@ -350,9 +520,10 @@ public class ImageServiceImpl implements ImageService {
                 command.add("--override-os");
                 command.add("linux");
             }
-            // 添加 --insecure-policy 和 --tls-verify=false 参数
+            // 添加安全策略和TLS验证参数
             command.add("--insecure-policy");
-            command.add("--tls-verify=false");
+            command.add("--src-tls-verify=false");
+            command.add("--dest-tls-verify=false");
             command.add("docker://" + imageName + ":" + tag);
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
@@ -644,6 +815,245 @@ public class ImageServiceImpl implements ImageService {
         return dockerService.pullImageWithSkopeo(image, tag, callback);
     }
 
+    @Override
+    public void startPullImage(String imageName, String tag) {
+        // 检查是否已经在拉取中
+        if (isPulling(imageName, tag)) {
+            LogUtil.logSysInfo("镜像 " + imageName + ":" + tag + " 已经在拉取中，跳过");
+            return;
+        }
 
+        // 构建进度JSON
+        String progressJson = String.format(
+                "{\"status\":\"pulling\",\"percentage\":0,\"message\":\"开始拉取镜像\",\"start_time\":\"%s\"}",
+                java.time.Instant.now().toString()
+        );
+
+        // 创建或更新镜像状态记录
+        ImageStatus status = ImageStatus.builder()
+                .name(imageName)
+                .tag(tag)
+                .pulling(true)
+                .progress(progressJson)
+                .needUpdate(false)
+                .build();
+
+        // 尝试插入或更新
+        imageStatusMapper.insertOrUpdate(status);
+        LogUtil.logSysInfo("开始拉取镜像，记录状态: " + imageName + ":" + tag);
+    }
+
+    @Override
+    public void updatePullProgress(String imageName, String tag, int percentage, String message) {
+        ImageStatus existing = imageStatusMapper.selectByNameAndTag(imageName, tag);
+        if (existing == null) {
+            LogUtil.logSysError("尝试更新不存在的镜像进度: " + imageName + ":" + tag);
+            return;
+        }
+
+        // 如果percentage为-1，保留原有进度百分比
+        int currentPercentage = percentage;
+        if (percentage == -1 && existing.getProgress() != null) {
+            try {
+                String progressStr = existing.getProgress();
+                if (progressStr.contains("\"percentage\":")) {
+                    int start = progressStr.indexOf("\"percentage\":") + 13;
+                    int end = progressStr.indexOf(",", start);
+                    if (end == -1) end = progressStr.indexOf("}", start);
+                    if (end > start) {
+                        currentPercentage = Integer.parseInt(progressStr.substring(start, end).trim());
+                    }
+                }
+            } catch (Exception e) {
+                LogUtil.logSysError("解析现有进度失败: " + e.getMessage());
+                currentPercentage = 0;
+            }
+        }
+
+        String progressJson = String.format(
+                "{\"status\":\"pulling\",\"percentage\":%d,\"message\":\"%s\",\"update_time\":\"%s\"}",
+                currentPercentage, message.replace("\"", "\\\""), java.time.Instant.now().toString()
+        );
+
+        existing.setPulling(true);
+        existing.setProgress(progressJson);
+        imageStatusMapper.update(existing);
+
+        LogUtil.logSysInfo("更新拉取进度 " + imageName + ":" + tag + " - " + currentPercentage + "%: " + message);
+    }
+
+    @Override
+    public void completePullImage(String imageName, String tag, String imageId) {
+        ImageStatus existing = imageStatusMapper.selectByNameAndTag(imageName, tag);
+        if (existing == null) {
+            LogUtil.logSysError("尝试完成不存在的镜像拉取: " + imageName + ":" + tag);
+            return;
+        }
+
+        // 获取拉取成功后的本地镜像创建时间
+        String localCreateTime = null;
+        try {
+            localCreateTime = getLocalImageCreateTime(imageName, tag);
+        } catch (Exception e) {
+            LogUtil.logSysError("获取本地镜像创建时间失败: " + e.getMessage());
+        }
+
+        String progressJson = String.format(
+                "{\"status\":\"success\",\"percentage\":100,\"message\":\"拉取完成\",\"end_time\":\"%s\"}",
+                java.time.Instant.now().toString()
+        );
+
+        existing.setPulling(false);
+        existing.setProgress(progressJson);
+        existing.setImageId(imageId);
+        existing.setLocalCreateTime(localCreateTime);
+        existing.setNeedUpdate(false);
+        imageStatusMapper.update(existing);
+
+        LogUtil.logOpe("镜像拉取成功: " + imageName + ":" + tag + (imageId != null ? " (ID: " + imageId + ")" : ""));
+    }
+
+    @Override
+    public void failPullImage(String imageName, String tag, String error) {
+        ImageStatus existing = imageStatusMapper.selectByNameAndTag(imageName, tag);
+        if (existing == null) {
+            LogUtil.logSysError("尝试标记不存在的镜像拉取失败: " + imageName + ":" + tag);
+            return;
+        }
+
+        // 将原始错误信息转换为用户友好的错误信息
+        String userFriendlyError = parseUserFriendlyError(error);
+
+        String progressJson = String.format(
+                "{\"status\":\"failed\",\"percentage\":0,\"message\":\"拉取失败\",\"error\":\"%s\",\"end_time\":\"%s\"}",
+                userFriendlyError.replace("\"", "\\\""), java.time.Instant.now().toString()
+        );
+
+        existing.setPulling(false);
+        existing.setProgress(progressJson);
+        imageStatusMapper.update(existing);
+
+        // 记录日志时使用原始错误信息，给开发者看详细信息
+        LogUtil.logSysError("镜像拉取失败: " + imageName + ":" + tag + " - 原始错误: " + error + " | 用户友好错误: " + userFriendlyError);
+    }
+
+    @Override
+    public boolean isPulling(String imageName, String tag) {
+        ImageStatus status = imageStatusMapper.selectByNameAndTag(imageName, tag);
+        return status != null && Boolean.TRUE.equals(status.getPulling());
+    }
+
+    /**
+     * 在服务启动时清理所有拉取中的状态
+     * 将所有正在拉取的镜像状态标记为失败，避免服务重启后状态不一致
+     */
+    private void cleanAllPullingImages() {
+        LogUtil.logSysInfo("🔧 服务启动 - 开始清理所有拉取中的状态...");
+
+        try {
+            // 获取所有镜像状态记录
+            List<ImageStatus> allStatuses = imageStatusMapper.selectAll();
+            int cleanedCount = 0;
+
+            for (ImageStatus status : allStatuses) {
+                // 检查是否正在拉取中
+                if (Boolean.TRUE.equals(status.getPulling())) {
+                    // 构建服务重启导致拉取失败的进度JSON - 使用用户友好的错误信息
+                    String userFriendlyError = "后端服务重启，拉取进程被中断";
+                    String failureProgressJson = String.format(
+                            "{\"status\":\"failed\",\"percentage\":0,\"message\":\"服务重启导致拉取中断\",\"error\":\"%s\",\"end_time\":\"%s\"}",
+                            userFriendlyError, java.time.Instant.now().toString()
+                    );
+
+                    // 更新状态为失败
+                    status.setPulling(false);
+                    status.setProgress(failureProgressJson);
+
+                    imageStatusMapper.update(status);
+                    cleanedCount++;
+
+                    LogUtil.logSysInfo("已清理拉取中断的镜像: " + status.getName() + ":" + status.getTag());
+                }
+            }
+
+            if (cleanedCount > 0) {
+                LogUtil.logSysInfo("✅ 清理完成 - 共处理 " + cleanedCount + " 个拉取中断的镜像状态");
+            } else {
+                LogUtil.logSysInfo("✅ 无需清理 - 没有发现拉取中的镜像状态");
+            }
+        } catch (Exception e) {
+            LogUtil.logSysError("❌ 清理拉取中状态失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 将技术错误信息转换为用户友好的错误信息
+     *
+     * @param rawError 原始错误信息
+     * @return 用户友好的错误信息
+     */
+    private String parseUserFriendlyError(String rawError) {
+        if (rawError == null || rawError.isEmpty()) {
+            return "镜像拉取失败";
+        }
+
+        String lowerError = rawError.toLowerCase();
+
+        // 解析常见的错误类型，返回用户友好的信息
+        if (lowerError.contains("requested access to the resource is denied")) {
+            return "镜像访问被拒绝，可能不存在或需要认证";
+        }
+
+        if (lowerError.contains("not found") || lowerError.contains("manifest unknown")) {
+            return "镜像未找到，请检查名称和标签是否正确";
+        }
+
+        if (lowerError.contains("unauthorized") || lowerError.contains("401")) {
+            return "认证失败，需要登录认证";
+        }
+
+        if (lowerError.contains("timeout") || lowerError.contains("deadline exceeded")) {
+            return "网络超时，请检查网络连接";
+        }
+
+        if (lowerError.contains("connection refused") || lowerError.contains("connection reset")) {
+            return "网络连接被拒绝，请检查网络设置";
+        }
+
+        if (lowerError.contains("no such host") || lowerError.contains("name resolution")) {
+            return "域名解析失败，请检查网络连接";
+        }
+
+        if (lowerError.contains("certificate") || lowerError.contains("tls") || lowerError.contains("ssl")) {
+            return "证书验证失败，请检查网络设置";
+        }
+
+        if (lowerError.contains("too many requests") || lowerError.contains("rate limit")) {
+            return "请求过于频繁，请稍后重试";
+        }
+
+        if (lowerError.contains("disk") || lowerError.contains("space")) {
+            return "磁盘空间不足";
+        }
+
+        if (lowerError.contains("interrupted") || lowerError.contains("中断")) {
+            return "操作被中断";
+        }
+
+        if (lowerError.contains("skopeo") && lowerError.contains("127")) {
+            return "skopeo工具未安装，请联系管理员";
+        }
+
+        if (lowerError.contains("skopeo 命令执行失败")) {
+            return "镜像拉取失败，请检查镜像名称或网络连接";
+        }
+
+        // 如果是其他类型的错误，尽量简化显示
+        if (rawError.length() > 100) {
+            return "镜像拉取失败，请重试或联系管理员";
+        }
+
+        return rawError;
+    }
 
 }

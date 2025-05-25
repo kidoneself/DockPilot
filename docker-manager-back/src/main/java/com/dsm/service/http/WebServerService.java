@@ -10,7 +10,7 @@ import java.util.List;
  */
 public interface WebServerService {
     /**
-     * 新增服务   
+     * 新增服务
      *
      * @param dto 服务信息
      * @return 新增的服务ID
@@ -27,7 +27,7 @@ public interface WebServerService {
     /**
      * 更新服务信息
      *
-     * @param id 服务ID
+     * @param id  服务ID
      * @param dto 服务信息
      */
     void update(String id, WebServerDTO dto);
@@ -58,7 +58,7 @@ public interface WebServerService {
     /**
      * 更新服务排序
      *
-     * @param id 服务ID
+     * @param id       服务ID
      * @param itemSort 应用排序
      */
     void updateSort(String id, Integer itemSort);

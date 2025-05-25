@@ -45,7 +45,7 @@ public interface ImageStatusMapper {
     int insert(ImageStatus imageStatus);
 
     /**
-     * 更新镜像状态记录
+     * 更新镜像状态记录（通用更新方法）
      *
      * @param imageStatus 镜像状态
      * @return 影响行数
@@ -91,4 +91,12 @@ public interface ImageStatusMapper {
      * @return 影响行数
      */
     int deleteByNameAndTag(@Param("name") String name, @Param("tag") String tag);
+
+    /**
+     * 插入或更新镜像状态记录（UPSERT操作）
+     *
+     * @param imageStatus 镜像状态
+     * @return 影响行数
+     */
+    int insertOrUpdate(ImageStatus imageStatus);
 } 

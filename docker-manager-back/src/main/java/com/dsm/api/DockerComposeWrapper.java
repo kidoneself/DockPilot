@@ -13,7 +13,6 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Docker Compose 操作封装类
@@ -21,11 +20,11 @@ import java.util.concurrent.CompletableFuture;
  */
 @Component
 public class DockerComposeWrapper {
-    
+
     /**
      * 部署 Compose 配置
      *
-     * @param projectName 项目名称
+     * @param projectName    项目名称
      * @param composeContent Compose 配置内容
      * @return 部署结果
      */
@@ -34,18 +33,18 @@ public class DockerComposeWrapper {
         try {
             // 保存 compose 文件
             saveComposeFile(workDir, composeContent);
-            
+
             // 执行 docker-compose up
             ProcessBuilder pb = new ProcessBuilder("docker-compose", "up", "-d");
             pb.directory(new File(workDir));
             Process process = pb.start();
-            
+
             // 等待执行完成
             int exitCode = process.waitFor();
             if (exitCode != 0) {
                 throw new BusinessException("Compose 部署失败");
             }
-            
+
             LogUtil.logOpe("Compose 部署成功: " + projectName);
             return getContainerIds(workDir);
         } catch (Exception e) {
@@ -60,7 +59,7 @@ public class DockerComposeWrapper {
     /**
      * 更新 Compose 配置
      *
-     * @param projectName 项目名称
+     * @param projectName    项目名称
      * @param composeContent 新的 Compose 配置内容
      * @return 更新结果
      */
@@ -69,18 +68,18 @@ public class DockerComposeWrapper {
         try {
             // 保存新的 compose 文件
             saveComposeFile(workDir, composeContent);
-            
+
             // 执行 docker-compose up -d
             ProcessBuilder pb = new ProcessBuilder("docker-compose", "up", "-d", "--force-recreate");
             pb.directory(new File(workDir));
             Process process = pb.start();
-            
+
             // 等待执行完成
             int exitCode = process.waitFor();
             if (exitCode != 0) {
                 throw new BusinessException("Compose 更新失败");
             }
-            
+
             LogUtil.logOpe("Compose 更新成功: " + projectName);
             return getContainerIds(workDir);
         } catch (Exception e) {
@@ -104,13 +103,13 @@ public class DockerComposeWrapper {
             ProcessBuilder pb = new ProcessBuilder("docker-compose", "down");
             pb.directory(new File(workDir));
             Process process = pb.start();
-            
+
             // 等待执行完成
             int exitCode = process.waitFor();
             if (exitCode != 0) {
                 throw new BusinessException("Compose 删除失败");
             }
-            
+
             LogUtil.logOpe("Compose 删除成功: " + projectName);
         } catch (Exception e) {
             LogUtil.logSysError("Compose 删除失败: " + e.getMessage());
@@ -134,7 +133,7 @@ public class DockerComposeWrapper {
             ProcessBuilder pb = new ProcessBuilder("docker-compose", "ps", "--format", "json");
             pb.directory(new File(workDir));
             Process process = pb.start();
-            
+
             // 读取输出
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
             StringBuilder output = new StringBuilder();
@@ -142,13 +141,13 @@ public class DockerComposeWrapper {
             while ((line = reader.readLine()) != null) {
                 output.append(line);
             }
-            
+
             // 等待执行完成
             int exitCode = process.waitFor();
             if (exitCode != 0) {
                 throw new BusinessException("获取 Compose 状态失败");
             }
-            
+
             return parseComposeStatus(output.toString());
         } catch (Exception e) {
             LogUtil.logSysError("获取 Compose 状态失败: " + e.getMessage());
@@ -191,14 +190,14 @@ public class DockerComposeWrapper {
         try {
             Path path = Paths.get(workDir);
             Files.walk(path)
-                .sorted((a, b) -> b.compareTo(a))
-                .forEach(p -> {
-                    try {
-                        Files.delete(p);
-                    } catch (Exception e) {
-                        LogUtil.logSysError("删除文件失败: " + e.getMessage());
-                    }
-                });
+                    .sorted((a, b) -> b.compareTo(a))
+                    .forEach(p -> {
+                        try {
+                            Files.delete(p);
+                        } catch (Exception e) {
+                            LogUtil.logSysError("删除文件失败: " + e.getMessage());
+                        }
+                    });
         } catch (Exception e) {
             LogUtil.logSysError("删除工作目录失败: " + e.getMessage());
         }
@@ -212,14 +211,14 @@ public class DockerComposeWrapper {
             ProcessBuilder pb = new ProcessBuilder("docker-compose", "ps", "-q");
             pb.directory(new File(workDir));
             Process process = pb.start();
-            
+
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
             List<String> containerIds = new ArrayList<>();
             String line;
             while ((line = reader.readLine()) != null) {
                 containerIds.add(line.trim());
             }
-            
+
             return String.join(",", containerIds);
         } catch (Exception e) {
             throw new BusinessException("获取容器ID失败: " + e.getMessage());

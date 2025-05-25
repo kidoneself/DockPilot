@@ -59,4 +59,6 @@ public class NetworkInfoDTO {
     @JsonProperty("nameStr")
     private String nameStr; // 英文转中文
 
+    @JsonProperty("Containers")
+    private Map<String, NetworkContainerDTO> containers; // 连接到该网络的容器列表
 }

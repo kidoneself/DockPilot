@@ -14,4 +14,12 @@ public interface NetworkService {
      */
     List<NetworkInfoDTO> listNetworks();
 
+    /**
+     * 获取网络详情
+     *
+     * @param networkId 网络ID
+     * @return 网络详情
+     * @ 获取失败时抛出异常
+     */
+    NetworkInfoDTO getNetworkDetail(String networkId);
 }

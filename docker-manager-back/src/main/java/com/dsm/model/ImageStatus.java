@@ -59,4 +59,19 @@ public class ImageStatus {
      * 更新时间 - 存储为ISO8601格式日期字符串
      */
     private String updatedAt;
+
+    /**
+     * 镜像ID
+     */
+    private String imageId;
+
+    /**
+     * 是否正在拉取中
+     */
+    private Boolean pulling;
+
+    /**
+     * 拉取进度，JSON格式存储进度信息
+     */
+    private String progress;
 } 

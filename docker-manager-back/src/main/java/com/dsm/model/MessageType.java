@@ -164,6 +164,21 @@ public enum MessageType {
     NETWORK_LIST,
 
     /**
+     * 网络详情
+     */
+    NETWORK_DETAIL,
+
+    /**
+     * 网络创建
+     */
+    NETWORK_CREATE,
+
+    /**
+     * 网络删除
+     */
+    NETWORK_DELETE,
+
+    /**
      * 镜像列表
      */
     IMAGE_LIST,
@@ -226,5 +241,15 @@ public enum MessageType {
     /**
      * 容器JSON配置响应
      */
-    CONTAINER_JSON_CONFIG_RESPONSE
+    CONTAINER_JSON_CONFIG_RESPONSE,
+
+    /**
+     * 更新容器信息
+     */
+    CONTAINER_UPDATE_INFO,
+
+    /**
+     * 清理容器重复记录
+     */
+    CONTAINER_CLEANUP_DUPLICATES
 } 

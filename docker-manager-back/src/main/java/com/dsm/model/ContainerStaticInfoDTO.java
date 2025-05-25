@@ -28,4 +28,6 @@ public class ContainerStaticInfoDTO {
     private String restartPolicyName;    // 重启策略名 (always, on-failure, unless-stopped, no)
     private Integer restartPolicyMaxRetry; // 重启策略最大重试次数
     private Boolean privileged;          // 是否特权模式
+    private String lastError;            // 最后一次错误信息
+    private String operationStatus;      // 操作状态 (success, failed)
 }
