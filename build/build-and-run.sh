@@ -23,6 +23,23 @@ cd "$(dirname "$0")"
 print_message "开始构建Docker镜像 (版本: $VERSION)..."
 docker build -t dockpilot:$VERSION .
 
+if [ $? -ne 0 ]; then
+    print_error "Docker镜像构建失败"
+    exit 1
+fi
+
+# 验证端口配置
+print_message "验证镜像端口配置..."
+if [ -f "./verify-ports.sh" ]; then
+    ./verify-ports.sh dockpilot:$VERSION
+    if [ $? -ne 0 ]; then
+        print_error "端口配置验证失败，请检查nginx配置"
+        exit 1
+    fi
+else
+    print_error "端口验证脚本不存在，跳过验证"
+fi
+
 # 停止并删除旧容器
 docker stop dockpilot-$VERSION 2>/dev/null || true
 docker rm dockpilot-$VERSION 2>/dev/null || true

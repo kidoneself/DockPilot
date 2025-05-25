@@ -1,5 +1,5 @@
-# 使用nginx作为基础镜像
-FROM nginx:stable-alpine
+# 使用干净的alpine基础镜像避免继承nginx镜像的80端口
+FROM alpine:3.21
 
 # 只暴露需要的端口
 EXPOSE 8888
@@ -10,8 +10,12 @@ EXPOSE 8888
 # /dockpilot - 用于存储应用数据，需要与宿主机目录映射
 VOLUME ["/var/run/docker.sock", "/mnt/host", "/dockpilot"]
 
-# 安装Java、skopeo和regctl
-RUN apk add --no-cache openjdk11-jre && \
+# 创建nginx用户和用户组
+RUN addgroup -g 101 -S nginx && \
+    adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx
+
+# 安装nginx、Java、skopeo和regctl
+RUN apk add --no-cache nginx openjdk11-jre && \
     apk add --no-cache skopeo --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community && \
     apk add --no-cache docker-cli && \
     apk add --no-cache wget jq tzdata
@@ -33,6 +37,10 @@ RUN mkdir -p /usr/local/lib/docker/cli-plugins && \
 RUN cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
     echo "Asia/Shanghai" > /etc/timezone
 
+# 创建nginx所需目录
+RUN mkdir -p /var/log/nginx /var/cache/nginx /etc/nginx/conf.d /usr/share/nginx/html && \
+    chown -R nginx:nginx /var/log/nginx /var/cache/nginx /usr/share/nginx
+
 WORKDIR /app
 
 # 复制前端构建文件到nginx目录并设置权限
@@ -43,13 +51,12 @@ RUN chown -R nginx:nginx /usr/share/nginx/html && \
 # 复制后端jar包
 COPY docker-manager-back-1.0.0.jar app.jar
 
-# 复制nginx配置并删除默认配置
+# 复制nginx配置
 COPY nginx.conf /etc/nginx/nginx.conf
-RUN rm -f /etc/nginx/conf.d/default.conf
 
 # 复制启动脚本
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
-# 使用启动脚本
-CMD ["/start.sh"]
+# 使用ENTRYPOINT作为固定入口点
+ENTRYPOINT ["/start.sh"]
