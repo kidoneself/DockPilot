@@ -8,10 +8,10 @@ cleanup() {
         kill -TERM "$JAVA_PID"
         wait "$JAVA_PID"
     fi
-    # 停止nginx
-    if [ ! -z "$NGINX_PID" ]; then
-        kill -TERM "$NGINX_PID"
-        wait "$NGINX_PID"
+    # 停止Caddy
+    if [ ! -z "$CADDY_PID" ]; then
+        kill -TERM "$CADDY_PID"
+        wait "$CADDY_PID"
     fi
     echo "所有服务已停止"
     exit 0
@@ -36,12 +36,12 @@ chmod 777 /mnt/host/dockpilot/data
 chmod 777 /mnt/host/dockpilot/logs
 chmod 777 /mnt/host/dockpilot/uploads
 
-# 启动nginx
-echo "启动nginx服务..."
-nginx -g "daemon off;" &
-NGINX_PID=$!
+# 启动Caddy
+echo "启动Caddy服务..."
+caddy run --config /etc/caddy/Caddyfile &
+CADDY_PID=$!
 
-# 等待nginx启动
+# 等待Caddy启动
 sleep 2
 
 # 设置环境变量并启动Java应用
@@ -53,7 +53,7 @@ JAVA_PID=$!
 
 echo "DockPilot 容器启动完成！"
 echo "前端访问地址: http://localhost:8888"
-echo "nginx PID: $NGINX_PID"
+echo "Caddy PID: $CADDY_PID"
 echo "Java PID: $JAVA_PID"
 
 # 支持传入的参数（如果有的话）

@@ -1,0 +1,34 @@
+:8888 {
+    # 静态文件根目录
+    root * /usr/share/html
+    
+    # 默认首页
+    file_server
+    
+    # 文件上传访问
+    handle /uploads/* {
+        root * /dockpilot
+        file_server
+        header Cache-Control "public, max-age=2592000"
+        header Access-Control-Allow-Origin "*"
+    }
+    
+    # API代理
+    handle /api/* {
+        reverse_proxy localhost:8080
+    }
+    
+    # WebSocket代理  
+    handle /ws/* {
+        reverse_proxy localhost:8080
+    }
+    
+    # SPA路由支持
+    try_files {path} /index.html
+    
+    # 日志
+    log {
+        output file /dockpilot/logs/caddy.log
+        level INFO
+    }
+} 

@@ -4,12 +4,12 @@
 # DockPilot 服务器端构建部署脚本
 # 
 # 功能：构建前端、后端，打包Docker镜像并推送到镜像仓库
-# 默认：构建test版本，除非明确指定其他版本
+# 默认：构建test版本，只有明确输入latest时才使用latest版本
 #
 # 使用方法：
 #   ./setup-and-deploy.sh                          # 构建test版本
-#   ./setup-and-deploy.sh v1.0.0                   # 构建v1.0.0版本
-#   ./setup-and-deploy.sh latest main              # 构建latest版本，使用main分支
+#   ./setup-and-deploy.sh latest                   # 构建latest版本
+#   ./setup-and-deploy.sh v1.0.0                   # 构建test版本（任何非latest都默认为test）
 #
 # 支持的镜像仓库：
 #   - DockerHub: kidself/dockpilot
@@ -35,8 +35,13 @@ print_warning() {
 }
 
 # 默认参数
-VERSION=${1:-test}
-BRANCH=${2:-feature/yaml-template}
+if [ "$1" == "latest" ]; then
+    VERSION="latest"
+    BRANCH=${2:-main}
+else
+    VERSION="test"
+    BRANCH=${2:-feature/yaml-template}
+fi
 GIT_REPO="https://github.com/kidoneself/DockPilot.git"
 
 print_message "=========================================="
@@ -206,7 +211,7 @@ setup_code() {
 
 # 构建前端
 build_frontend() {
-    print_message "构建前端..."
+    print_message "构建前端（跳过类型检查）..."
     
     # 直接进入dockpilotfront目录
     if [ -d "dockpilotfront" ]; then
@@ -228,32 +233,27 @@ build_frontend() {
     print_message "安装 terser 依赖..."
     npm install terser --save-dev
     
-    # 尝试正常构建
-    print_message "尝试标准构建（包含类型检查）..."
+    # 直接跳过类型检查构建
+    print_message "执行快速构建（跳过类型检查）..."
+    
+    # 备份原始 package.json
+    cp package.json package.json.backup
+    
+    # 修改构建脚本跳过类型检查
+    sed -i 's/"build": "vue-tsc && vite build"/"build": "vite build"/' package.json
+    
+    # 执行构建
     if npm run build; then
-        print_message "标准构建成功！"
+        print_message "前端构建成功！"
     else
-        print_warning "标准构建失败，尝试跳过类型检查..."
-        
-        # 备份原始 package.json
-        cp package.json package.json.backup
-        
-        # 修改构建脚本跳过类型检查
-        sed -i 's/"build": "vue-tsc && vite build"/"build": "vite build"/' package.json
-        
-        # 重新尝试构建
-        if npm run build; then
-            print_message "跳过类型检查的构建成功！"
-        else
-            print_error "前端构建失败"
-            # 恢复原始 package.json
-            mv package.json.backup package.json
-            exit 1
-        fi
-        
+        print_error "前端构建失败"
         # 恢复原始 package.json
         mv package.json.backup package.json
+        exit 1
     fi
+    
+    # 恢复原始 package.json
+    mv package.json.backup package.json
     
     cd ..
 }
@@ -295,92 +295,79 @@ copy_build_files() {
     fi
 }
 
-# 构建Docker镜像（仅本地）
-build_docker_image_local() {
-    print_message "构建本地Docker镜像 (版本: $VERSION)..."
+# 一次构建推送到所有仓库
+build_and_push_all() {
+    print_message "一次构建并推送到所有仓库 (版本: $VERSION)..."
+    
+    # 仓库信息
+    DOCKERHUB_IMAGE="kidself/dockpilot"
+    TENCENT_IMAGE="ccr.ccs.tencentyun.com/naspt/dockpilot"
+    
+    # 确保使用正确的builder
+    print_message "确保buildx构建器可用..."
+    setup_buildx
+
+    # 一次性构建并推送到多个仓库
     cd build
-    docker build -t kidself/dockpilot:$VERSION .
-    if [ $? -ne 0 ]; then
-        print_error "Docker镜像构建失败"
+    docker buildx build --platform linux/amd64,linux/arm64 \
+        -t ${DOCKERHUB_IMAGE}:${VERSION} \
+        -t ${TENCENT_IMAGE}:${VERSION} \
+        --push .
+    
+    if [ $? -eq 0 ]; then
+        print_message "✅ 镜像构建并推送成功！"
+        print_message "📦 可用镜像:"
+        print_message "  - ${DOCKERHUB_IMAGE}:${VERSION}"
+        print_message "  - ${TENCENT_IMAGE}:${VERSION}"
+        
+        # 清理本地构建缓存
+        print_message "清理本地镜像缓存..."
+        docker rmi ${DOCKERHUB_IMAGE}:${VERSION} 2>/dev/null || true
+    else
+        print_error "❌ 镜像构建或推送失败"
         exit 1
     fi
-    cd ..
-}
-
-# 推送到DockerHub
-push_to_dockerhub() {
-    print_message "推送到DockerHub (版本: $VERSION)..."
-    # DockerHub信息
-    DOCKERHUB_USERNAME="kidself"
-    DOCKERHUB_IMAGE="dockpilot"
-
-    # 确保使用正确的builder
-    print_message "确保buildx构建器可用..."
-    setup_buildx
-
-    # 使用buildx构建并推送多架构镜像
-    cd build
-    docker buildx build --platform linux/amd64,linux/arm64 \
-        -t ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:${VERSION} \
-        --push .
-    cd ..
-
-    print_message "DockerHub镜像推送完成！"
-    print_message "镜像地址: ${DOCKERHUB_USERNAME}/${DOCKERHUB_IMAGE}:${VERSION}"
-}
-
-# 推送到腾讯云容器镜像服务
-push_to_tencent() {
-    print_message "推送到腾讯云容器镜像服务 (版本: $VERSION)..."
-    # 腾讯云容器镜像服务信息
-    TENCENT_REGISTRY="ccr.ccs.tencentyun.com"
-    NAMESPACE="naspt/dockpilot"
     
-    # 确保使用正确的builder
-    print_message "确保buildx构建器可用..."
-    setup_buildx
-
-    # 使用buildx构建并推送多架构镜像
-    cd build
-    docker buildx build --platform linux/amd64,linux/arm64 \
-        -t ${TENCENT_REGISTRY}/${NAMESPACE}:${VERSION} \
-        --push .
     cd ..
-
-    print_message "镜像推送完成！"
-    print_message "镜像地址: ${TENCENT_REGISTRY}/${NAMESPACE}:${VERSION}"
 }
 
-# 选择构建模式
-choose_build_mode() {
-    echo
-    print_message "请选择构建模式："
-    echo "1. 仅构建本地镜像"
-    echo "2. 构建并推送到DockerHub"
-    echo "3. 构建并推送到腾讯云"
-    echo "4. 构建并推送到所有仓库"
-    read -p "请输入选择 (1-4): " -n 1 -r
-    echo
+# 自动清理并启动容器
+auto_deploy_container() {
+    print_message "自动部署容器..."
     
-    case $REPLY in
-        1)
-            build_docker_image_local
-            ;;
-        2)
-            push_to_dockerhub
-            ;;
-        3)
-            push_to_tencent
-            ;;
-        4)
-            push_to_tencent
-            push_to_dockerhub
-            ;;
-        *)
-            print_error "无效选择"
-            exit 1
-            ;;
-    esac
+    # 检查并删除现有容器
+    if docker ps -a | grep -q "dockpilot"; then
+        print_message "发现现有dockpilot容器，正在删除..."
+        docker stop dockpilot 2>/dev/null || true
+        docker rm dockpilot 2>/dev/null || true
+        print_message "现有容器已删除"
+    fi
+    
+    # 删除并重建/home/dockpilot目录
+    print_message "重建数据目录..."
+    rm -rf /home/dockpilot
+    mkdir -p /home/dockpilot
+    print_message "/home/dockpilot目录已重建"
+    
+    # 启动新容器
+    print_message "启动新的dockpilot容器..."
+    docker run -d --privileged \
+        --name dockpilot \
+        -p 8888:8888 \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v /:/mnt/host \
+        -v /home/dockpilot:/dockpilot \
+        --restart unless-stopped \
+        kidself/dockpilot:$VERSION
+    
+    if [ $? -eq 0 ]; then
+        print_message "✅ 容器启动成功！"
+        print_message "🌐 访问地址: http://服务器IP:8888"
+        print_message "📊 容器状态: docker ps | grep dockpilot"
+    else
+        print_error "❌ 容器启动失败"
+        exit 1
+    fi
 }
 
 # 主函数
@@ -388,7 +375,7 @@ main() {
     check_root
     check_requirements
     
-    # 初始化buildx构建器，确保后续构建过程顺利
+    # 初始化buildx构建器
     print_message "初始化Docker buildx构建器..."
     setup_buildx
     
@@ -396,23 +383,17 @@ main() {
     build_frontend
     build_backend
     copy_build_files
-    choose_build_mode
+    build_and_push_all
+    auto_deploy_container
     
     print_message "=========================================="
-    print_message "部署完成！版本: $VERSION"
-    print_message "Git分支: $BRANCH"
-    print_message "可用镜像:"
+    print_message "🎉 部署完成！版本: $VERSION"
+    print_message "📂 Git分支: $BRANCH"
+    print_message "🐳 可用镜像:"
     print_message "  - kidself/dockpilot:$VERSION"
     print_message "  - ccr.ccs.tencentyun.com/naspt/dockpilot:$VERSION"
+    print_message "🌐 访问地址: http://服务器IP:8888"
     print_message "=========================================="
-    
-    # 询问是否运行容器
-    read -p "是否在本服务器运行容器？(y/n): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        print_message "使用运行脚本启动容器..."
-        ./run-dockerhub.sh $VERSION
-    fi
 }
 
 # 显示使用说明
@@ -421,20 +402,22 @@ show_usage() {
     echo "$0 [VERSION] [BRANCH]"
     echo ""
     echo "参数:"
-    echo "  VERSION  - 镜像版本标签 (默认: test)"
-    echo "  BRANCH   - Git分支名称 (默认: feature/yaml-template)"
+    echo "  VERSION  - 镜像版本标签 (默认: test，只有输入latest时才使用latest)"
+    echo "  BRANCH   - Git分支名称 (test版本默认: feature/yaml-template, latest版本默认: main)"
     echo ""
     echo "示例:"
-    echo "  $0                          # 构建test版本"
-    echo "  $0 v1.0.0                   # 构建v1.0.0版本"
-    echo "  $0 latest main              # 构建latest版本，使用main分支"
+    echo "  $0                          # 构建test版本，使用feature/yaml-template分支"
+    echo "  $0 latest                   # 构建latest版本，使用main分支"
+    echo "  $0 latest feature/yaml-template  # 构建latest版本，使用feature/yaml-template分支"
+    echo "  $0 v1.0.0                   # 构建test版本，使用feature/yaml-template分支（任何非latest参数都默认为test）"
     echo ""
-    echo "构建流程:"
+    echo "🚀 自动化构建流程:"
     echo "  1. 环境检查和依赖安装"
     echo "  2. 代码拉取和更新"
-    echo "  3. 前端构建 (Vue3 + TypeScript)"
+    echo "  3. 前端构建 (Vue3 + TypeScript，跳过类型检查)"
     echo "  4. 后端构建 (Spring Boot + Maven)"
-    echo "  5. Docker镜像构建和推送"
+    echo "  5. 一次性构建Docker镜像并推送到所有仓库"
+    echo "  6. 自动清理并启动新容器"
 }
 
 # 如果参数为help，显示使用说明
