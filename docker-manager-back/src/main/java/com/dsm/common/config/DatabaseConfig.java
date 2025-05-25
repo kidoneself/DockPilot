@@ -38,18 +38,18 @@ public class DatabaseConfig {
         populator.addScript(new ClassPathResource("db/schema.sql"));
         populator.execute(dataSource);
 
+        // 动态添加字段（兼容新旧环境）
+        // 新环境：字段已存在，检查会跳过
+        // 旧环境：自动添加缺失字段
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
 
-        // 全新环境无需动态添加字段，schema.sql已包含完整表结构
-        // 以下代码仅用于旧数据库版本迁移
-        // JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        addColumnIfNotExists(jdbcTemplate, "image_status", "image_id", "TEXT");
+        addColumnIfNotExists(jdbcTemplate, "image_status", "pulling", "INTEGER DEFAULT 0");
+        addColumnIfNotExists(jdbcTemplate, "image_status", "progress", "TEXT");
 
-        // addColumnIfNotExists(jdbcTemplate, "image_status", "image_id", "TEXT");
-        // addColumnIfNotExists(jdbcTemplate, "image_status", "pulling", "INTEGER DEFAULT 0");
-        // addColumnIfNotExists(jdbcTemplate, "image_status", "progress", "TEXT");
-
-        // addColumnIfNotExists(jdbcTemplate, "container_info", "need_update", "INTEGER DEFAULT 0");
-        // addColumnIfNotExists(jdbcTemplate, "container_info", "icon_url", "TEXT DEFAULT NULL");
-        // addColumnIfNotExists(jdbcTemplate, "container_info", "web_url", "TEXT");
+        addColumnIfNotExists(jdbcTemplate, "container_info", "need_update", "INTEGER DEFAULT 0");
+        addColumnIfNotExists(jdbcTemplate, "container_info", "icon_url", "TEXT DEFAULT NULL");
+        addColumnIfNotExists(jdbcTemplate, "container_info", "web_url", "TEXT");
 
     }
 
