@@ -77,11 +77,17 @@
             ref="fileInputRef" 
             type="file" 
             accept="image/*" 
-            @change="handleManualUpload"
             style="margin-bottom: 10px;"
+            @change="handleManualUpload"
           />
-          <button @click="triggerFileSelect" class="test-btn">选择文件</button>
-          <button v-if="manualUploadResult" @click="deleteManualUpload" class="test-btn delete-btn">删除文件</button>
+          <button class="test-btn" @click="triggerFileSelect">选择文件</button>
+          <button 
+            v-if="manualUploadResult" 
+            class="test-btn delete-btn" 
+            @click="deleteManualUpload"
+          >
+            删除文件
+          </button>
         </div>
         <div v-if="manualUploadProgress > 0 && manualUploadProgress < 100" class="progress-info">
           <p>手动上传进度: {{ manualUploadProgress }}%</p>
@@ -92,7 +98,11 @@
         <div v-if="manualUploadResult" class="result-info">
           <p><strong>手动上传结果：</strong></p>
           <pre>{{ JSON.stringify(manualUploadResult, null, 2) }}</pre>
-          <img v-if="manualImageUrl" :src="manualImageUrl" alt="手动上传的图片" class="manual-preview" />
+          <img
+v-if="manualImageUrl"
+:src="manualImageUrl"
+alt="手动上传的图片"
+class="manual-preview" />
         </div>
       </div>
 
@@ -100,12 +110,16 @@
       <div class="test-section">
         <h2>📋 操作日志</h2>
         <div class="log-container">
-          <div v-for="(log, index) in logs" :key="index" class="log-item" :class="log.type">
+          <div
+v-for="(log, index) in logs"
+:key="index"
+class="log-item"
+:class="log.type">
             <span class="log-time">{{ log.time }}</span>
             <span class="log-message">{{ log.message }}</span>
           </div>
           <div v-if="logs.length === 0" class="no-logs">暂无操作日志</div>
-          <button v-if="logs.length > 0" @click="clearLogs" class="clear-logs-btn">清空日志</button>
+          <button v-if="logs.length > 0" class="clear-logs-btn" @click="clearLogs">清空日志</button>
         </div>
       </div>
     </div>

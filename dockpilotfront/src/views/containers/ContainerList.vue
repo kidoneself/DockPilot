@@ -4,13 +4,13 @@
       <template #header>
         <div class="header-content">
           <div class="header-actions">
-            <NButton @click="handleRefresh" class="action-btn">
+            <NButton class="action-btn" @click="handleRefresh">
               <template #icon>
                 <n-icon><RefreshOutline /></n-icon>
               </template>
               <span class="btn-text">刷新</span>
             </NButton>
-            <NButton type="primary" @click="router.push('/containers/create')" class="action-btn">
+            <NButton type="primary" class="action-btn" @click="router.push('/containers/create')">
               <template #icon>
                 <n-icon><AddOutline /></n-icon>
               </template>
@@ -78,7 +78,7 @@
       <template #action>
         <NSpace>
           <NButton @click="showWebUIModal = false">取消</NButton>
-          <NButton type="primary" @click="handleSaveWebUI" :loading="savingWebUI">
+          <NButton type="primary" :loading="savingWebUI" @click="handleSaveWebUI">
             保存
           </NButton>
         </NSpace>
@@ -172,11 +172,8 @@ interface ContainerStatsData {
 
 const containers = ref<DisplayContainer[]>([])
 const searchText = ref('')
-const formRef = ref(null)
-const selectedContainers = ref<Set<string>>(new Set())
 const operatingContainers = ref<Set<string>>(new Set())
 const containerActions = ref<Map<string, string>>(new Map())
-const containerLogModal = ref<InstanceType<typeof ContainerLogModal> | null>(null)
 
 let statsTimer: number | null = null
 const STATS_UPDATE_INTERVAL = 5000 // 5秒
@@ -615,7 +612,7 @@ function validateUrl(url: string): boolean {
   if (!url) return true // 空值在required规则中处理
   
   // 移除协议前缀进行验证
-  let cleanUrl = url.replace(/^https?:\/\//, '')
+  const cleanUrl = url.replace(/^https?:\/\//, '')
   
   // 检查是否为IP地址 (IPv4)
   const ipRegex = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?(\/.*)?$/
@@ -631,7 +628,11 @@ function validateUrl(url: string): boolean {
   }
   
   // 检查是否为域名格式
-  const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(\:[0-9]{1,5})?(\/.*)?$/
+  const domainRegex = new RegExp(
+    '^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?' +
+    '(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9]))?' +
+    '*(:[0-9]{1,5})?(/.*)?$'
+  )
   if (domainRegex.test(cleanUrl)) {
     // 确保有域名部分（不只是端口和路径）
     const hasValidDomain = cleanUrl.includes('.') || cleanUrl === 'localhost'

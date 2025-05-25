@@ -14,7 +14,10 @@
               <span class="title">
                 {{ container?.containerName || container?.containerId?.slice(0, 12) || '容器详情' }}
               </span>
-              <div v-if="container?.lastError && container?.operationStatus === 'failed'" class="error-info">
+              <div 
+                v-if="container?.lastError && container?.operationStatus === 'failed'" 
+                class="error-info"
+              >
                 <NIcon class="error-icon"><WarningOutline /></NIcon>
                 <span class="error-text">{{ container.lastError }}</span>
               </div>
@@ -336,7 +339,13 @@
 import { ref, onMounted, onUnmounted, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { NButton, NCard, NTabs, NTabPane, NTag, NProgress, NIcon, useMessage } from 'naive-ui'
-import { ArrowBackOutline, RefreshOutline, CopyOutline, CreateOutline, WarningOutline } from '@vicons/ionicons5'
+import { 
+  ArrowBackOutline, 
+  RefreshOutline, 
+  CopyOutline, 
+  CreateOutline, 
+  WarningOutline 
+} from '@vicons/ionicons5'
 import { useWebSocketTask } from '@/hooks/useWebSocketTask'
 import { MessageType } from '@/api/websocket/types'
 import { getContainerStats } from '@/api/container'

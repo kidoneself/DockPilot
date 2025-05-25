@@ -60,7 +60,12 @@ import BackgroundConfig from '@/components/config/BackgroundConfig.vue'
 import FormConfig from '@/components/config/FormConfig.vue'
 import type { ConfigModalConfig } from '@/components/ConfigModal.vue'
 import { getCurrentBackground, setCurrentBackground } from '@/api/http/background'
-import { getSetting, setSetting, testProxyLatency, testProxyLatencyWithUrl } from '@/api/http/system'
+import { 
+  getSetting, 
+  setSetting, 
+  testProxyLatency, 
+  testProxyLatencyWithUrl 
+} from '@/api/http/system'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -160,7 +165,7 @@ const openConfig = async (item: any) => {
         confirmText: '应用背景',
         showResetButton: true,
         resetText: '清除背景',
-        beforeConfirm: (data) => {
+        beforeConfirm: () => {
           // 验证背景数据
           return true
         },
@@ -190,7 +195,7 @@ const openConfig = async (item: any) => {
       try {
         const backgroundUrl = await getCurrentBackground()
         configData.value = backgroundUrl || ''
-      } catch (error) {
+      } catch {
         configData.value = ''
       }
       break
@@ -237,7 +242,10 @@ const openConfig = async (item: any) => {
       // 设置代理配置表单字段
       currentFormFields.value = createProxyFormFields()
 
-      currentFormDescription.value = '配置HTTP代理以提升Docker镜像下载速度。支持格式：http://host:port 或 http://username:password@host:port。留空表示禁用代理。'
+      currentFormDescription.value = 
+        '配置HTTP代理以提升Docker镜像下载速度。' +
+        '支持格式：http://host:port 或 http://username:password@host:port。' +
+        '留空表示禁用代理。'
 
       // 从后端加载当前代理配置
       try {

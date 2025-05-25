@@ -3,16 +3,16 @@
     <!-- 模式切换 -->
     <div class="upload-modes">
       <button 
-        @click="currentMode = 'file'" 
-        :class="{ active: currentMode === 'file' }"
+        :class="{ active: currentMode === 'file' }" 
         class="mode-btn"
+        @click="currentMode = 'file'"
       >
         📁 上传文件
       </button>
       <button 
-        @click="currentMode = 'url'" 
-        :class="{ active: currentMode === 'url' }"
+        :class="{ active: currentMode === 'url' }" 
         class="mode-btn"
+        @click="currentMode = 'url'"
       >
         🔗 从URL下载
       </button>
@@ -31,13 +31,17 @@
         ref="fileInput"
         type="file"
         accept="image/*"
-        @change="handleFileSelect"
         style="display: none"
+        @change="handleFileSelect"
       />
       
       <!-- 上传状态 -->
       <div v-if="!uploading && !uploadSuccess" class="upload-controls">
-        <n-button @click="triggerFileInput" type="primary" size="medium" block>
+        <n-button
+type="primary"
+size="medium"
+block
+@click="triggerFileInput">
           📁 选择图片文件
         </n-button>
         <div class="spacer"></div>
@@ -57,7 +61,7 @@
         <div class="success-icon">✅</div>
         <p>上传成功！</p>
         <p class="success-tip">{{ lastUploadedFile }}</p>
-        <n-button @click="resetUpload" size="small" type="primary">再次上传</n-button>
+        <n-button size="small" type="primary" @click="resetUpload">再次上传</n-button>
       </div>
     </div>
 
@@ -68,10 +72,14 @@
           v-model:value="downloadUrl" 
           type="text" 
           placeholder="请输入图片URL地址..."
-          @keyup.enter="handleUrlDownload"
           style="margin-bottom: 12px;"
+          @keyup.enter="handleUrlDownload"
         />
-        <n-button @click="handleUrlDownload" :disabled="!downloadUrl.trim()" type="primary" block>
+        <n-button
+:disabled="!downloadUrl.trim()"
+type="primary"
+block
+@click="handleUrlDownload">
           🔗 下载图片
         </n-button>
         <p class="upload-tip">支持网络图片链接 • JPG、PNG、GIF、WebP、SVG • 最大 10MB</p>
@@ -90,7 +98,7 @@
         <div class="success-icon">✅</div>
         <p>下载成功！</p>
         <p class="success-tip">{{ lastDownloadedFile }}</p>
-        <n-button @click="resetDownload" size="small" type="primary">再次下载</n-button>
+        <n-button size="small" type="primary" @click="resetDownload">再次下载</n-button>
       </div>
     </div>
     
@@ -103,7 +111,12 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { uploadImage, isImageFile, isValidFileSize, downloadImageFromUrl } from '@/api/http/file-upload'
+import { 
+  uploadImage, 
+  isImageFile, 
+  isValidFileSize, 
+  downloadImageFromUrl 
+} from '@/api/http/file-upload'
 import type { FileUploadResponse, DownloadImageRequest } from '@/api/http/file-upload'
 
 // Props

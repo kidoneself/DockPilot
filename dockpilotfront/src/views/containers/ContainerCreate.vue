@@ -1,6 +1,6 @@
 <template>
   <div class="container-create">
-    <n-card>
+    <NCard>
       <template #header>
         <div class="page-header">
           <div class="header-left">
@@ -24,17 +24,17 @@
         require-mark-placement="right-hanging"
       >
         <!-- 基本配置 -->
-        <n-card title="基本配置" size="small" style="margin-bottom: 24px;">
+        <NCard title="基本配置" size="small" style="margin-bottom: 24px;">
           <n-form-item label="选择镜像" path="image">
             <n-select
               v-model:value="formData.image"
               placeholder="请选择镜像"
               :options="imageOptions"
               :loading="loadingImages"
-              @update:value="handleImageChange"
               filterable
               style="width: 400px;"
               :disabled="isFromImagePage"
+              @update:value="handleImageChange"
             />
             <template v-if="isFromImagePage" #feedback>
               <span style="color: var(--n-color-primary); font-size: 12px;">
@@ -60,17 +60,17 @@
               style="width: 200px;"
             />
           </n-form-item>
-        </n-card>
+        </NCard>
 
         <!-- 网络配置 -->
-        <n-card title="网络配置" size="small" style="margin-bottom: 24px;">
+        <NCard title="网络配置" size="small" style="margin-bottom: 24px;">
           <n-form-item label="端口映射" path="ports">
             <n-dynamic-input
               v-model:value="formData.ports"
               :on-create="onCreatePort"
               placeholder="端口映射"
             >
-              <template #default="{ value, index }">
+              <template #default="{ value }">
                 <div style="display: flex; align-items: center; width: 100%; gap: 8px;">
                   <n-input
                     v-model:value="value.host"
@@ -117,10 +117,10 @@
               </span>
             </template>
           </n-form-item>
-        </n-card>
+        </NCard>
 
         <!-- 存储配置 -->
-        <n-card title="存储配置" size="small" style="margin-bottom: 24px;">
+        <NCard title="存储配置" size="small" style="margin-bottom: 24px;">
           <n-form-item label="挂载目录" path="volumes">
             <n-dynamic-input
               v-model:value="formData.volumes"
@@ -133,7 +133,7 @@
                     <PathSelector
                       v-model="value.hostPath"
                       placeholder="选择主机文件夹"
-                      @update:modelValue="handleVolumeValidation"
+                      @update:model-value="handleVolumeValidation"
                     />
                   </div>
                   <span>:</span>
@@ -156,10 +156,10 @@
               </span>
             </template>
           </n-form-item>
-        </n-card>
+        </NCard>
 
         <!-- 运行配置 -->
-        <n-card title="运行配置" size="small" style="margin-bottom: 24px;">
+        <NCard title="运行配置" size="small" style="margin-bottom: 24px;">
           <n-form-item label="环境变量" path="env">
             <n-dynamic-input
               v-model:value="formData.env"
@@ -213,7 +213,7 @@
               <n-switch v-model:value="formData.privileged" />
             </div>
           </n-form-item>
-        </n-card>
+        </NCard>
       </n-form>
 
       <template #footer>
@@ -228,12 +228,12 @@
           </NButton>
         </NSpace>
       </template>
-    </n-card>
+    </NCard>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch, nextTick, computed } from 'vue'
+import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useMessage, type FormInst } from 'naive-ui'
 import { NButton, NCard, NIcon, NSpace } from 'naive-ui'
@@ -678,7 +678,7 @@ const handleSubmit = async () => {
 
     creating.value = true
     createContainer(containerConfig, {
-      onComplete: (msg) => {
+      onComplete: () => {
         creating.value = false
         message.success('容器创建成功！')
         router.push('/containers')

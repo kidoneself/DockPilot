@@ -203,7 +203,12 @@ export function getImageList(callbacks: WebSocketCallbacks) {
  * @param webUrl WebUI地址
  * @param iconUrl 图标地址
  */
-export function updateContainerInfo(containerId: string, callbacks: WebSocketCallbacks, webUrl?: string, iconUrl?: string) {
+export function updateContainerInfo(
+  containerId: string, 
+  callbacks: WebSocketCallbacks, 
+  webUrl?: string, 
+  iconUrl?: string
+) {
   return sendWebSocketMessage({
     type: MessageType.CONTAINER_UPDATE_INFO,
     data: { containerId, webUrl, iconUrl },

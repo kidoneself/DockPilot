@@ -15,11 +15,11 @@
       <slot name="content" :data="modelValue" :update="updateData">
         <!-- 如果没有传入插槽内容，根据配置类型动态渲染 -->
         <component
-          v-if="config.component"
           :is="config.component"
+          v-if="config.component"
           :model-value="modelValue"
-          @update:model-value="updateData"
           v-bind="config.componentProps || {}"
+          @update:model-value="updateData"
         />
       </slot>
     </div>
@@ -35,7 +35,13 @@
             @click="handleReset"
           >
             <template #icon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg
+width="16"
+height="16"
+viewBox="0 0 24 24"
+fill="none"
+stroke="currentColor"
+stroke-width="2">
                 <polyline points="1 4 1 10 7 10"></polyline>
                 <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
               </svg>
@@ -47,8 +53,8 @@
           <n-button @click="handleCancel">{{ config.cancelText || '取消' }}</n-button>
           <n-button 
             type="primary" 
-            @click="handleConfirm"
             :loading="loading"
+            @click="handleConfirm"
           >
             {{ config.confirmText || '确定' }}
           </n-button>
@@ -59,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { computed } from 'vue'
 import { useMessage } from 'naive-ui'
 
 // 配置接口定义

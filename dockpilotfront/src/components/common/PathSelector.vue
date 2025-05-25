@@ -78,9 +78,9 @@
               :key="folder.path"
               class="folder-item"
               :class="{ 'selected': folder.path === selectedKey }"
+              :title="`单击选择，双击进入 ${folder.name}`"
               @click="selectFolder(folder)"
               @dblclick="enterFolder(folder)"
-              :title="`单击选择，双击进入 ${folder.name}`"
             >
               <div class="folder-icon">
                 <NIcon><FolderOutline /></NIcon>
@@ -120,8 +120,7 @@ import {
   ChevronDownOutline,
   SearchOutline,
   LocationOutline,
-  ArrowUpOutline,
-  ChevronForwardOutline
+  ArrowUpOutline
 } from '@vicons/ionicons5'
 import { getFileTree, type FileNode } from '@/api/http/file-tree'
 

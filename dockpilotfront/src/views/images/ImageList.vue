@@ -4,7 +4,7 @@
       <template #header>
         <NSpace justify="space-between">
           <NSpace>
-            <NButton @click="handleRefresh" :loading="loading">
+            <NButton :loading="loading" @click="handleRefresh">
               <template #icon>
                 <n-icon><RefreshOutline /></n-icon>
               </template>
@@ -63,12 +63,12 @@
 
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="handleCancel" :disabled="pulling">取消</NButton>
+          <NButton :disabled="pulling" @click="handleCancel">取消</NButton>
           <NButton 
             type="primary" 
             :loading="pulling" 
-            @click="handleSubmit"
             :disabled="!formValue.name || pulling"
+            @click="handleSubmit"
           >
             {{ pulling ? '拉取中...' : '开始拉取' }}
           </NButton>
@@ -110,7 +110,6 @@ const progress = ref(0)
 const logs = ref<string[]>([])
 const currentStatus = ref<'pulling' | 'success' | 'failed' | null>(null)
 const statusMessage = ref('')
-const pullImageName = ref('')
 
 // 表单数据
 const formValue = reactive({
@@ -164,7 +163,7 @@ async function handleRefresh() {
           images.value = data.map((item: any) => {
             // 解析拉取状态
             let pullStatus: PullStatus | undefined
-            let isRealImage = item.size > 0 // 真实存在的镜像
+            const isRealImage = item.size > 0 // 真实存在的镜像
             
             if (item.progress) {
               try {
@@ -265,7 +264,7 @@ function startPull() {
         message.success(`镜像 "${imageName}" 拉取成功`)
         handleRefresh()
       },
-      onError: (error: string) => {
+      onError: () => {
         message.error(`镜像 "${imageName}" 拉取失败`)
         handleRefresh()
       }
@@ -326,7 +325,6 @@ function handleUpdateImage(image: Image) {
   
   // 备份原始状态，以便更新失败时恢复
   const originalIsRealImage = image.isRealImage
-  const originalPullStatus = image.pullStatus
   
   // 设置更新中状态 - 但保持isRealImage为true，确保原镜像仍可用
   const targetImage = images.value.find(img => img.id === image.id)
@@ -405,7 +403,7 @@ function handleUpdateImage(image: Image) {
           console.log('🔄 已恢复原始状态:', targetImage.pullStatus)
         }
         
-        message.error(`镜像更新失败，但原镜像依然可以使用`)
+        message.error('镜像更新失败，但原镜像依然可以使用')
       }
     }
   )
@@ -427,7 +425,7 @@ function handleImageAction(action: string, image: Image) {
     case 'detail':
       router.push(`/images/${image.id}`)
       break
-    case 'delete':
+    case 'delete': {
       // 显示确认删除对话框
       const isRealImage = image.isRealImage
       const actionText = isRealImage ? '删除镜像' : '删除记录'
@@ -445,6 +443,7 @@ function handleImageAction(action: string, image: Image) {
         }
       })
       break
+    }
     case 'update':
       // 显示确认更新对话框
       dialog.info({

@@ -34,7 +34,11 @@
         </div>
 
         <div class="header-right">
-          <div class="weather-widget" :title="`${weatherData.location} - 点击查看详情`" @click="showWeatherDetails">
+          <div 
+            class="weather-widget" 
+            :title="`${weatherData.location} - 点击查看详情`" 
+            @click="showWeatherDetails"
+          >
             <n-icon size="20" :component="weatherData.icon" />
             <span>{{ weatherData.temperature }}</span>
             <span class="weather-location">{{ weatherData.location }}</span>
@@ -107,15 +111,22 @@
           >
             <div class="app-icon">
               <img v-if="app.iconUrl" :src="app.iconUrl" alt="">
-              <n-icon v-else-if="app.iconType === 'icon' || !app.iconType" :size="24" :component="app.icon" />
+              <n-icon 
+                v-else-if="app.iconType === 'icon' || !app.iconType" 
+                :size="24" 
+                :component="app.icon" 
+              />
               <span v-else-if="app.iconType === 'text'">{{ app.name.charAt(0) }}</span>
             </div>
             <div class="app-content">
               <div class="app-name">{{ app.name }}</div>
               <div class="app-desc">{{ app.description }}</div>
             </div>
-            <div class="app-status" v-if="app.status">
-              <div class="status-dot" :class="app.status === 'running' ? 'running' : 'stopped'"></div>
+            <div v-if="app.status" class="app-status">
+              <div 
+                class="status-dot" 
+                :class="app.status === 'running' ? 'running' : 'stopped'"
+              ></div>
             </div>
           </div>
         </div>
@@ -137,8 +148,8 @@
       
       <transition-group name="fab" tag="div" class="fab-menu">
         <n-button
-          v-show="showFabMenu"
           v-for="(action, index) in fabActions"
+          v-show="showFabMenu"
           :key="action.name"
           :type="action.type"
           circle
@@ -183,8 +194,16 @@
           <div class="preview-area" :class="{ transparent: previewSettings.transparent }">
             <div class="preview-card" :style="{ backgroundColor: newApp.bgColor }">
               <div class="preview-icon">
-                <img v-if="newApp.iconType === 'image' && newApp.iconUrl" :src="newApp.iconUrl" alt="">
-                <n-icon v-else-if="newApp.iconType === 'icon'" :size="24" :component="CubeOutline" />
+                <img 
+                  v-if="newApp.iconType === 'image' && newApp.iconUrl" 
+                  :src="newApp.iconUrl" 
+                  alt=""
+                >
+                <n-icon 
+                  v-else-if="newApp.iconType === 'icon'" 
+                  :size="24" 
+                  :component="CubeOutline" 
+                />
                 <span v-else-if="newApp.iconType === 'text'">{{ newApp.title.charAt(0) }}</span>
               </div>
               <div class="preview-content">
@@ -254,7 +273,7 @@
             </n-radio-group>
           </n-form-item>
 
-          <n-form-item label="图像地址" v-if="newApp.iconType === 'image'">
+          <n-form-item v-if="newApp.iconType === 'image'" label="图像地址">
             <div class="icon-upload">
               <n-input 
                 v-model:value="newApp.iconUrl" 
@@ -311,9 +330,7 @@ import {
   SearchOutline,
   SettingsOutline,
   SunnyOutline,
-  EllipsisHorizontalOutline,
   AddOutline,
-  CloudDownloadOutline,
   MenuOutline,
   CloseOutline,
   ImageOutline,
@@ -861,7 +878,7 @@ const getUrlIcon = () => {
       newApp.value.iconUrl = `${url.origin}/favicon.ico`
       newApp.value.iconType = 'image'
       console.log('获取图标:', newApp.value.iconUrl)
-    } catch (error) {
+    } catch {
       console.log('无效的URL')
     }
   }
@@ -876,7 +893,7 @@ const getInternalUrlIcon = () => {
       newApp.value.iconUrl = `${url.origin}/favicon.ico`
       newApp.value.iconType = 'image'
       console.log('获取内网图标:', newApp.value.iconUrl)
-    } catch (error) {
+    } catch {
       console.log('无效的内网URL')
     }
   }
@@ -901,14 +918,11 @@ const getLocationAndWeather = async () => {
           
           // 获取天气数据
           const weatherResponse = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
+            'https://api.open-meteo.com/v1/forecast?' +
+            `latitude=${latitude}&longitude=${longitude}&` +
+            'current=temperature_2m,weather_code&timezone=auto'
           )
           const weatherResult = await weatherResponse.json()
-          
-          // 获取位置信息
-          const locationResponse = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&timezone=auto`
-          )
           
           // 更新天气信息
           const temp = Math.round(weatherResult.current.temperature_2m)
@@ -940,7 +954,10 @@ const getLocationAndWeather = async () => {
 const getDefaultWeather = async () => {
   try {
     const response = await fetch(
-      'https://api.open-meteo.com/v1/forecast?latitude=39.9042&longitude=116.4074&current=temperature_2m,weather_code&timezone=Asia/Shanghai'
+      'https://api.open-meteo.com/v1/forecast?' +
+      'latitude=39.9042&longitude=116.4074&' +
+      'current=temperature_2m,weather_code&' +
+      'timezone=Asia/Shanghai'
     )
     const result = await response.json()
     

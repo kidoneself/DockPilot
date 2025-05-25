@@ -24,14 +24,14 @@
               {{ image.name }}
             </NEllipsis>
             <!-- 拉取状态标签 -->
-            <n-tag 
+            <NTag 
               v-if="image.pullStatus && image.pullStatus.status !== 'idle'" 
               :type="getStatusType(image.pullStatus.status)"
               size="small"
               style="margin-left: 12px;"
             >
               {{ getStatusText(image.pullStatus.status) }}
-            </n-tag>
+            </NTag>
           </div>
           
           <!-- 第二行：标签和创建时间 -->
@@ -46,7 +46,7 @@
 
           <!-- 第三行：拉取进度（仅在拉取中时显示） -->
           <div v-if="image.pullStatus?.status === 'pulling'" class="image-progress-row">
-            <n-progress
+            <NProgress
               type="line"
               :percentage="image.pullStatus.percentage"
               :processing="true"
@@ -60,9 +60,15 @@
 
           <!-- 错误信息（仅在失败时显示） -->
           <div v-if="image.pullStatus?.status === 'failed'" class="image-error-row">
-            <n-text type="error" depth="2" style="font-size: 12px;">
-              ❌ {{ formatErrorMessage(image.pullStatus.error || image.pullStatus.message || '镜像拉取失败') }}
-            </n-text>
+            <NText type="error" depth="2" style="font-size: 12px;">
+              ❌ {{ 
+                formatErrorMessage(
+                  image.pullStatus.error || 
+                  image.pullStatus.message || 
+                  '镜像拉取失败'
+                ) 
+              }}
+            </NText>
           </div>
         </div>
       </div>
@@ -155,7 +161,17 @@ import {
   AddOutline,
   RefreshOutline
 } from '@vicons/ionicons5'
-import { NIcon, NButton, NButtonGroup, NTooltip, NSpace, NEllipsis, NTag, NProgress, NText } from 'naive-ui'
+import { 
+  NIcon, 
+  NButton, 
+  NButtonGroup, 
+  NTooltip, 
+  NSpace, 
+  NEllipsis, 
+  NTag, 
+  NProgress, 
+  NText 
+} from 'naive-ui'
 import type { Image } from '@/api/model/imageModel'
 
 const props = defineProps<{

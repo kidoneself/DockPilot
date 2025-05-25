@@ -4,7 +4,7 @@
     <div class="image-gallery">
       <div class="gallery-header">
         <h4>我的图库</h4>
-        <n-button @click="showUploadModal = true" type="primary" size="small">
+        <n-button type="primary" size="small" @click="showUploadModal = true">
           上传图片
         </n-button>
       </div>
@@ -60,12 +60,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import ImageUpload from '@/components/ImageUpload.vue'
 import type { FileUploadResponse } from '@/api/http/file-upload'
-import { getAllImages, getImageUrl, type ImageInfo } from '@/api/http/file-upload'
-import { getCurrentBackground, setCurrentBackground } from '@/api/http/background'
+import { getAllImages, getImageUrl } from '@/api/http/file-upload'
+import { getCurrentBackground } from '@/api/http/background'
 
 interface Props {
   modelValue?: string
