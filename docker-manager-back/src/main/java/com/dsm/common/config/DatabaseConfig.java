@@ -46,6 +46,9 @@ public class DatabaseConfig {
         addColumnIfNotExists(jdbcTemplate, "image_status", "pulling", "INTEGER DEFAULT 0");
         addColumnIfNotExists(jdbcTemplate, "image_status", "progress", "TEXT");
 
+        addColumnIfNotExists(jdbcTemplate, "container_info", "need_update", "INTEGER DEFAULT 0");
+        addColumnIfNotExists(jdbcTemplate, "container_info", "icon_url", "TEXT DEFAULT NULL");
+        addColumnIfNotExists(jdbcTemplate, "container_info", "web_url", "TEXT");
 
     }
 
