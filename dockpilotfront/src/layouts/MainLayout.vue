@@ -7,7 +7,35 @@
       style="position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 50px;"
     >
       <div class="header-left">
-        <h2>Docker 管理系统</h2>
+        <div class="logo-container" @click="goToHome">
+          <svg class="logo-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#3b82f6"/>
+                <stop offset="100%" style="stop-color:#8b5cf6"/>
+              </linearGradient>
+            </defs>
+            
+            <!-- 简洁的立方体容器 -->
+            <path d="M8 12 L16 8 L24 12 L24 20 L16 24 L8 20 Z" 
+                  fill="none" 
+                  stroke="url(#logoGradient)" 
+                  stroke-width="2" 
+                  stroke-linejoin="round"/>
+            
+            <!-- 内部连接点 -->
+            <circle cx="16" cy="16" r="2" fill="url(#logoGradient)"/>
+            
+            <!-- 顶部面 -->
+            <path d="M8 12 L16 8 L24 12 L16 16 Z" 
+                  fill="url(#logoGradient)" 
+                  opacity="0.2"/>
+          </svg>
+          
+          <div class="logo-text">
+            <span class="brand-name">DockPilot</span>
+          </div>
+        </div>
       </div>
       <div class="header-right">
         <ThemeToggle style="margin-left: 16px;" />
@@ -182,6 +210,11 @@ const handleMenuUpdate = (key: string) => {
   router.push(key)
 }
 
+// 返回首页
+const goToHome = () => {
+  router.push('/navigation')
+}
+
 </script>
 
 <style scoped>
@@ -241,4 +274,42 @@ const handleMenuUpdate = (key: string) => {
   min-height: 0; /* Allow content to shrink below its default size */
 }
 
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.logo-container:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.logo-icon {
+  height: 24px;
+  width: 24px;
+  transition: all 0.3s ease;
+}
+
+.logo-icon:hover {
+  transform: scale(1.1);
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
 </style>

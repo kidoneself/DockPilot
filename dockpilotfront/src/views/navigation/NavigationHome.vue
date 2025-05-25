@@ -34,13 +34,11 @@
         </div>
 
         <div class="header-right">
-          <div class="weather-widget">
-            <n-icon size="20" :component="SunnyOutline" />
-            <span>22°C</span>
+          <div class="weather-widget" :title="`${weatherData.location} - 点击查看详情`" @click="showWeatherDetails">
+            <n-icon size="20" :component="weatherData.icon" />
+            <span>{{ weatherData.temperature }}</span>
+            <span class="weather-location">{{ weatherData.location }}</span>
           </div>
-          <n-button quaternary circle @click="showSettings = true">
-            <n-icon size="18" :component="SettingsOutline" />
-          </n-button>
         </div>
       </header>
 
@@ -123,31 +121,6 @@
         </div>
       </div>
 
-      <!-- 快速操作按钮 -->
-      <div class="quick-actions">
-        <n-button 
-          type="primary" 
-          size="large" 
-          round
-          @click="router.push('/containers/create')"
-        >
-          <template #icon>
-            <n-icon :component="AddOutline" />
-          </template>
-          创建容器
-        </n-button>
-        <n-button 
-          type="success" 
-          size="large" 
-          round
-          @click="router.push('/images')"
-        >
-          <template #icon>
-            <n-icon :component="CloudDownloadOutline" />
-          </template>
-          拉取镜像
-        </n-button>
-      </div>
     </div>
 
     <!-- 浮动操作按钮 -->
@@ -347,7 +320,12 @@ import {
   GlobeOutline,
   TerminalOutline,
   StatsChartOutline,
-  RefreshOutline
+  RefreshOutline,
+  CloudyOutline,
+  RainyOutline,
+  SnowOutline,
+  ThunderstormOutline,
+  PartlySunnyOutline
 } from '@vicons/ionicons5'
 
 const router = useRouter()
@@ -356,9 +334,16 @@ const router = useRouter()
 const currentTime = ref('')
 const currentDate = ref('')
 
+// 天气状态
+const weatherData = ref({
+  temperature: '22°C',
+  location: '获取中...',
+  icon: markRaw(SunnyOutline),
+  loading: true
+})
+
 // 界面状态
 const searchQuery = ref('')
-const showSettings = ref(false)
 const showFabMenu = ref(false)
 const showAddApp = ref(false)
 
@@ -897,11 +882,125 @@ const getInternalUrlIcon = () => {
   }
 }
 
+// 显示天气详情
+const showWeatherDetails = () => {
+  // 可以跳转到天气详情页面或显示弹窗
+  console.log('天气详情:', weatherData.value)
+  // 这里可以添加更多功能，比如刷新天气或显示详细预报
+  getLocationAndWeather() // 刷新天气
+}
+
+// 获取用户位置和天气
+const getLocationAndWeather = async () => {
+  try {
+    // 获取用户位置
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords
+          
+          // 获取天气数据
+          const weatherResponse = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
+          )
+          const weatherResult = await weatherResponse.json()
+          
+          // 获取位置信息
+          const locationResponse = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&timezone=auto`
+          )
+          
+          // 更新天气信息
+          const temp = Math.round(weatherResult.current.temperature_2m)
+          const weatherCode = weatherResult.current.weather_code
+          
+          weatherData.value = {
+            temperature: `${temp}°C`,
+            location: getLocationFromTimezone(weatherResult.timezone),
+            icon: getWeatherIcon(weatherCode),
+            loading: false
+          }
+        },
+        () => {
+          // 位置获取失败，使用默认位置（北京）
+          getDefaultWeather()
+        }
+      )
+    } else {
+      // 不支持地理位置，使用默认
+      getDefaultWeather()
+    }
+  } catch (error) {
+    console.error('获取天气失败:', error)
+    getDefaultWeather()
+  }
+}
+
+// 获取默认天气（北京）
+const getDefaultWeather = async () => {
+  try {
+    const response = await fetch(
+      'https://api.open-meteo.com/v1/forecast?latitude=39.9042&longitude=116.4074&current=temperature_2m,weather_code&timezone=Asia/Shanghai'
+    )
+    const result = await response.json()
+    
+    const temp = Math.round(result.current.temperature_2m)
+    const weatherCode = result.current.weather_code
+    
+    weatherData.value = {
+      temperature: `${temp}°C`,
+      location: '北京',
+      icon: getWeatherIcon(weatherCode),
+      loading: false
+    }
+  } catch (error) {
+    console.error('获取默认天气失败:', error)
+    weatherData.value = {
+      temperature: '22°C',
+      location: '位置未知',
+      icon: markRaw(SunnyOutline),
+      loading: false
+    }
+  }
+}
+
+// 从时区获取位置名称
+const getLocationFromTimezone = (timezone) => {
+  const cityMap = {
+    'Asia/Shanghai': '上海',
+    'Asia/Beijing': '北京',
+    'Asia/Tokyo': '东京',
+    'America/New_York': '纽约',
+    'America/Los_Angeles': '洛杉矶',
+    'Europe/London': '伦敦',
+    'Europe/Paris': '巴黎',
+    'Australia/Sydney': '悉尼'
+  }
+  
+  return cityMap[timezone] || timezone.split('/').pop().replace('_', ' ')
+}
+
+// 根据天气代码获取图标
+const getWeatherIcon = (weatherCode) => {
+  // WMO Weather interpretation codes (WW)
+  if (weatherCode === 0) return markRaw(SunnyOutline) // 晴天
+  if (weatherCode <= 3) return markRaw(PartlySunnyOutline) // 晴到多云
+  if (weatherCode <= 48) return markRaw(CloudyOutline) // 雾
+  if (weatherCode <= 67) return markRaw(RainyOutline) // 雨
+  if (weatherCode <= 77) return markRaw(SnowOutline) // 雪
+  if (weatherCode <= 82) return markRaw(RainyOutline) // 阵雨
+  if (weatherCode <= 86) return markRaw(SnowOutline) // 阵雪
+  if (weatherCode <= 99) return markRaw(ThunderstormOutline) // 雷暴
+  
+  return markRaw(SunnyOutline)
+}
+
 let timeInterval: NodeJS.Timeout
 
 onMounted(async () => {
   updateTime()
   timeInterval = setInterval(updateTime, 1000)
+  getLocationAndWeather()
 })
 
 onUnmounted(() => {
@@ -959,6 +1058,9 @@ onUnmounted(() => {
   max-width: 1400px;
   margin: 0 auto;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* 顶部导航 */
@@ -972,6 +1074,8 @@ onUnmounted(() => {
   border-radius: 16px;
   padding: 12px 20px;
   margin-bottom: 20px;
+  width: 100%;
+  max-width: 1200px;
 }
 
 .header-left {
@@ -1045,30 +1149,50 @@ onUnmounted(() => {
 .weather-widget {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  border-radius: 10px;
-  padding: 6px 10px;
-  color: #3b82f6;
-  font-weight: 500;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: #ffffff;
+  font-weight: 600;
   font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.weather-widget:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.weather-location {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
 }
 
 /* 搜索区域 */
 .search-section {
   margin-bottom: 20px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .search-container {
   max-width: 500px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 .search-container :deep(.n-input) {
   background: transparent;
   backdrop-filter: blur(10px);
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .search-container :deep(.n-input__input-el) {
@@ -1083,16 +1207,20 @@ onUnmounted(() => {
 
 .search-container :deep(.n-input):hover {
   background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .search-container :deep(.n-input--focus) {
   background: rgba(255, 255, 255, 0.08) !important;
-  box-shadow: none !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
 }
 
 /* 统计卡片网格 */
 .stats-section {
   margin-bottom: 24px;
+  width: 100%;
+  max-width: 1200px;
 }
 
 .section-header {
@@ -1119,6 +1247,7 @@ onUnmounted(() => {
   background: transparent;
   border: none;
   padding: 16px;
+  justify-content: center;
 }
 
 .stat-card {
@@ -1204,6 +1333,9 @@ onUnmounted(() => {
 /* 应用网格 - 简洁布局 */
 .apps-container {
   margin-bottom: 24px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .all-apps-grid {
@@ -1212,21 +1344,22 @@ onUnmounted(() => {
   grid-template-columns: repeat(6, 1fr);
   gap: 20px;
   max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  justify-content: center;
 }
 
 .app-card {
   background: rgba(255, 255, 255, 0.15);
   border: none;
   border-radius: 16px;
-  padding: 20px;
+  padding: 10px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(20px);
-  min-height: 80px;
+  min-height: 50px;
   position: relative;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
@@ -1238,9 +1371,9 @@ onUnmounted(() => {
 }
 
 .app-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   background: rgba(59, 130, 246, 0.15);
   display: flex;
   align-items: center;
@@ -1250,13 +1383,13 @@ onUnmounted(() => {
 }
 
 .app-icon img {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
 }
 
 .app-icon span {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: #3b82f6;
   text-transform: uppercase;
@@ -1265,22 +1398,27 @@ onUnmounted(() => {
 .app-content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
 }
 
 .app-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #f8fafc;
-  margin-bottom: 4px;
+  margin-bottom: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .app-desc {
-  font-size: 12px;
+  font-size: 10px;
   color: #94a3b8;
-  line-height: 1.3;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1306,18 +1444,6 @@ onUnmounted(() => {
 .stopped {
   background-color: #ef4444;
   box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
-}
-
-/* 快速操作 */
-.quick-actions {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.quick-actions :deep(.n-button) {
-  font-size: 14px;
 }
 
 /* 浮动操作按钮 */
@@ -1507,12 +1633,6 @@ onUnmounted(() => {
   
   .app-desc {
     font-size: 9px;
-  }
-  
-  .quick-actions {
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
   }
   
   .fab-container {

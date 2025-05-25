@@ -1,10 +1,9 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { getToken } from './auth'
 
-// 从环境变量获取基础URL
+// 使用相对路径，通过nginx代理到后端
 const getBaseUrl = () => {
-  const host = window.location.hostname
-  return `http://${host}:8080`
+  return '/api'  // 相对路径，nginx会代理到localhost:8080
 }
 
 // 创建axios实例

@@ -23,7 +23,7 @@ const routes: RouteRecordRaw[] = [
     name: 'NavigationHome',
     component: () => import('@/views/navigation/NavigationHome.vue'),
     meta: {
-      title: '导航首页',
+      title: 'Docker Pilot - 智能容器管理平台',
       requiresAuth: false
     }
   },
@@ -85,15 +85,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '网络管理',
           icon: 'GlobeOutline'
-        }
-      },
-      {
-        path: 'upload-test',
-        name: 'UploadTest',
-        component: () => import('../views/UploadTest.vue'),
-        meta: {
-          title: '图片上传测试',
-          icon: 'ImageOutline'
         }
       },
       {

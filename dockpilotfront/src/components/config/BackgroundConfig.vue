@@ -4,22 +4,9 @@
     <div class="image-gallery">
       <div class="gallery-header">
         <h4>我的图库</h4>
-        <n-button @click="showUploadArea = !showUploadArea" type="primary" size="small">
-          {{ showUploadArea ? '收起上传' : '上传图片' }}
+        <n-button @click="showUploadModal = true" type="primary" size="small">
+          上传图片
         </n-button>
-      </div>
-
-      <!-- 上传区域 -->
-      <div v-if="showUploadArea" class="upload-section">
-        <ImageUpload 
-          @upload-success="handleBackgroundUpload"
-          @upload-error="handleUploadError"
-        />
-        <div class="upload-tips">
-          <p>💡 建议使用 1920x1080 或更高分辨率的图片</p>
-          <p>🎯 支持 JPG、PNG、GIF、WebP、SVG 格式，最大 10MB</p>
-          <p>🌐 可上传本地文件或从网址下载图片</p>
-        </div>
       </div>
 
       <!-- 图片库网格 -->
@@ -32,16 +19,14 @@
           @click="selectBackground(img.url)"
         >
           <div class="gallery-thumbnail" :style="{ backgroundImage: `url(${img.url})` }">
-            <div class="gallery-overlay">
-              <div class="gallery-actions">
-                <n-button size="tiny" type="primary" @click.stop="selectBackground(img.url)">
-                  选择
-                </n-button>
-                <n-button size="tiny" type="error" @click.stop="handleDeleteImage(img)">
-                  删除
-                </n-button>
-              </div>
-            </div>
+            <n-button 
+              size="tiny" 
+              type="error" 
+              class="delete-btn"
+              @click.stop="handleDeleteImage(img)"
+            >
+              删除
+            </n-button>
           </div>
           <div class="gallery-name">{{ img.name }}</div>
         </div>
@@ -53,14 +38,24 @@
         <p>图库是空的</p>
         <p class="empty-tip">点击"上传图片"添加您的第一张背景图</p>
       </div>
-
-      <!-- 清除背景按钮 -->
-      <div v-if="selectedBackground" class="clear-background">
-        <n-button @click="clearBackground" type="warning" size="small">
-          清除背景
-        </n-button>
-      </div>
     </div>
+
+    <!-- 上传图片模态框 -->
+    <n-modal
+      v-model:show="showUploadModal"
+      preset="card"
+      :title="modalTitle"
+      size="medium"
+      :auto-focus="false"
+      :close-on-esc="true"
+      style="width: 480px; max-width: 90vw;"
+      :mask-closable="true"
+    >
+      <ImageUpload 
+        @upload-success="handleBackgroundUpload"
+        @upload-error="handleUploadError"
+      />
+    </n-modal>
   </div>
 </template>
 
@@ -74,13 +69,16 @@ import { getCurrentBackground, setCurrentBackground } from '@/api/http/backgroun
 
 interface Props {
   modelValue?: string
+  modalTitle?: string
 }
 
 interface Emits {
   (e: 'update:modelValue', value: string): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  modalTitle: '📸 上传图片'
+})
 const emit = defineEmits<Emits>()
 const message = useMessage()
 
@@ -92,7 +90,7 @@ const availableImages = ref<Array<{name: string, url: string, filename: string}>
 
 // 界面状态
 const loading = ref(false)
-const showUploadArea = ref(false)
+const showUploadModal = ref(false)
 
 // 加载所有可用图片
 const loadAvailableImages = async () => {
@@ -133,16 +131,16 @@ const loadCurrentBackground = async () => {
 
 // 选择背景
 const selectBackground = async (url: string) => {
-  selectedBackground.value = url
-  emit('update:modelValue', url)
-  message.success('背景已选择，点击"应用背景"生效')
-}
-
-// 清除背景
-const clearBackground = async () => {
-  selectedBackground.value = ''
-  emit('update:modelValue', '')
-  message.success('背景已清除')
+  // 如果点击的是已选中的图片，则取消选择
+  if (selectedBackground.value === url) {
+    selectedBackground.value = ''
+    emit('update:modelValue', '')
+  } else {
+    // 否则选择新图片
+    selectedBackground.value = url
+    emit('update:modelValue', url)
+  }
+  // 只选择，不立即应用，等用户点击"应用背景"按钮
 }
 
 // 上传成功处理
@@ -151,14 +149,10 @@ const handleBackgroundUpload = async (response: FileUploadResponse) => {
     // 重新加载图片列表
     await loadAvailableImages()
     
-    // 生成完整URL并自动选择新上传的背景
-    const newImageUrl = getImageUrl(response.filename)
-    selectBackground(newImageUrl)
-    
     // 收起上传区域
-    showUploadArea.value = false
+    showUploadModal.value = false
     
-    message.success(`背景图片上传成功: ${response.originalName}`)
+    message.success(`图片上传成功: ${response.originalName}`)
     console.log('✅ 图片上传成功')
   } catch (error) {
     console.error('❌ 上传后刷新图库失败:', error)
@@ -185,7 +179,8 @@ const handleDeleteImage = async (image: any) => {
     
     // 如果删除的是当前选中的背景，清空选择
     if (selectedBackground.value === image.url) {
-      selectBackground('')
+      selectedBackground.value = ''
+      emit('update:modelValue', '')
     }
     
     message.success(`已删除图片: ${image.name}`)
@@ -221,14 +216,14 @@ onMounted(async () => {
 }
 
 .image-gallery {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--n-border-color);
   border-radius: 8px;
   padding: 16px;
 }
 
 .image-gallery h4 {
   margin: 0 0 12px 0;
-  color: #374151;
+  color: var(--n-text-color);
   font-size: 16px;
   font-weight: 600;
 }
@@ -238,24 +233,6 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
-}
-
-.upload-section {
-  margin-bottom: 20px;
-  padding: 16px;
-  background: #f9fafb;
-  border-radius: 6px;
-  border: 1px dashed #d1d5db;
-}
-
-.upload-tips {
-  margin-top: 12px;
-}
-
-.upload-tips p {
-  margin: 4px 0;
-  font-size: 13px;
-  color: #6b7280;
 }
 
 .gallery-grid {
@@ -270,19 +247,19 @@ onMounted(async () => {
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: #fff;
+  background: var(--n-card-color);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .gallery-item:hover {
-  border-color: #93c5fd;
+  border-color: var(--n-primary-color-hover);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .gallery-item.active {
-  border-color: #3b82f6;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  border-color: var(--n-primary-color);
+  box-shadow: 0 4px 12px var(--n-primary-color-suppl);
 }
 
 .gallery-thumbnail {
@@ -294,45 +271,42 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-.gallery-overlay {
+.delete-btn {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  bottom: 8px;
+  right: 8px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
   opacity: 0;
   transition: opacity 0.3s ease;
+  z-index: 1;
 }
 
-.gallery-item:hover .gallery-overlay {
+.gallery-item:hover .delete-btn {
   opacity: 1;
-}
-
-.gallery-actions {
-  display: flex;
-  gap: 8px;
 }
 
 .gallery-name {
   padding: 8px 12px;
   font-size: 12px;
-  color: #374151;
+  color: var(--n-text-color);
   font-weight: 500;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  background: #f9fafb;
+  background: var(--n-card-color);
+  border-top: 1px solid var(--n-border-color);
 }
 
 .empty-gallery {
   text-align: center;
   padding: 40px 20px;
-  color: #6b7280;
+  color: var(--n-text-color-3);
 }
 
 .empty-icon {
@@ -346,12 +320,7 @@ onMounted(async () => {
 
 .empty-tip {
   font-size: 14px;
-  color: #9ca3af;
-}
-
-.clear-background {
-  margin-top: 16px;
-  text-align: center;
+  color: var(--n-text-color-disabled);
 }
 
 @media (max-width: 768px) {

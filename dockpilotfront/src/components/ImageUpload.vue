@@ -19,7 +19,14 @@
     </div>
 
     <!-- 文件上传模式 -->
-    <div v-if="currentMode === 'file'" class="upload-area" @click="triggerFileInput" @dragover.prevent @drop.prevent="handleDrop">
+    <div 
+      v-if="currentMode === 'file'" 
+      class="upload-content"
+      :class="{ 'is-dragging': isDragging }"
+      @dragover.prevent="handleDragOver"
+      @dragleave.prevent="handleDragLeave"
+      @drop.prevent="handleDrop"
+    >
       <input
         ref="fileInput"
         type="file"
@@ -29,10 +36,12 @@
       />
       
       <!-- 上传状态 -->
-      <div v-if="!uploading && !uploadSuccess" class="upload-placeholder">
-        <div class="upload-icon">📸</div>
-        <p>点击或拖拽图片到这里上传</p>
-        <p class="upload-tip">支持 JPG、PNG、GIF、WebP、SVG 格式，最大 10MB</p>
+      <div v-if="!uploading && !uploadSuccess" class="upload-controls">
+        <n-button @click="triggerFileInput" type="primary" size="medium" block>
+          📁 选择图片文件
+        </n-button>
+        <div class="spacer"></div>
+        <p class="upload-tip">支持拖拽文件到此处 • JPG、PNG、GIF、WebP、SVG • 最大 10MB</p>
       </div>
       
       <!-- 上传进度 -->
@@ -53,27 +62,19 @@
     </div>
 
     <!-- URL下载模式 -->
-    <div v-if="currentMode === 'url'" class="url-download-area">
-      <div v-if="!downloading && !downloadSuccess" class="url-input-area">
-        <div class="url-icon">🌐</div>
-        <p>从网址下载图片</p>
-        <input 
-          v-model="downloadUrl" 
-          type="url" 
-          placeholder="请输入图片URL地址..."
-          class="url-input"
-          @keyup.enter="handleUrlDownload"
-        />
-        <input 
-          v-model="customName" 
+    <div v-if="currentMode === 'url'" class="upload-content">
+      <div v-if="!downloading && !downloadSuccess" class="url-controls">
+        <n-input 
+          v-model:value="downloadUrl" 
           type="text" 
-          placeholder="自定义名称（可选）"
-          class="name-input"
+          placeholder="请输入图片URL地址..."
+          @keyup.enter="handleUrlDownload"
+          style="margin-bottom: 12px;"
         />
-        <button @click="handleUrlDownload" :disabled="!downloadUrl.trim()" class="download-btn">
-          下载图片
-        </button>
-        <p class="upload-tip">支持 JPG、PNG、GIF、WebP、SVG 格式，最大 10MB</p>
+        <n-button @click="handleUrlDownload" :disabled="!downloadUrl.trim()" type="primary" block>
+          🔗 下载图片
+        </n-button>
+        <p class="upload-tip">支持网络图片链接 • JPG、PNG、GIF、WebP、SVG • 最大 10MB</p>
       </div>
       
       <!-- 下载进度 -->
@@ -134,9 +135,9 @@ const progress = ref(0)
 const errorMessage = ref('')
 const currentMode = ref<'file' | 'url'>('file')
 const downloadUrl = ref('')
-const customName = ref('')
 const lastUploadedFile = ref('')
 const lastDownloadedFile = ref('')
+const isDragging = ref(false)
 
 // 监听 v-model
 watch(() => props.modelValue, (newValue) => {
@@ -168,7 +169,6 @@ const resetUpload = () => {
 const resetDownload = () => {
   downloadSuccess.value = false
   downloadUrl.value = ''
-  customName.value = ''
   errorMessage.value = ''
   lastDownloadedFile.value = ''
 }
@@ -184,10 +184,23 @@ const handleFileSelect = (event: Event) => {
 
 // 处理拖拽上传
 const handleDrop = (event: DragEvent) => {
+  isDragging.value = false
   const file = event.dataTransfer?.files[0]
   if (file) {
     handleFile(file)
   }
+}
+
+// 处理拖拽进入
+const handleDragOver = (event: DragEvent) => {
+  event.preventDefault()
+  isDragging.value = true
+}
+
+// 处理拖拽离开
+const handleDragLeave = (event: DragEvent) => {
+  event.preventDefault()
+  isDragging.value = false
 }
 
 // 处理文件上传
@@ -241,8 +254,7 @@ const handleUrlDownload = async () => {
   
   try {
     const request: DownloadImageRequest = {
-      url: downloadUrl.value.trim(),
-      name: customName.value.trim() || undefined
+      url: downloadUrl.value.trim()
     }
     
     const response = await downloadImageFromUrl(request)
@@ -273,150 +285,134 @@ defineExpose({
 <style scoped>
 .image-upload {
   width: 100%;
-  max-width: 400px;
+  max-width: 100%;
 }
 
 .upload-modes {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  gap: 4px;
+  background: var(--n-border-color);
+  border-radius: 6px;
+  padding: 2px;
 }
 
 .mode-btn {
   flex: 1;
-  padding: 10px 20px;
+  padding: 8px 16px;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
-  color: white;
-  background-color: #6c757d;
-  transition: background-color 0.3s;
-  margin: 0 5px;
+  font-size: 13px;
+  color: var(--n-text-color);
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+.mode-btn:hover {
+  background: var(--n-button-color-hover);
 }
 
 .mode-btn.active {
-  background-color: #007bff;
+  background: var(--n-button-color-pressed);
+  color: var(--n-button-text-color-pressed);
 }
 
-.upload-area, .url-download-area {
-  border: 2px dashed #ddd;
-  border-radius: 8px;
-  padding: 20px;
+.upload-content {
+  padding: 16px;
   text-align: center;
-  cursor: pointer;
-  transition: border-color 0.3s;
-  position: relative;
-  min-height: 200px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  min-height: 120px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
 }
 
-.upload-area:hover {
-  border-color: #007bff;
+.upload-content.is-dragging {
+  border: 2px dashed var(--n-primary-color);
+  background: var(--n-primary-color-suppl);
+  transform: scale(1.02);
 }
 
-.upload-placeholder, .url-input-area {
-  color: #666;
+.upload-controls, .url-controls {
+  color: var(--n-text-color);
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.upload-icon, .url-icon {
-  font-size: 48px;
-  margin-bottom: 10px;
+.spacer {
+  height: 32px;
 }
 
 .upload-tip {
   font-size: 12px;
-  color: #999;
-  margin-top: 5px;
+  color: var(--n-text-color-3);
+  margin: 0;
+  text-align: center;
 }
 
 .upload-progress {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 .progress-bar {
   width: 100%;
-  height: 6px;
-  background-color: #f0f0f0;
-  border-radius: 3px;
+  height: 4px;
+  background: var(--n-border-color);
+  border-radius: 2px;
   overflow: hidden;
-  margin-bottom: 10px;
 }
 
 .progress-fill {
   height: 100%;
-  background-color: #007bff;
+  background: var(--n-primary-color);
   transition: width 0.3s;
 }
 
 .upload-success {
-  color: #28a745;
+  color: var(--n-success-color);
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 .success-icon {
-  font-size: 48px;
-  margin-bottom: 10px;
+  font-size: 32px;
 }
 
 .success-tip {
   font-size: 12px;
-  color: #666;
-  margin: 5px 0 15px 0;
-}
-
-.url-input, .name-input {
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  width: 100%;
-  margin-bottom: 10px;
-  font-size: 14px;
-}
-
-.url-input:focus, .name-input:focus {
-  outline: none;
-  border-color: #007bff;
-}
-
-.download-btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 16px;
-  color: white;
-  background-color: #007bff;
-  transition: background-color 0.3s;
-  margin-bottom: 10px;
-}
-
-.download-btn:hover:not(:disabled) {
-  background-color: #0056b3;
-}
-
-.download-btn:disabled {
-  background-color: #6c757d;
-  cursor: not-allowed;
+  color: var(--n-text-color-3);
+  margin: 0;
 }
 
 .downloading {
-  background: linear-gradient(90deg, #007bff 0%, #0056b3 50%, #007bff 100%);
-  animation: shimmer 1.5s infinite;
+  background: var(--n-primary-color);
+  animation: pulse 1.5s infinite;
 }
 
-@keyframes shimmer {
-  0% { background-position: -200px 0; }
-  100% { background-position: 200px 0; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .error-message {
-  color: #dc3545;
-  font-size: 14px;
-  margin-top: 10px;
+  color: var(--n-error-color);
+  font-size: 12px;
+  margin-top: 8px;
   text-align: center;
+  padding: 8px;
+  background: var(--n-error-color-suppl);
+  border: 1px solid var(--n-error-color);
+  border-radius: 4px;
 }
 </style> 

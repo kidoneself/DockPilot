@@ -9,12 +9,6 @@
     :style="{ width: config.width || '600px' }"
     @after-leave="handleAfterLeave"
   >
-    <template #header-extra>
-      <n-button quaternary circle @click="handleCancel">
-        <n-icon :component="CloseOutline" />
-      </n-button>
-    </template>
-
     <!-- 配置内容区域 - 使用插槽让父组件传入不同内容 -->
     <div class="config-content">
       <!-- 默认插槽：用于传入具体的配置组件 -->
@@ -47,7 +41,6 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { CloseOutline } from '@vicons/ionicons5'
 import { useMessage } from 'naive-ui'
 
 // 配置接口定义

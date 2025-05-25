@@ -3,29 +3,15 @@
     <template #header>
       <div class="header-row">
         <span class="feature-title">{{ title }}</span>
-        <div class="switch-row">
-          <n-tag
-            :type="enabled ? 'success' : 'default'"
-            size="small"
-          >
-            {{ enabled ? '已启用' : '未启用' }}
-          </n-tag>
-          <n-switch 
-            v-model:value="switchValue" 
-            style="margin-left: 8px;" 
-            @update:value="onToggle" 
-          />
-        </div>
       </div>
     </template>
     <div class="feature-desc">
       <slot name="desc">{{ description }}</slot>
     </div>
     <template #footer>
-      <n-space>
+      <n-space justify="end">
         <slot name="actions">
-          <n-button size="small" @click="onConfig">配置规则</n-button>
-          <n-button size="small" type="primary" @click="onRun">立即运行</n-button>
+          <n-button size="small" @click="onConfig">配置</n-button>
         </slot>
       </n-space>
     </template>
@@ -33,30 +19,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-
 const props = defineProps({
   title: String,
-  description: String,
-  enabled: Boolean,
-  modelValue: Boolean
+  description: String
 })
 
-const emit = defineEmits(['update:modelValue', 'config', 'run'])
-
-const switchValue = ref(props.modelValue)
-watch(() => props.modelValue, newValue => switchValue.value = newValue)
-
-const onToggle = (value: boolean) => {
-  emit('update:modelValue', value)
-}
+const emit = defineEmits(['config'])
 
 const onConfig = () => {
   emit('config')
-}
-
-const onRun = () => {
-  emit('run')
 }
 </script>
 
@@ -78,9 +49,5 @@ const onRun = () => {
   margin: 12px 0 0 0;
   color: #666;
   min-height: 40px;
-}
-.switch-row {
-  display: flex;
-  align-items: center;
 }
 </style> 
