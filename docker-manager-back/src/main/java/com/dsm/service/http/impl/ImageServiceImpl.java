@@ -16,6 +16,7 @@ import com.github.dockerjava.api.model.ExposedPort;
 import com.github.dockerjava.api.model.Image;
 import com.github.dockerjava.core.DockerClientBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ import java.util.concurrent.TimeUnit;
  * 实现容器管理的具体业务逻辑
  */
 @Service
+@DependsOn("databaseConfig") // 确保数据库配置完成后再初始化
 public class ImageServiceImpl implements ImageService {
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     @Resource
@@ -127,7 +129,7 @@ public class ImageServiceImpl implements ImageService {
     /**
      * 每小时定时检查所有镜像更新状态
      */
-    @Scheduled(fixedRate = 60 * 60 * 1000)
+    @Scheduled(fixedRate = 60 * 60 * 1000, initialDelay = 60000) // 延迟1分钟启动
     @Override
     public void checkAllImagesStatus() {
         LogUtil.logSysInfo("开始定时检查所有镜像更新状态...");

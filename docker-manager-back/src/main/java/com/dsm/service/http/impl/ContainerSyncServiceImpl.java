@@ -8,6 +8,7 @@ import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.model.Image;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
+@DependsOn("databaseConfig") // 确保数据库配置完成后再初始化
 public class ContainerSyncServiceImpl implements ContainerSyncService {
 
     private final AtomicBoolean isSyncing = new AtomicBoolean(false);
@@ -46,7 +48,7 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
         return containerInfoMapper.selectAll();
     }
 
-    @Scheduled(fixedRate = 60000) // 每分钟执行一次
+    @Scheduled(fixedRate = 60000, initialDelay = 10000) // 每分钟执行一次，延迟10秒启动
     public void scheduledSync() {
         log.info("开始执行定时容器同步任务...");
         try {
@@ -286,7 +288,7 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
         }
     }
 
-    @Scheduled(fixedRate = 3600000) // 1小时执行一次
+    @Scheduled(fixedRate = 3600000, initialDelay = 30000) // 1小时执行一次，延迟30秒启动
     public void checkContainerUpdates() {
         log.info("开始检查容器更新状态...");
         try {
