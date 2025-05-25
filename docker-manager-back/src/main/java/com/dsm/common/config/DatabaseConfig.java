@@ -39,16 +39,17 @@ public class DatabaseConfig {
         populator.execute(dataSource);
 
 
-        // 然后动态添加字段（如果不存在）
-        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        // 全新环境无需动态添加字段，schema.sql已包含完整表结构
+        // 以下代码仅用于旧数据库版本迁移
+        // JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
 
-        addColumnIfNotExists(jdbcTemplate, "image_status", "image_id", "TEXT");
-        addColumnIfNotExists(jdbcTemplate, "image_status", "pulling", "INTEGER DEFAULT 0");
-        addColumnIfNotExists(jdbcTemplate, "image_status", "progress", "TEXT");
+        // addColumnIfNotExists(jdbcTemplate, "image_status", "image_id", "TEXT");
+        // addColumnIfNotExists(jdbcTemplate, "image_status", "pulling", "INTEGER DEFAULT 0");
+        // addColumnIfNotExists(jdbcTemplate, "image_status", "progress", "TEXT");
 
-        addColumnIfNotExists(jdbcTemplate, "container_info", "need_update", "INTEGER DEFAULT 0");
-        addColumnIfNotExists(jdbcTemplate, "container_info", "icon_url", "TEXT DEFAULT NULL");
-        addColumnIfNotExists(jdbcTemplate, "container_info", "web_url", "TEXT");
+        // addColumnIfNotExists(jdbcTemplate, "container_info", "need_update", "INTEGER DEFAULT 0");
+        // addColumnIfNotExists(jdbcTemplate, "container_info", "icon_url", "TEXT DEFAULT NULL");
+        // addColumnIfNotExists(jdbcTemplate, "container_info", "web_url", "TEXT");
 
     }
 
