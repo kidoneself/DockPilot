@@ -39,7 +39,7 @@
 
 ```bash
 docker run -d --privileged \
-   -p 8888:80 \
+   -p 8888:8888 \
    --name dockpilot \
    -v /var/run/docker.sock:/var/run/docker.sock \
    -v /:/mnt/host \
