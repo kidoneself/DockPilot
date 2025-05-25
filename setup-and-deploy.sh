@@ -160,11 +160,17 @@ setup_code() {
 # 构建前端
 build_frontend() {
     print_message "构建前端..."
-    cd docker-manager-front
     
-    # 检查是否为新的前端目录名
-    if [ ! -d "../docker-manager-front" ] && [ -d "../dockpilotfront" ]; then
-        cd ../dockpilotfront
+    # 智能检测前端目录
+    if [ -d "dockpilotfront" ]; then
+        print_message "检测到前端目录: dockpilotfront"
+        cd dockpilotfront
+    elif [ -d "docker-manager-front" ]; then
+        print_message "检测到前端目录: docker-manager-front"
+        cd docker-manager-front
+    else
+        print_error "未找到前端目录 (dockpilotfront 或 docker-manager-front)"
+        exit 1
     fi
     
     npm install
