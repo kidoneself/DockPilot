@@ -1,39 +1,32 @@
 :8888 {
-    # 静态文件根目录
     root * /usr/share/html
-    
-    # 默认首页
-    file_server
-    
-    # 文件上传访问
+
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy localhost:8080
+    }
+
+    handle /ws/* {
+        reverse_proxy localhost:8080 {
+            header_up Upgrade {http.upgrade}
+            header_up Connection {http.connection}
+        }
+    }
+
     handle /uploads/* {
         root * /dockpilot
         file_server
         header Cache-Control "public, max-age=2592000"
         header Access-Control-Allow-Origin "*"
     }
-    
-    # API代理 - 去掉/api前缀转发到后端
-    handle /api/* {
-        uri strip_prefix /api
-        reverse_proxy localhost:8080
+
+    handle {
+        try_files {path} /index.html
+        file_server
     }
-    
-    # WebSocket代理 - 去掉/ws前缀转发到后端
-    handle /ws/* {
-        uri strip_prefix /ws
-        reverse_proxy localhost:8080 {
-            header_up Upgrade {http.upgrade}
-            header_up Connection {http.connection}
-        }
-    }
-    
-    # SPA路由支持
-    try_files {path} /index.html
-    
-    # 日志
+
     log {
         output file /dockpilot/logs/caddy.log
         level INFO
     }
-} 
+}
