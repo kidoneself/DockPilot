@@ -37,6 +37,7 @@ public class UpdateService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
+            .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
 
     // 更新状态管理
@@ -590,22 +591,23 @@ public class UpdateService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("User-Agent", "DockPilot-UpdateService")
+                .header("Accept", "*/*")
                 .timeout(Duration.ofMinutes(10))
                 .build();
 
         HttpResponse<InputStream> response = httpClient.send(request, 
             HttpResponse.BodyHandlers.ofInputStream());
 
-        if (response.statusCode() != 200) {
-            throw new IOException("下载失败: " + url + " - " + response.statusCode());
+        // 检查HTTP状态码 - 接受200和重定向后的成功响应
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IOException("下载失败: " + url + " - HTTP状态码: " + response.statusCode());
         }
 
         Files.createDirectories(destination.getParent());
         try (InputStream in = response.body()) {
-            Files.copy(in, destination, StandardCopyOption.REPLACE_EXISTING);
+            long bytesWritten = Files.copy(in, destination, StandardCopyOption.REPLACE_EXISTING);
+            log.info("✅ 文件下载完成: {} (大小: {} bytes)", destination.getFileName(), bytesWritten);
         }
-        
-        log.info("✅ 文件下载完成: {}", destination.getFileName());
     }
 
     /**
