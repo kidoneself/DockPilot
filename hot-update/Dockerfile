@@ -13,6 +13,9 @@ RUN apk add --no-cache \
     jq \
     tar \
     gzip \
+    unzip \
+    file \
+    util-linux \
     tzdata \
     bash \
     skopeo --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community

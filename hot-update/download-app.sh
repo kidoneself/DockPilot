@@ -38,6 +38,49 @@ cleanup() {
 # 注册清理函数
 trap cleanup EXIT
 
+# 验证jar文件的函数
+validate_jar_file() {
+    local jar_file="$1"
+    
+    # 检查1：文件是否存在且非空
+    if [ ! -s "$jar_file" ]; then
+        return 1
+    fi
+    
+    # 检查2：使用file命令检查（如果可用）
+    if command -v file >/dev/null 2>&1; then
+        if file "$jar_file" | grep -q -E "(Java archive|JAR|Zip archive)"; then
+            log_info "jar文件格式验证通过（file命令）"
+            return 0
+        fi
+    fi
+    
+    # 检查3：检查文件头（jar文件是zip格式，以PK开头）
+    if [ "$(hexdump -C "$jar_file" | head -1 | cut -d'|' -f1 | grep -c '50 4b')" -gt 0 ]; then
+        log_info "jar文件格式验证通过（文件头检查）"
+        return 0
+    fi
+    
+    # 检查4：尝试使用jar命令验证（如果可用）
+    if command -v jar >/dev/null 2>&1; then
+        if jar tf "$jar_file" >/dev/null 2>&1; then
+            log_info "jar文件格式验证通过（jar命令）"
+            return 0
+        fi
+    fi
+    
+    # 检查5：使用unzip检查（jar就是zip文件）
+    if command -v unzip >/dev/null 2>&1; then
+        if unzip -t "$jar_file" >/dev/null 2>&1; then
+            log_info "jar文件格式验证通过（unzip检查）"
+            return 0
+        fi
+    fi
+    
+    log_warn "jar文件验证失败，所有检查方法都不通过"
+    return 1
+}
+
 # 检查参数
 if [ -z "$VERSION" ]; then
     log_error "使用方法: $0 <version>"
@@ -97,8 +140,8 @@ download_backend() {
             return 1
         fi
         
-        # 验证jar文件头
-        if ! file "$backend_file" | grep -q "Java archive"; then
+        # 验证jar文件（多重检查）
+        if ! validate_jar_file "$backend_file"; then
             log_error "后端代码包不是有效的jar文件"
             return 1
         fi
