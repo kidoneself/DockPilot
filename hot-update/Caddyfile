@@ -10,7 +10,11 @@
         uri strip_prefix /api
         reverse_proxy localhost:8080 {
             # 增加超时时间，支持长时间的更新操作
-            timeout 300s
+            transport http {
+                dial_timeout 30s
+                read_timeout 300s
+                write_timeout 300s
+            }
             
             # 健康检查
             health_uri /api/update/version
