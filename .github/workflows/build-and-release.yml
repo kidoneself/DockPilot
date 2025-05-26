@@ -11,6 +11,11 @@ on:
         required: true
         default: 'v1.0.0'
 
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
 env:
   NODE_VERSION: '18'
   JAVA_VERSION: '11'
