@@ -7,10 +7,7 @@
     }
 
     handle /ws/* {
-        reverse_proxy localhost:8080 {
-            header_up Upgrade {http.upgrade}
-            header_up Connection {http.connection}
-        }
+        reverse_proxy localhost:8080
     }
 
     handle /uploads/* {
