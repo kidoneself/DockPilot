@@ -231,11 +231,30 @@ main() {
     # 2. 后台检查并下载应用代码
     log_info "🔄 后台开始下载应用代码..."
     (
-        check_and_download_app
-        if [ $? -eq 0 ]; then
+        # 创建实时日志文件供前端读取
+        echo "🚀 开始初始化 DockPilot..." > /usr/share/html/init.log
+        echo "📡 正在检查版本信息..." >> /usr/share/html/init.log
+        
+        # 创建日志输出函数
+        log_to_web() {
+            while IFS= read -r line; do
+                echo "$line" >> /usr/share/html/init.log
+                echo "$line"  # 同时输出到控制台
+            done
+        }
+        
+        # 执行应用代码下载并捕获输出
+        if check_and_download_app 2>&1 | log_to_web; then
+            echo "✅ 应用代码准备完成，启动后端服务..." >> /usr/share/html/init.log
             log_info "✅ 应用代码准备完成，启动后端服务..."
-            start_java
+            
+            if start_java 2>&1 | log_to_web; then
+                echo "🎉 初始化完成！DockPilot 已启动" >> /usr/share/html/init.log
+            else
+                echo "⚠️ 后端启动失败，但Web服务可用" >> /usr/share/html/init.log
+            fi
         else
+            echo "❌ 应用代码下载失败，仅提供Web服务" >> /usr/share/html/init.log
             log_error "❌ 应用代码下载失败，仅提供Web服务"
         fi
     ) &

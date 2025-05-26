@@ -97,9 +97,12 @@
         .features {
             margin-top: 3rem;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 1rem;
             opacity: 0.8;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .feature {
@@ -124,6 +127,102 @@
             text-align: center;
             opacity: 0.7;
             font-size: 0.9rem;
+        }
+
+        /* 日志显示样式 */
+        .log-container {
+            margin-top: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .log-toggle {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.3s;
+        }
+
+        .log-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .log-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .log-content.expanded {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-line {
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .log-line:last-child {
+            border-bottom: none;
+        }
+
+        .log-line.info {
+            color: #e3f2fd;
+        }
+
+        .log-line.success {
+            color: #c8e6c9;
+        }
+
+        .log-line.warning {
+            color: #fff3e0;
+        }
+
+        .log-line.error {
+            color: #ffcdd2;
+        }
+
+        /* 自动滚动动画 */
+        .log-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .log-content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .log-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .log-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
         }
 
         /* 动画 */
@@ -189,7 +288,26 @@
         @media (max-width: 768px) {
             .title { font-size: 2rem; }
             .subtitle { font-size: 1rem; }
-            .features { grid-template-columns: 1fr 1fr; }
+            .features { 
+                grid-template-columns: 1fr 1fr;
+                max-width: 350px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .features {
+                gap: 0.8rem;
+                max-width: 300px;
+            }
+            .feature {
+                padding: 0.8rem;
+            }
+            .feature-icon {
+                font-size: 1.5rem;
+            }
+            .feature-text {
+                font-size: 0.8rem;
+            }
         }
     </style>
 </head>
@@ -209,6 +327,17 @@
             <div class="status-text" id="status">
                 正在下载应用代码<span class="dots"></span>
             </div>
+            
+            <!-- 实时日志显示区域 -->
+            <div class="log-container" id="logContainer">
+                <div class="log-header">
+                    <span>📋 实时日志</span>
+                    <button class="log-toggle" id="logToggle">展开</button>
+                </div>
+                <div class="log-content" id="logContent">
+                    <div class="log-line">等待初始化日志...</div>
+                </div>
+            </div>
         </div>
 
         <div class="features">
@@ -227,6 +356,14 @@
             <div class="feature">
                 <div class="feature-icon">🎯</div>
                 <div class="feature-text">智能管理</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🛒</div>
+                <div class="feature-text">应用商店</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📊</div>
+                <div class="feature-text">监控仪表板</div>
             </div>
         </div>
     </div>
@@ -257,6 +394,111 @@
 
         // 每3秒更新一次状态
         setInterval(updateStatus, 3000);
+
+        // 实时日志功能
+        let logExpanded = false;
+        let lastLogLength = 0;
+        const logContainer = document.getElementById('logContainer');
+        const logToggle = document.getElementById('logToggle');
+        const logContent = document.getElementById('logContent');
+
+        // 展开/收起日志
+        logToggle.addEventListener('click', function() {
+            logExpanded = !logExpanded;
+            if (logExpanded) {
+                logContent.classList.add('expanded');
+                logToggle.textContent = '收起';
+            } else {
+                logContent.classList.remove('expanded');
+                logToggle.textContent = '展开';
+            }
+        });
+
+        // 获取日志等级样式
+        function getLogLevel(line) {
+            if (line.includes('✅') || line.includes('SUCCESS') || line.includes('成功')) return 'success';
+            if (line.includes('❌') || line.includes('ERROR') || line.includes('失败')) return 'error';
+            if (line.includes('⚠️') || line.includes('WARN') || line.includes('警告')) return 'warning';
+            return 'info';
+        }
+
+        // 更新实时日志
+        function updateLogs() {
+            fetch('/init.log?' + Date.now()) // 加时间戳防止缓存
+                .then(response => {
+                    if (!response.ok) throw new Error('日志文件未就绪');
+                    return response.text();
+                })
+                .then(logData => {
+                    const lines = logData.trim().split('\n').filter(line => line.trim());
+                    
+                    if (lines.length > lastLogLength) {
+                        // 有新日志
+                        const newLines = lines.slice(lastLogLength);
+                        newLines.forEach(line => {
+                            const logLine = document.createElement('div');
+                            logLine.className = `log-line ${getLogLevel(line)}`;
+                            logLine.textContent = line;
+                            logContent.appendChild(logLine);
+                        });
+                        
+                        // 移除"等待初始化日志..."
+                        const waitingLine = logContent.querySelector('.log-line');
+                        if (waitingLine && waitingLine.textContent === '等待初始化日志...') {
+                            waitingLine.remove();
+                        }
+                        
+                        lastLogLength = lines.length;
+                        
+                        // 自动滚动到底部
+                        if (logExpanded) {
+                            logContent.scrollTop = logContent.scrollHeight;
+                        }
+                        
+                        // 根据最新日志更新状态
+                        const latestLine = lines[lines.length - 1];
+                        if (latestLine) {
+                            updateStatusFromLog(latestLine);
+                        }
+                        
+                        // 如果看到初始化完成，自动展开日志
+                        if (latestLine && (latestLine.includes('初始化完成') || latestLine.includes('已启动'))) {
+                            if (!logExpanded) {
+                                logToggle.click();
+                            }
+                            
+                            // 2秒后开始检查服务状态
+                            setTimeout(() => {
+                                checkInitComplete();
+                            }, 2000);
+                        }
+                    }
+                })
+                .catch(error => {
+                    // 日志文件还未创建，这是正常的
+                });
+        }
+
+        // 根据日志更新状态文本
+        function updateStatusFromLog(logLine) {
+            if (logLine.includes('下载前端代码包')) {
+                statusElement.innerHTML = '📦 正在下载前端代码<span class="dots"></span>';
+            } else if (logLine.includes('下载后端代码包')) {
+                statusElement.innerHTML = '⚙️ 正在下载后端代码<span class="dots"></span>';
+            } else if (logLine.includes('验证部署结果')) {
+                statusElement.innerHTML = '🔍 正在验证部署<span class="dots"></span>';
+            } else if (logLine.includes('启动Java后端服务')) {
+                statusElement.innerHTML = '☕ 正在启动后端服务<span class="dots"></span>';
+            } else if (logLine.includes('初始化完成')) {
+                statusElement.innerHTML = '🎉 初始化完成，即将跳转<span class="dots"></span>';
+            }
+        }
+
+        // 每2秒更新一次日志
+        setInterval(updateLogs, 2000);
+        
+        // 立即开始获取日志
+        setTimeout(updateLogs, 1000);
 
         // 每5秒检查一次是否初始化完成
         function checkInitComplete() {
