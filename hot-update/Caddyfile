@@ -1,139 +1,63 @@
 # DockPilot 热更新版本 Caddy 配置
-# 支持前端文件的热重载
+# 基于原版配置，增加热更新支持
 
 :8888 {
-    # 前端静态文件根目录
     root * /usr/share/html
 
-    # API 代理到后端
+    # API 代理到后端（增加超时支持长时间更新操作）
     handle /api/* {
         uri strip_prefix /api
         reverse_proxy localhost:8080 {
-            # 增加超时时间，支持长时间的更新操作
             transport http {
                 dial_timeout 30s
                 read_timeout 300s
                 write_timeout 300s
             }
-            
-            # 健康检查
-            health_uri /api/update/version
-            health_interval 30s
-            health_timeout 5s
         }
     }
 
     # WebSocket 代理
     handle /ws/* {
-        reverse_proxy localhost:8080 {
-            # WebSocket 特定配置
-            header_up Upgrade websocket
-            header_up Connection upgrade
-        }
+        reverse_proxy localhost:8080
     }
 
-    # 文件上传代理
+    # 文件上传服务
     handle /uploads/* {
         root * /dockpilot
-        file_server {
-            # 支持文件浏览
-            browse
-        }
-        
-        # 缓存设置
+        file_server
         header Cache-Control "public, max-age=2592000"
         header Access-Control-Allow-Origin "*"
-        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-        header Access-Control-Allow-Headers "Content-Type, Authorization"
-    }
-
-    # 处理 OPTIONS 请求（CORS 预检）
-    handle_path /api/* {
-        @options method OPTIONS
-        respond @options 204 {
-            header Access-Control-Allow-Origin "*"
-            header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-            header Access-Control-Allow-Headers "Content-Type, Authorization"
-            header Access-Control-Max-Age "86400"
-        }
     }
 
     # 前端路由处理（SPA 支持）
     handle {
-        # 尝试提供请求的文件，如果不存在则返回 index.html
+        # HTML 文件不缓存，支持热更新
+        @html path_regexp \.(html|htm)$
+        header @html Cache-Control "no-cache, no-store, must-revalidate"
+        header @html Pragma "no-cache"
+        header @html Expires "0"
+        
+        # 静态资源适当缓存
+        @static path_regexp \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$
+        header @static Cache-Control "public, max-age=3600"
+        
         try_files {path} /index.html
-        file_server {
-            # 前端文件缓存策略
-            @static path_regexp \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$
-            header @static Cache-Control "public, max-age=31536000"
-            
-            # HTML 文件不缓存，支持热更新
-            @html path_regexp \.html$
-            header @html Cache-Control "no-cache, no-store, must-revalidate"
-            header @html Pragma "no-cache"
-            header @html Expires "0"
-        }
+        file_server
     }
 
-    # 日志配置
+    # 访问日志
     log {
-        output file /dockpilot/logs/caddy-access.log {
-            roll_size 10mb
-            roll_keep 5
-            roll_keep_for 720h
-        }
-        format json
+        output file /dockpilot/logs/caddy.log
         level INFO
     }
 
-    # 错误日志
-    log {
-        output file /dockpilot/logs/caddy-error.log {
-            roll_size 10mb
-            roll_keep 5
-            roll_keep_for 720h
-        }
-        level ERROR
-    }
+    # 基础压缩
+    encode gzip
 
-    # 错误页面处理
-    handle_errors {
-        # 404 错误返回到前端路由
-        @404 expression {http.error.status_code} == 404
-        rewrite @404 /index.html
-        file_server
-        
-        # 其他错误显示友好页面
-        respond "服务暂时不可用，请稍后重试" 503
-    }
-
-    # 安全头
+    # 基础安全头
     header {
-        # XSS 保护
-        X-XSS-Protection "1; mode=block"
-        
-        # 内容类型嗅探保护
         X-Content-Type-Options "nosniff"
-        
-        # 点击劫持保护
         X-Frame-Options "SAMEORIGIN"
-        
-        # 推荐HTTPS
-        Strict-Transport-Security "max-age=31536000"
-        
-        # 隐藏服务器信息
         -Server
-    }
-
-    # 压缩
-    encode {
-        gzip 6
-        # 压缩文本类型文件
-        match {
-            header Content-Type text/*
-            header Content-Type application/json*
-            header Content-Type application/javascript*
-            header Content-Type application/xml*
-        }
     }
 } 
