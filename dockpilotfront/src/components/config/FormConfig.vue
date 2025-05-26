@@ -121,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import { InformationCircleOutline } from '@vicons/ionicons5'
 
 interface FormField {
@@ -215,6 +215,27 @@ const rules = computed(() => {
   }
 })
 
+// 防止无限循环的标志
+const isInternalUpdate = ref(false)
+
+// 比较两个对象是否相等（浅比较）
+const isEqual = (obj1: Record<string, any>, obj2: Record<string, any>) => {
+  const keys1 = Object.keys(obj1)
+  const keys2 = Object.keys(obj2)
+  
+  if (keys1.length !== keys2.length) {
+    return false
+  }
+  
+  for (let key of keys1) {
+    if (obj1[key] !== obj2[key]) {
+      return false
+    }
+  }
+  
+  return true
+}
+
 // 初始化表单数据
 const initFormData = () => {
   console.log('🔧 FormConfig: 开始初始化表单数据', { fields: props.fields, modelValue: props.modelValue })
@@ -254,25 +275,52 @@ const initFormData = () => {
       }
     })
     
-    formData.value = newFormData
-    console.log('✅ FormConfig: 表单数据初始化完成', newFormData)
+    // 检查数据是否真的发生了变化
+    if (!isEqual(formData.value, newFormData)) {
+      isInternalUpdate.value = true
+      formData.value = newFormData
+      console.log('✅ FormConfig: 表单数据初始化完成', newFormData)
+      
+      // 延迟重置标志
+      nextTick(() => {
+        isInternalUpdate.value = false
+      })
+    } else {
+      console.log('🔄 FormConfig: 数据未变化，跳过更新')
+    }
   } catch (error) {
     console.error('❌ FormConfig: 初始化表单数据时发生错误', error)
+    isInternalUpdate.value = false
   }
 }
 
 // 监听表单数据变化
 watch(formData, (newData) => {
+  // 如果是内部更新导致的变化，不触发emit
+  if (isInternalUpdate.value) {
+    console.log('🔄 FormConfig: 内部更新，跳过emit')
+    return
+  }
+  
+  console.log('📤 FormConfig: 发送数据更新', newData)
   emit('update:modelValue', { ...newData })
 }, { deep: true })
 
 // 监听props变化
-watch(() => props.modelValue, () => {
-  initFormData()
+watch(() => props.modelValue, (newValue, oldValue) => {
+  // 避免无限循环：只有当外部真正改变了modelValue时才初始化
+  if (!isEqual(newValue || {}, formData.value)) {
+    console.log('📥 FormConfig: modelValue变化，重新初始化', { newValue, oldValue })
+    initFormData()
+  }
 }, { immediate: true })
 
-watch(() => props.fields, () => {
-  initFormData()
+watch(() => props.fields, (newFields, oldFields) => {
+  // 只有当fields真正变化时才重新初始化
+  if (newFields !== oldFields) {
+    console.log('🔧 FormConfig: fields变化，重新初始化')
+    initFormData()
+  }
 }, { immediate: true })
 
 // 验证表单
