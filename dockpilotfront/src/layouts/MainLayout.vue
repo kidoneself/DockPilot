@@ -49,6 +49,8 @@ d="M8 12 L16 8 L24 12 L16 16 Z"
         </div>
       </div>
       <div class="header-right">
+        <!-- 更新通知组件 -->
+        <UpdateNotification style="margin-right: 16px;" />
         <ThemeToggle style="margin-left: 16px;" />
         <n-dropdown
           :options="dropdownOptions"
@@ -135,6 +137,7 @@ import { useMessage } from 'naive-ui'
 import type { MenuOption } from 'naive-ui'
 import { NIcon } from 'naive-ui'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
+import UpdateNotification from '@/components/UpdateNotification.vue'
 import * as Icons from '@vicons/ionicons5'
 import { useUserStore } from '@/store/user'
 

@@ -27,6 +27,8 @@
           </n-icon>
         </template>
       </n-button>
+      <!-- 更新通知组件 -->
+      <UpdateNotification />
     </div>
   </div>
 </template>
@@ -35,6 +37,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useThemeStore } from '@/store/theme'
+import UpdateNotification from '@/components/UpdateNotification.vue'
 import {
   RefreshOutline,
   AddOutline,
@@ -50,7 +53,7 @@ const currentRoute = computed(() => {
   return path.charAt(0).toUpperCase() + path.slice(1)
 })
 
-const isDark = computed(() => themeStore.isDark)
+const isDark = computed(() => themeStore.theme === 'dark')
 
 function handleRefresh() {
   // TODO: 实现刷新逻辑
