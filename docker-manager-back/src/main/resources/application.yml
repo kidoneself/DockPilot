@@ -9,6 +9,17 @@ spring:
   datasource:
     url: jdbc:sqlite:${DB_PATH:data.db}
     driver-class-name: org.sqlite.JDBC
+    hikari:
+      # 连接池配置
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 300000
+      connection-timeout: 5000
+      validation-timeout: 3000
+      max-lifetime: 1800000
+      # SQLite特殊配置
+      connection-test-query: SELECT 1
+      pool-name: HikariPool-SQLite
   main:
     allow-circular-references: true
   # 文件上传配置
@@ -53,6 +64,17 @@ spring:
       on-profile: dev
   datasource:
     url: jdbc:sqlite:data.db
+    hikari:
+      # 连接池配置
+      maximum-pool-size: 5
+      minimum-idle: 1
+      idle-timeout: 300000
+      connection-timeout: 5000
+      validation-timeout: 3000
+      max-lifetime: 1800000
+      # SQLite特殊配置
+      connection-test-query: SELECT 1
+      pool-name: HikariPool-SQLite-Dev
 
 file:
   upload:
@@ -65,6 +87,17 @@ spring:
       on-profile: prod
   datasource:
     url: jdbc:sqlite:/dockpilot/data/data.db
+    hikari:
+      # 连接池配置
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 5000
+      validation-timeout: 3000
+      max-lifetime: 1800000
+      # SQLite特殊配置
+      connection-test-query: SELECT 1
+      pool-name: HikariPool-SQLite-Prod
 
 file:
   upload:

@@ -9,10 +9,11 @@
       require-mark-placement="right-hanging"
     >
       <n-form-item 
-        v-for="field in fields" 
+        v-for="field in (fields || [])" 
         :key="field.key"
         :label="field.label"
         :path="field.key"
+        v-show="field && field.key"
       >
         <!-- 输入框 -->
         <n-input
@@ -163,64 +164,101 @@ const formData = ref<Record<string, any>>({})
 
 // 表单验证规则
 const rules = computed(() => {
+  console.log('🔧 FormConfig: 计算验证规则', props.fields)
+  
+  // 防御性检查
+  if (!props.fields || !Array.isArray(props.fields) || props.fields.length === 0) {
+    console.warn('⚠️  FormConfig: 字段为空，返回空验证规则')
+    return {}
+  }
+  
   const result: Record<string, any> = {}
   
-  props.fields.forEach(field => {
-    if (field.required || field.validator) {
-      result[field.key] = []
-      
-      if (field.required) {
-        result[field.key].push({
-          required: true,
-          message: `请输入${field.label}`,
-          trigger: ['blur', 'input']
-        })
+  try {
+    props.fields.forEach(field => {
+      if (!field || !field.key) {
+        console.warn('⚠️  FormConfig: 跳过无效字段', field)
+        return
       }
       
-      if (field.validator) {
-        result[field.key].push({
-          validator: (rule: any, value: any) => {
-            const validationResult = field.validator!(value)
-            if (typeof validationResult === 'string') {
-              return new Error(validationResult)
-            }
-            return validationResult
-          },
-          trigger: ['blur', 'input']
-        })
+      if (field.required || field.validator) {
+        result[field.key] = []
+        
+        if (field.required) {
+          result[field.key].push({
+            required: true,
+            message: `请输入${field.label}`,
+            trigger: ['blur', 'input']
+          })
+        }
+        
+        if (field.validator) {
+          result[field.key].push({
+            validator: (_rule: any, value: any) => {
+              const validationResult = field.validator!(value)
+              if (typeof validationResult === 'string') {
+                return new Error(validationResult)
+              }
+              return validationResult
+            },
+            trigger: ['blur', 'input']
+          })
+        }
       }
-    }
-  })
-  
-  return result
+    })
+    
+    console.log('✅ FormConfig: 验证规则计算完成', result)
+    return result
+  } catch (error) {
+    console.error('❌ FormConfig: 计算验证规则时发生错误', error)
+    return {}
+  }
 })
 
 // 初始化表单数据
 const initFormData = () => {
+  console.log('🔧 FormConfig: 开始初始化表单数据', { fields: props.fields, modelValue: props.modelValue })
+  
+  // 防御性检查
+  if (!props.fields || !Array.isArray(props.fields) || props.fields.length === 0) {
+    console.warn('⚠️  FormConfig: fields为空，跳过初始化')
+    return
+  }
+  
   const newFormData: Record<string, any> = {}
   
-  props.fields.forEach(field => {
-    if (props.modelValue && field.key in props.modelValue) {
-      newFormData[field.key] = props.modelValue[field.key]
-    } else {
-      // 设置默认值
-      switch (field.type) {
-        case 'switch':
-          newFormData[field.key] = false
-          break
-        case 'number':
-          newFormData[field.key] = field.min || 0
-          break
-        case 'checkbox':
-          newFormData[field.key] = []
-          break
-        default:
-          newFormData[field.key] = ''
+  try {
+    props.fields.forEach(field => {
+      if (!field || !field.key) {
+        console.warn('⚠️  FormConfig: 发现无效字段', field)
+        return
       }
-    }
-  })
-  
-  formData.value = newFormData
+      
+      if (props.modelValue && field.key in props.modelValue) {
+        newFormData[field.key] = props.modelValue[field.key]
+      } else {
+        // 设置默认值
+        switch (field.type) {
+          case 'switch':
+            newFormData[field.key] = false
+            break
+          case 'number':
+            newFormData[field.key] = field.min || 0
+            break
+          case 'checkbox':
+            newFormData[field.key] = []
+            break
+          default:
+            newFormData[field.key] = ''
+        }
+      }
+    })
+    
+    formData.value = newFormData
+    console.log('✅ FormConfig: 表单数据初始化完成', newFormData)
+  } catch (error) {
+    console.error('❌ FormConfig: 初始化表单数据时发生错误', error)
+  }
 }
 
 // 监听表单数据变化

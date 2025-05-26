@@ -50,8 +50,8 @@ public class SystemController {
     @Operation(summary = "获取系统配置", description = "获取系统配置项")
     @GetMapping("/settings")
     public ApiResponse<String> getSettings(@RequestParam String key) {
-        return ApiResponse.success(systemSettingService.get(key));
-
+        String value = systemSettingService.get(key);
+        return ApiResponse.success(value != null ? value : "");
     }
 
     @Operation(summary = "删除系统配置", description = "删除系统配置项")

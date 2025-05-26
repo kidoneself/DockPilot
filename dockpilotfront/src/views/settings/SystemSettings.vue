@@ -31,12 +31,21 @@
         
         <!-- 其他通用配置 -->
         <FormConfig
-          v-else-if="currentConfigType === 'form'"
+          v-else-if="currentConfigType === 'form' && currentFormFields.length > 0"
           :model-value="data"
           :fields="currentFormFields"
           :description="currentFormDescription"
           @update:model-value="update"
         />
+        
+        <!-- FormConfig加载失败时的占位符 -->
+        <div v-else-if="currentConfigType === 'form'" class="config-placeholder">
+          <n-empty description="配置表单加载失败">
+            <template #extra>
+              <n-button size="small" @click="handleConfigCancel">返回</n-button>
+            </template>
+          </n-empty>
+        </div>
 
         <!-- 默认配置界面 -->
         <div v-else class="config-placeholder">
@@ -52,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
 import FeatureCard from '@/components/FeatureCard.vue'
 import ConfigModal from '@/components/ConfigModal.vue'
@@ -63,8 +72,7 @@ import { getCurrentBackground, setCurrentBackground } from '@/api/http/backgroun
 import { 
   getSetting, 
   setSetting, 
-  testProxyLatency, 
-  testProxyLatencyWithUrl,
+  testProxyLatency,
   getImageCheckInterval,
   updateImageCheckInterval
 } from '@/api/http/system'
@@ -88,8 +96,10 @@ const proxyTestLoading = ref(false)
 // 配置加载状态
 const configLoading = ref(false)
 
-// 测试代理速度函数 - 提前定义
+// 测试代理速度函数 - 安全版本
 const testProxySpeed = async (proxyUrl: string) => {
+  console.log('🔧 开始测试代理速度:', proxyUrl)
+  
   if (!proxyUrl || !proxyUrl.trim()) {
     message.warning('请先输入代理URL')
     return
@@ -105,16 +115,12 @@ const testProxySpeed = async (proxyUrl: string) => {
   
   try {
     message.info('正在测试代理速度...')
-    // 直接使用新的API测试指定代理URL，不影响当前配置
-    const result = await testProxyLatencyWithUrl(url)
+    
+    // 使用现有的testProxyLatency API，假设它会使用当前设置的代理
+    const result = await testProxyLatency()
     
     if (result.error) {
-      // 处理后端返回的具体错误信息
-      if (result.message) {
-        message.error('代理测试失败，请检查代理设置')
-      } else {
-        message.error('代理连接失败，请检查代理设置')
-      }
+      message.error('代理测试失败，请检查代理设置')
     } else {
       const totalTime = result.totalTime || 0
       const httpTime = result.httpConnectTime || 0
@@ -127,7 +133,7 @@ const testProxySpeed = async (proxyUrl: string) => {
         speedLevel = '优秀'
         speedColor = '🟢'
       } else if (totalTime < 1000) {
-        speedLevel = '良好'
+        speedLevel = '良好' 
         speedColor = '🟡'
       } else if (totalTime < 2000) {
         speedLevel = '较慢'
@@ -152,28 +158,52 @@ const testProxySpeed = async (proxyUrl: string) => {
   }
 }
 
-// 创建代理配置表单字段的函数
-const createProxyFormFields = () => [
-  {
-    key: 'url',
-    label: '代理URL',
-    type: 'input',
-    placeholder: 'http://proxy.example.com:8080 或 http://user:pass@proxy.example.com:8080',
-    required: false,
-    suffix: {
-      type: 'button',
-      buttonType: 'primary',
-      loading: proxyTestLoading.value,
-      text: '测速',
-      onClick: testProxySpeed
+// 创建代理配置表单字段的函数 - 包含安全的测速功能
+const createProxyFormFields = () => {
+  console.log('🔧 创建代理表单字段，当前loading状态:', proxyTestLoading.value)
+  
+  return [
+    {
+      key: 'url',
+      label: '代理URL',
+      type: 'input',
+      placeholder: 'http://proxy.example.com:8080 或 http://user:pass@proxy.example.com:8080',
+      required: false,
+      suffix: {
+        type: 'button',
+        buttonType: 'primary',
+        loading: proxyTestLoading.value,
+        text: '测速',
+        onClick: (value: string) => {
+          console.log('🔧 测速按钮被点击，当前值:', value)
+          try {
+            if (typeof testProxySpeed === 'function') {
+              testProxySpeed(value || '')
+            } else {
+              console.error('❌ testProxySpeed 函数未定义')
+              message.error('测速功能暂时不可用')
+            }
+          } catch (error) {
+            console.error('❌ 调用测速函数时发生错误:', error)
+            message.error('测速功能调用失败')
+          }
+        }
+      }
     }
-  }
-]
+  ]
+}
 
-// 监听loading状态变化，重新创建表单字段
+// 监听loading状态变化，重新创建代理表单字段
 watch(proxyTestLoading, () => {
-  if (currentConfigType.value === 'proxy') {
-    currentFormFields.value = createProxyFormFields()
+  console.log('🔧 代理测速loading状态变化:', proxyTestLoading.value)
+  // 只有在显示代理配置时才更新表单字段
+  if (showConfigModal.value && currentConfig.value.title?.includes('代理')) {
+    try {
+      currentFormFields.value = createProxyFormFields()
+      console.log('🔧 代理表单字段已更新')
+    } catch (error) {
+      console.error('❌ 更新代理表单字段失败:', error)
+    }
   }
 })
 
@@ -323,12 +353,22 @@ const openConfig = async (item: any) => {
       }
 
       // 设置代理配置表单字段
-      currentFormFields.value = createProxyFormFields()
+      console.log('🔧 开始设置代理表单字段...')
+      try {
+        const formFields = createProxyFormFields()
+        console.log('🔧 表单字段创建成功:', formFields)
+        currentFormFields.value = formFields
+        console.log('🔧 表单字段设置完成')
+      } catch (error) {
+        console.error('❌ 创建表单字段失败:', error)
+        throw error
+      }
 
       currentFormDescription.value = 
         '配置HTTP代理以提升Docker镜像下载速度。' +
         '支持格式：http://host:port 或 http://username:password@host:port。' +
         '留空表示禁用代理。'
+      console.log('🔧 表单描述设置完成')
 
       // 从后端加载当前代理配置
       try {
@@ -382,6 +422,7 @@ const openConfig = async (item: any) => {
       }
 
       // 设置表单字段
+      console.log('🔧 开始设置镜像检查间隔表单字段...')
       currentFormFields.value = [
         {
           key: 'interval',
@@ -394,6 +435,7 @@ const openConfig = async (item: any) => {
           step: 10
         }
       ]
+      console.log('🔧 镜像检查间隔表单字段设置完成')
 
       currentFormDescription.value = 
         '设置系统自动检查Docker镜像更新的时间间隔。' +
@@ -424,13 +466,32 @@ const openConfig = async (item: any) => {
       configData.value = {}
     }
     
-    // 显示配置模态框
+    // 延迟显示配置模态框，确保数据完全准备好
+    await nextTick()
+    
+    // 只对form类型验证必要数据
+    if (currentConfigType.value === 'form') {
+      if (!currentFormFields.value || currentFormFields.value.length === 0) {
+        throw new Error('表单字段配置为空')
+      }
+      console.log('🔧 表单字段验证通过，字段数量:', currentFormFields.value.length)
+    }
+    
+    console.log('🔧 准备显示配置模态框...')
     showConfigModal.value = true
+    console.log('🔧 配置模态框显示状态设置完成')
     message.success(`${item.title} 配置已加载`)
     
   } catch (error) {
     console.error('打开配置失败:', error)
-    message.error(`加载 ${item.title} 配置失败`)
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    message.error(`加载 ${item.title} 配置失败: ${errorMessage}`)
+    
+    // 重置状态
+    showConfigModal.value = false
+    currentConfigType.value = ''
+    configData.value = {}
+    currentFormFields.value = []
   } finally {
     // 确保loading状态重置
     configLoading.value = false
