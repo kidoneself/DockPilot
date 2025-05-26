@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DockPilot 正在初始化 - 热更新系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #fff, #e0e6ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 3rem;
+        }
+
+        .loading-container {
+            margin: 2rem 0;
+        }
+
+        .loading-spinner {
+            width: 80px;
+            height: 80px;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-left: 4px solid #fff;
+            border-radius: 50%;
+            margin: 0 auto 2rem;
+            animation: spin 1s linear infinite;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4facfe, #00f2fe);
+            border-radius: 4px;
+            width: 0%;
+            animation: progress 10s ease-in-out infinite;
+        }
+
+        .status-text {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            min-height: 1.5rem;
+        }
+
+        .dots {
+            display: inline-block;
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        .features {
+            margin-top: 3rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            opacity: 0.8;
+        }
+
+        .feature {
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-text {
+            font-size: 0.9rem;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 2rem;
+            text-align: center;
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+
+        /* 动画 */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes progress {
+            0% { width: 0%; }
+            20% { width: 30%; }
+            40% { width: 60%; }
+            80% { width: 90%; }
+            100% { width: 100%; }
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
+        }
+
+        /* 背景动画 */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.1;
+        }
+
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(255, 255, 255, 0.03) 10px,
+                rgba(255, 255, 255, 0.03) 20px
+            );
+            animation: move 20s linear infinite;
+        }
+
+        @keyframes move {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .title { font-size: 2rem; }
+            .subtitle { font-size: 1rem; }
+            .features { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    
+    <div class="container">
+        <div class="logo">🐳</div>
+        <h1 class="title">DockPilot</h1>
+        <p class="subtitle">容器管理平台正在初始化</p>
+        
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <div class="status-text" id="status">
+                正在下载应用代码<span class="dots"></span>
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">🔥</div>
+                <div class="feature-text">热更新系统</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <div class="feature-text">快速部署</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🛡️</div>
+                <div class="feature-text">安全可靠</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🎯</div>
+                <div class="feature-text">智能管理</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>🚀 首次启动需要下载应用代码，预计2-5分钟</p>
+        <p>DockPilot Hot Update System v1.0</p>
+    </div>
+
+    <script>
+        // 状态文本动态更新
+        const statusMessages = [
+            '正在下载应用代码',
+            '正在验证文件完整性',
+            '正在部署前端资源',
+            '正在启动后端服务',
+            '正在初始化系统配置',
+            '即将完成初始化'
+        ];
+
+        let currentIndex = 0;
+        const statusElement = document.getElementById('status');
+
+        function updateStatus() {
+            statusElement.innerHTML = statusMessages[currentIndex] + '<span class="dots"></span>';
+            currentIndex = (currentIndex + 1) % statusMessages.length;
+        }
+
+        // 每3秒更新一次状态
+        setInterval(updateStatus, 3000);
+
+        // 每5秒检查一次是否初始化完成
+        function checkInitComplete() {
+            // 检查是否能访问更新版本API（表示Java服务已启动）
+            fetch('/api/update/version')
+                .then(response => {
+                    if (response.ok) {
+                        // 初始化完成，刷新页面
+                        statusElement.innerHTML = '✅ 初始化完成，正在跳转...';
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                        return;
+                    }
+                })
+                .catch(() => {
+                    // Java服务还未启动，继续等待
+                });
+            
+            // 备用检查：如果页面内容已经变化（前端已更新）
+            fetch('/')
+                .then(response => response.text())
+                .then(html => {
+                    // 如果页面不再包含初始化相关内容，说明前端已更新
+                    if (!html.includes('正在初始化') && !html.includes('DockPilot 正在初始化')) {
+                        statusElement.innerHTML = '✅ 前端已更新，正在跳转...';
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    }
+                })
+                .catch(() => {
+                    // 还未完成，继续等待
+                });
+        }
+
+        // 30秒后开始检查
+        setTimeout(() => {
+            setInterval(checkInitComplete, 5000);
+        }, 30000);
+
+        // 页面可见性变化时的处理
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                // 页面重新可见时，检查是否已完成
+                setTimeout(checkInitComplete, 1000);
+            }
+        });
+    </script>
+</body>
+</html> 

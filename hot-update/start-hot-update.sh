@@ -141,7 +141,7 @@ start_java() {
     # 检查jar文件是否存在
     if [ ! -f "/app/app.jar" ]; then
         log_error "后端jar文件不存在"
-        exit 1
+        return 1
     fi
     
     # 设置环境变量
@@ -162,11 +162,15 @@ start_java() {
             # 尝试访问健康检查端点
             if curl -s http://localhost:8080/api/update/version >/dev/null 2>&1; then
                 log_info "✅ Java应用启动成功 (PID: $JAVA_PID)"
+                
+                # 显示完整的启动信息
+                show_startup_info
+                
                 return 0
             fi
         else
             log_error "❌ Java应用进程意外退出"
-            exit 1
+            return 1
         fi
         
         sleep 2
@@ -174,10 +178,10 @@ start_java() {
     done
     
     log_error "❌ Java应用启动超时"
-    exit 1
+    return 1
 }
 
-# 显示启动信息
+# 显示启动信息（完整版）
 show_startup_info() {
     local current_version=$(cat /dockpilot/data/current_version 2>/dev/null || echo "unknown")
     
@@ -200,23 +204,46 @@ show_startup_info() {
     log_info "=========================================="
 }
 
+# 显示初始启动信息
+show_startup_info_initial() {
+    log_info "=========================================="
+    log_info "🌐 DockPilot Web服务已启动！"
+    log_info "=========================================="
+    log_info "📋 当前状态:"
+    log_info "  • 前端访问地址: http://localhost:8888"
+    log_info "  • Web服务: 运行中 (显示初始化页面)"
+    log_info "  • 应用代码: 后台下载中..."
+    log_info "📊 进程信息:"
+    log_info "  • Caddy PID: $CADDY_PID"
+    log_info "  • Java服务: 等待代码下载完成"
+    log_info "=========================================="
+    log_info "💡 您现在可以访问 http://localhost:8888 查看初始化进度"
+    log_info "=========================================="
+}
+
 # 主启动流程
 main() {
     log_info "开始主启动流程..."
     
-    # 1. 检查并下载应用代码
-    check_and_download_app
-    
-    # 2. 启动Caddy
+    # 1. 先启动Caddy（显示初始化页面）
     start_caddy
     
-    # 3. 启动Java应用
-    start_java
+    # 2. 后台检查并下载应用代码
+    log_info "🔄 后台开始下载应用代码..."
+    (
+        check_and_download_app
+        if [ $? -eq 0 ]; then
+            log_info "✅ 应用代码准备完成，启动后端服务..."
+            start_java
+        else
+            log_error "❌ 应用代码下载失败，仅提供Web服务"
+        fi
+    ) &
     
-    # 4. 显示启动信息
-    show_startup_info
+    # 3. 显示启动信息
+    show_startup_info_initial
     
-    # 5. 保持运行，等待信号
+    # 4. 保持运行，等待信号
     log_info "🔄 服务运行中，等待信号..."
     
     # 支持传入的参数（如果有的话）

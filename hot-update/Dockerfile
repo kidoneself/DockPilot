@@ -44,12 +44,10 @@ RUN mkdir -p /app /usr/share/html /dockpilot/data /dockpilot/logs /dockpilot/upl
 COPY start-hot-update.sh /start.sh
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY download-app.sh /app/download-app.sh
+COPY loading.html /usr/share/html/index.html
 
 # 设置权限
 RUN chmod +x /start.sh /app/download-app.sh
-
-# 创建默认的前端文件（空白页面，显示正在初始化）
-RUN echo '<!DOCTYPE html><html><head><title>DockPilot 初始化中</title></head><body><div style="text-align:center;margin-top:100px;"><h1>🚀 DockPilot 正在初始化...</h1><p>首次启动正在下载应用文件，请稍候</p></div></body></html>' > /usr/share/html/index.html
 
 # 暴露端口
 EXPOSE 8888

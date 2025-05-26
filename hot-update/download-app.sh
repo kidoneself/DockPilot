@@ -247,12 +247,24 @@ verify_deployment() {
         return 1
     fi
     
-    # 检查jar文件是否可执行
-    if ! java -jar /app/app.jar --help >/dev/null 2>&1; then
-        log_warn "后端jar文件可能存在问题（无法执行help命令）"
+    # 检查jar文件大小（应该大于1MB）
+    local jar_size=$(stat -c%s "/app/app.jar" 2>/dev/null || echo "0")
+    if [ "$jar_size" -lt 1048576 ]; then
+        log_error "后端jar文件太小，可能损坏"
+        return 1
+    fi
+    
+    # 简单验证jar文件内容（不运行）
+    if ! validate_jar_file "/app/app.jar"; then
+        log_error "后端jar文件验证失败"
+        return 1
     fi
     
     log_info "✅ 部署验证通过"
+    log_info "📊 文件信息:"
+    log_info "  • 前端文件数: $(find /usr/share/html -type f | wc -l)"
+    log_info "  • 后端jar大小: $(( jar_size / 1024 / 1024 ))MB"
+    
     return 0
 }
 
