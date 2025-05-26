@@ -57,7 +57,7 @@ export const deleteFile = async (filename: string): Promise<void> => {
 export const getImageUrl = (filename: string): string => {
   // 返回相对路径，浏览器会自动补全当前域名
   // 这样在任何环境下都能正确访问（nginx代理、CDN等）
-  return `/upload/${filename}`
+  return `/uploads/${filename}`
 }
 
 /**
