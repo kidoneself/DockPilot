@@ -121,6 +121,15 @@ public class DockerService {
     }
 
     /**
+     * 获取Docker版本信息
+     *
+     * @return Docker版本字符串
+     */
+    public String getDockerVersion() {
+        return dockerClientWrapper.getDockerVersion();
+    }
+
+    /**
      * 获取容器日志
      *
      * @param containerId 容器ID
@@ -308,8 +317,9 @@ public class DockerService {
             }
 
             command.add("--insecure-policy");
-            command.add("--src-tls-verify=false");
-            command.add("--dest-tls-verify=false");
+            // 移除旧版本skopeo不支持的TLS参数
+            // command.add("--src-tls-verify=false");  // 旧版本skopeo不支持
+            // command.add("--dest-tls-verify=false"); // 旧版本skopeo不支持
             command.add("docker://" + fullImageName);
             command.add("docker-daemon:" + fullImageName);
 
@@ -589,8 +599,9 @@ public class DockerService {
 
                 // 添加安全策略参数
                 command.add("--insecure-policy");
-                command.add("--src-tls-verify=false");
-                command.add("--dest-tls-verify=false");
+                // 移除旧版本skopeo不支持的TLS参数
+                // command.add("--src-tls-verify=false");  // 旧版本skopeo不支持
+                // command.add("--dest-tls-verify=false"); // 旧版本skopeo不支持
                 command.add("docker://" + fullImageName);
                 command.add("docker-daemon:" + fullImageName);
 

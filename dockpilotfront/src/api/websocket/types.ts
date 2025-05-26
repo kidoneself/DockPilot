@@ -29,6 +29,9 @@ export enum MessageType {
   NETWORK_DELETE = 'NETWORK_DELETE',
   NETWORK_DETAIL = 'NETWORK_DETAIL',
 
+  // 系统状态相关
+  SYSTEM_STATUS = 'SYSTEM_STATUS',
+
   // 系统消息
   COMPLETE = 'COMPLETE',
   ERROR = 'ERROR',

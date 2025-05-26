@@ -6,6 +6,7 @@ import com.dsm.common.exception.BusinessException;
 import com.dsm.mapper.ImageStatusMapper;
 import com.dsm.model.*;
 import com.dsm.service.http.ImageService;
+import com.dsm.service.http.SystemSettingService;
 import com.dsm.utils.LogUtil;
 import com.dsm.utils.MessageCallback;
 import com.github.dockerjava.api.DockerClient;
@@ -32,6 +33,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 /**
  * 容器服务实现类
@@ -47,11 +52,137 @@ public class ImageServiceImpl implements ImageService {
     private ImageStatusMapper imageStatusMapper;
     @Autowired
     private AppConfig appConfig;
+    @Autowired
+    private SystemSettingService systemSettingService;
+
+    // 🎯 缓存相关字段
+    private final Map<String, CachedImageInfo> remoteImageCache = new ConcurrentHashMap<>();
+    private static final long CACHE_DURATION = 30 * 60 * 1000; // 30分钟缓存
+
+    // 🎯 动态任务调度相关字段
+    private TaskScheduler taskScheduler;
+    private ScheduledFuture<?> imageCheckTask;
+    private long currentCheckInterval = 60 * 60 * 1000; // 默认1小时，单位毫秒
+
+    /**
+     * 缓存镜像信息内部类
+     */
+    private static class CachedImageInfo {
+        final String createTime;
+        final long timestamp;
+
+        CachedImageInfo(String createTime, long timestamp) {
+            this.createTime = createTime;
+            this.timestamp = timestamp;
+        }
+    }
 
     @PostConstruct
     public void init() {
         // 在服务启动时清理所有拉取中的状态
         cleanAllPullingImages();
+        
+        // 🎯 初始化任务调度器
+        initTaskScheduler();
+        
+        // 🎯 从数据库加载检查间隔配置并启动定时任务
+        loadAndStartImageCheckTask();
+    }
+
+    /**
+     * 初始化任务调度器
+     */
+    private void initTaskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadNamePrefix("image-check-");
+        scheduler.setWaitForTasksToCompleteOnShutdown(true);
+        scheduler.setAwaitTerminationSeconds(60);
+        scheduler.initialize();
+        this.taskScheduler = scheduler;
+        LogUtil.logSysInfo("镜像检查任务调度器初始化完成");
+    }
+
+    /**
+     * 加载配置并启动镜像检查任务
+     */
+    private void loadAndStartImageCheckTask() {
+        try {
+            // 从数据库加载检查间隔配置
+            String intervalStr = systemSettingService.get("imageCheckInterval");
+            if (intervalStr != null && !intervalStr.isEmpty()) {
+                try {
+                    long interval = Long.parseLong(intervalStr) * 60 * 1000; // 配置以分钟为单位，转换为毫秒
+                    if (interval >= 10 * 60 * 1000) { // 最小10分钟
+                        this.currentCheckInterval = interval;
+                    }
+                } catch (NumberFormatException e) {
+                    LogUtil.logSysError("解析镜像检查间隔配置失败，使用默认值: " + e.getMessage());
+                }
+            }
+            
+            // 启动定时任务
+            scheduleImageCheckTask();
+            LogUtil.logSysInfo("镜像检查任务已启动，间隔: " + (currentCheckInterval / 60000) + " 分钟");
+        } catch (Exception e) {
+            LogUtil.logSysError("启动镜像检查任务失败: " + e.getMessage());
+            // 使用默认配置启动
+            scheduleImageCheckTask();
+        }
+    }
+
+    /**
+     * 🎯 调度镜像检查任务
+     */
+    private void scheduleImageCheckTask() {
+        // 取消现有任务
+        if (imageCheckTask != null && !imageCheckTask.isCancelled()) {
+            imageCheckTask.cancel(false);
+            LogUtil.logSysInfo("已取消现有的镜像检查任务");
+        }
+        
+        // 启动新任务 - 使用固定延迟调度
+        imageCheckTask = taskScheduler.scheduleWithFixedDelay(
+            this::checkAllImagesStatus,
+            java.time.Instant.now().plusMillis(60000), // 1分钟后开始
+            java.time.Duration.ofMillis(currentCheckInterval) // 使用配置的间隔
+        );
+        
+        LogUtil.logSysInfo("镜像检查任务已调度，间隔: " + (currentCheckInterval / 60000) + " 分钟");
+    }
+
+    /**
+     * 🎯 通过事件监听器更新检查间隔配置
+     * 供SystemSettingChangedListener调用
+     */
+    public void updateImageCheckIntervalFromEvent(String intervalValue) {
+        try {
+            // 验证和解析参数
+            int intervalMinutes = Integer.parseInt(intervalValue);
+            
+            if (intervalMinutes < 10) {
+                LogUtil.logSysError("镜像检查间隔配置无效，小于10分钟: " + intervalMinutes);
+                return;
+            }
+            
+            if (intervalMinutes > 24 * 60) { // 最大24小时
+                LogUtil.logSysError("镜像检查间隔配置无效，超过24小时: " + intervalMinutes);
+                return;
+            }
+            
+            // 更新当前间隔
+            this.currentCheckInterval = intervalMinutes * 60 * 1000L;
+            
+            // 重新调度任务
+            scheduleImageCheckTask();
+            
+            LogUtil.logSysInfo("✅ 镜像检查间隔已热更新: " + intervalMinutes + " 分钟");
+            
+        } catch (NumberFormatException e) {
+            LogUtil.logSysError("解析镜像检查间隔配置失败: " + intervalValue + ", 错误: " + e.getMessage());
+        } catch (Exception e) {
+            LogUtil.logSysError("更新镜像检查间隔失败: " + e.getMessage());
+        }
     }
 
     @Override
@@ -127,9 +258,8 @@ public class ImageServiceImpl implements ImageService {
 
 
     /**
-     * 每小时定时检查所有镜像更新状态
+     * 🎯 检查所有镜像更新状态（动态调度）
      */
-    @Scheduled(fixedRate = 60 * 60 * 1000, initialDelay = 60000) // 延迟1分钟启动
     @Override
     public void checkAllImagesStatus() {
         LogUtil.logSysInfo("开始定时检查所有镜像更新状态...");
@@ -167,9 +297,16 @@ public class ImageServiceImpl implements ImageService {
                     Long id = record.getId();
 
                     // 获取远程镜像创建时间进行比较
-                    String remoteCreateTime = dockerService.getRemoteImageCreateTime(name, tag);
-                    Instant localInstant = Instant.parse(storedLocalCreateTime);
-                    Instant remoteInstant = Instant.parse(remoteCreateTime);
+                    String remoteCreateTime = getRemoteImageCreateTime(name, tag);
+                    Instant localInstant = parseToInstant(storedLocalCreateTime);
+                    Instant remoteInstant = parseToInstant(remoteCreateTime);
+
+                    // 检查时间解析是否成功
+                    if (localInstant == null || remoteInstant == null) {
+                        LogUtil.logSysError("时间解析失败，跳过镜像更新检查: " + name + ":" + tag + 
+                            " (本地时间: " + storedLocalCreateTime + ", 远程时间: " + remoteCreateTime + ")");
+                        continue;
+                    }
 
                     // 如果远程时间晚于本地时间，说明需要更新
                     boolean needUpdate = remoteInstant.isAfter(localInstant);
@@ -506,7 +643,44 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
-    public String getRemoteImageCreateTime(String imageName, String tag) {
+    /**
+     * 🎯 带缓存的远程镜像创建时间获取方法
+     * 优先使用缓存，缓存过期或失败时调用远程API
+     */
+    private String getRemoteImageCreateTime(String imageName, String tag) {
+        String fullName = imageName + ":" + tag;
+        CachedImageInfo cached = remoteImageCache.get(fullName);
+        
+        // 检查缓存是否有效
+        if (cached != null && (System.currentTimeMillis() - cached.timestamp) < CACHE_DURATION) {
+            LogUtil.logSysInfo("使用缓存的远程镜像信息: " + fullName);
+            return cached.createTime;
+        }
+        
+        try {
+            // 调用原有的远程获取方法
+            String remoteCreateTime = getRemoteImageCreateTimeFromApi(imageName, tag);
+            
+            // 成功获取后更新缓存
+            remoteImageCache.put(fullName, new CachedImageInfo(remoteCreateTime, System.currentTimeMillis()));
+            LogUtil.logSysInfo("已缓存远程镜像信息: " + fullName);
+            
+            return remoteCreateTime;
+        } catch (Exception e) {
+            // 如果有缓存（即使过期），在网络失败时也可以使用
+            if (cached != null) {
+                LogUtil.logSysInfo("网络失败，使用过期缓存: " + fullName + " (缓存时间: " + 
+                    (System.currentTimeMillis() - cached.timestamp) / 1000 + "秒前)");
+                return cached.createTime;
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * 从远程API获取镜像创建时间（原有逻辑）
+     */
+    private String getRemoteImageCreateTimeFromApi(String imageName, String tag) {
         try {
             List<String> command = new ArrayList<>();
             command.add("skopeo");
@@ -522,10 +696,11 @@ public class ImageServiceImpl implements ImageService {
                 command.add("--override-os");
                 command.add("linux");
             }
-            // 添加安全策略和TLS验证参数
+            // 添加安全策略参数 (移除旧版本skopeo不支持的TLS参数)
             command.add("--insecure-policy");
-            command.add("--src-tls-verify=false");
-            command.add("--dest-tls-verify=false");
+            // 注释掉不兼容的参数，--insecure-policy 已经能处理大部分TLS问题
+            // command.add("--src-tls-verify=false");  // 旧版本skopeo不支持
+            // command.add("--dest-tls-verify=false"); // 旧版本skopeo不支持
             command.add("docker://" + imageName + ":" + tag);
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
@@ -594,20 +769,98 @@ public class ImageServiceImpl implements ImageService {
     }
 
     /**
-     * 将ISO8601格式的日期字符串转换为Date对象
+     * 将多种格式的日期字符串转换为Instant对象
+     * 支持格式：
+     * 1. yyyy-MM-dd HH:mm:ss
+     * 2. yyyy-MM-dd HH:mm:ss.nnnnnnnnn +0000 UTC
+     * 3. ISO8601标准格式
      *
-     * @param isoDateString ISO格式的日期字符串
-     * @return Date对象
+     * @param dateString 日期字符串
+     * @return Instant对象
      */
-    private Date parseIsoDate(String isoDateString) {
-        if (isoDateString == null || isoDateString.isEmpty()) {
+    private Instant parseToInstant(String dateString) {
+        if (dateString == null || dateString.isEmpty()) {
             return null;
         }
+        
         try {
-            LocalDateTime localDateTime = LocalDateTime.parse(isoDateString, ISO_FORMATTER);
-            return Date.from(localDateTime.atZone(ZoneId.systemDefault()).toInstant());
+            // 尝试多种时间格式解析
+            String cleanedDateString = dateString.trim();
+            
+            // 格式1: 处理包含纳秒和时区的格式 (如: 2025-05-26 05:48:36.357380367 +0000 UTC)
+            if (cleanedDateString.contains(".") && cleanedDateString.contains("UTC")) {
+                try {
+                    // 移除 UTC 后缀，替换空格为 T，处理时区格式
+                    String processedString = cleanedDateString.replace(" UTC", "")
+                                                            .replaceFirst(" ", "T");
+                    
+                    // 如果时区是 +0000 格式，转换为 Z
+                    if (processedString.endsWith("+0000")) {
+                        processedString = processedString.replace("+0000", "Z");
+                    }
+                    
+                    return Instant.parse(processedString);
+                } catch (Exception ex) {
+                    LogUtil.logSysInfo("格式1解析失败，尝试其他格式: " + dateString);
+                }
+            }
+            
+            // 格式2: 尝试标准ISO8601格式
+            try {
+                if (cleanedDateString.contains("T")) {
+                    return Instant.parse(cleanedDateString);
+                }
+            } catch (Exception ex) {
+                LogUtil.logSysInfo("ISO8601格式解析失败，尝试其他格式: " + dateString);
+            }
+            
+            // 格式3: 尝试ISO_DATE_TIME格式
+            try {
+                if (cleanedDateString.contains("T")) {
+                    LocalDateTime localDateTime = LocalDateTime.parse(cleanedDateString, DateTimeFormatter.ISO_DATE_TIME);
+                    return localDateTime.atZone(ZoneId.systemDefault()).toInstant();
+                }
+            } catch (Exception ex) {
+                LogUtil.logSysInfo("ISO_DATE_TIME格式解析失败，尝试其他格式: " + dateString);
+            }
+            
+            // 格式4: 原有的简单格式 (yyyy-MM-dd HH:mm:ss)
+            try {
+                LocalDateTime localDateTime = LocalDateTime.parse(cleanedDateString, ISO_FORMATTER);
+                return localDateTime.atZone(ZoneId.systemDefault()).toInstant();
+            } catch (Exception ex) {
+                LogUtil.logSysInfo("简单格式解析失败: " + dateString);
+            }
+            
+            LogUtil.logSysError("所有日期格式解析均失败: " + dateString);
+            return null;
+            
         } catch (Exception e) {
-            LogUtil.logSysInfo("解析ISO日期失败: " + isoDateString);
+            LogUtil.logSysError("解析日期时发生异常: " + dateString + ", 错误: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 将多种格式的日期字符串转换为Date对象
+     * 支持格式：
+     * 1. yyyy-MM-dd HH:mm:ss
+     * 2. yyyy-MM-dd HH:mm:ss.nnnnnnnnn +0000 UTC
+     * 3. ISO8601标准格式
+     *
+     * @param dateString 日期字符串
+     * @return Date对象
+     */
+    private Date parseIsoDate(String dateString) {
+        if (dateString == null || dateString.isEmpty()) {
+            return null;
+        }
+        
+        try {
+            Instant instant = parseToInstant(dateString);
+            return instant != null ? Date.from(instant) : null;
+        } catch (Exception e) {
+            LogUtil.logSysError("解析日期时发生异常: " + dateString + ", 错误: " + e.getMessage());
             return null;
         }
     }
@@ -1056,6 +1309,77 @@ public class ImageServiceImpl implements ImageService {
         }
 
         return rawError;
+    }
+
+    /**
+     * 🎯 缓存管理方法
+     */
+    
+    /**
+     * 清理过期的缓存条目
+     */
+    @Scheduled(fixedRate = 60 * 60 * 1000) // 每小时清理一次过期缓存
+    void cleanExpiredCache() {
+        long currentTime = System.currentTimeMillis();
+        int removedCount = 0;
+        
+        Iterator<Map.Entry<String, CachedImageInfo>> iterator = remoteImageCache.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, CachedImageInfo> entry = iterator.next();
+            if ((currentTime - entry.getValue().timestamp) > CACHE_DURATION * 2) { // 超过2倍缓存时间才清理
+                iterator.remove();
+                removedCount++;
+            }
+        }
+        
+        if (removedCount > 0) {
+            LogUtil.logSysInfo("清理过期缓存条目: " + removedCount + " 个");
+        }
+    }
+    
+    /**
+     * 手动清理特定镜像的缓存
+     */
+    public void clearImageCache(String imageName, String tag) {
+        String fullName = imageName + ":" + tag;
+        CachedImageInfo removed = remoteImageCache.remove(fullName);
+        if (removed != null) {
+            LogUtil.logSysInfo("已清理镜像缓存: " + fullName);
+        }
+    }
+    
+    /**
+     * 清理所有缓存
+     */
+    public void clearAllCache() {
+        int size = remoteImageCache.size();
+        remoteImageCache.clear();
+        LogUtil.logSysInfo("已清理所有镜像缓存，共 " + size + " 个条目");
+    }
+    
+    /**
+     * 获取缓存统计信息
+     */
+    public Map<String, Object> getCacheStats() {
+        long currentTime = System.currentTimeMillis();
+        int validCacheCount = 0;
+        int expiredCacheCount = 0;
+        
+        for (CachedImageInfo info : remoteImageCache.values()) {
+            if ((currentTime - info.timestamp) < CACHE_DURATION) {
+                validCacheCount++;
+            } else {
+                expiredCacheCount++;
+            }
+        }
+        
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalCacheCount", remoteImageCache.size());
+        stats.put("validCacheCount", validCacheCount);
+        stats.put("expiredCacheCount", expiredCacheCount);
+        stats.put("cacheDurationMinutes", CACHE_DURATION / (60 * 1000));
+        
+        return stats;
     }
 
 }

@@ -2,7 +2,9 @@ package com.dsm.controller;
 
 import com.dsm.model.Route;
 import com.dsm.model.SystemSetting;
+import com.dsm.model.SystemStatusDTO;
 import com.dsm.service.http.SystemSettingService;
+import com.dsm.service.http.SystemStatusService;
 import com.dsm.utils.ApiResponse;
 import com.dsm.utils.FaviconFetcher;
 import com.dsm.utils.LogUtil;
@@ -24,6 +26,9 @@ public class SystemController {
 
     @Autowired
     private SystemSettingService systemSettingService;
+
+    @Autowired
+    private SystemStatusService systemStatusService;
 
 
     @Operation(summary = "设置系统配置", description = "设置系统配置项")
@@ -94,4 +99,18 @@ public class SystemController {
         return ApiResponse.success(faviconUrl);
 
     }
+
+    @Operation(summary = "获取系统状态", description = "获取宿主机系统状态信息")
+    @GetMapping("/status")
+    public ApiResponse<SystemStatusDTO> getSystemStatus() {
+        try {
+            SystemStatusDTO systemStatus = systemStatusService.getSystemStatus();
+            return ApiResponse.success(systemStatus);
+        } catch (Exception e) {
+            LogUtil.logSysError("获取系统状态失败: " + e.getMessage());
+            return ApiResponse.error("获取系统状态失败: " + e.getMessage());
+        }
+    }
+
+
 }

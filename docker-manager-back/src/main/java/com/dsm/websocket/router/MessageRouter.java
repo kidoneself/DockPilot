@@ -6,6 +6,7 @@ import com.dsm.service.websocket.AppStoreService;
 import com.dsm.service.websocket.ContainerWebSocketService;
 import com.dsm.service.websocket.ImageWebSocketService;
 import com.dsm.service.websocket.NetworkWebSocketService;
+import com.dsm.service.websocket.SystemWebSocketService;
 import com.dsm.websocket.model.DockerWebSocketMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,9 @@ public class MessageRouter {
     @Autowired
     private NetworkWebSocketService networkService;
 
+    @Autowired
+    private SystemWebSocketService systemService;
+
     /**
      * 路由消息到对应的服务
      */
@@ -48,6 +52,8 @@ public class MessageRouter {
                 imageService.handle(session, message);
             } else if (type.startsWith("NETWORK_")) {
                 networkService.handle(session, message);
+            } else if (type.startsWith("SYSTEM_")) {
+                systemService.handle(session, message);
             } else if (type.startsWith("INSTALL_") ||
                     type.startsWith("IMPORT_") || type.startsWith("DELETE_")) {
                 appStoreService.handle(session, message);

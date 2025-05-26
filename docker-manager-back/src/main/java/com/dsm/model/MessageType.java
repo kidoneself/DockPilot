@@ -251,5 +251,10 @@ public enum MessageType {
     /**
      * 清理容器重复记录
      */
-    CONTAINER_CLEANUP_DUPLICATES
+    CONTAINER_CLEANUP_DUPLICATES,
+
+    /**
+     * 系统状态
+     */
+    SYSTEM_STATUS
 } 

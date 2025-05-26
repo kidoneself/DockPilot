@@ -115,6 +115,18 @@ public class DockerClientWrapper {
         }, "检查Docker服务可用性", "system");
     }
 
+    public String getDockerVersion() {
+        return executeDockerCommandWithResult(() -> {
+            try {
+                Version version = dockerClient.versionCmd().exec();
+                return version.getVersion();
+            } catch (Exception e) {
+                LogUtil.logSysError("获取Docker版本失败: " + e.getMessage());
+                return "未知";
+            }
+        }, "获取Docker版本", "system");
+    }
+
     public String getContainerLogs(String containerId, int tail, boolean follow, boolean timestamps) {
         return executeDockerCommandWithResult(() -> {
             LogContainerCmd logContainerCmd = dockerClient.logContainerCmd(containerId).withTail(tail).withFollowStream(follow).withTimestamps(timestamps).withStdOut(true).withStdErr(true);

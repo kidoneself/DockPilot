@@ -63,38 +63,99 @@
         </div>
       </div>
 
-      <!-- 快速统计卡片 -->
+      <!-- 系统状态总览 - 紧凑版 -->
       <div class="stats-section">
         <div class="section-header">
           <h3>系统状态</h3>
-          <n-button quaternary size="tiny" @click="showAddApp = true">
-            <n-icon :component="AddOutline" />
-          </n-button>
+          <div class="header-actions">
+            <n-button text size="tiny" @click="showDetailedInfo = !showDetailedInfo">
+              {{ showDetailedInfo ? '收起详情' : '查看详情' }}
+            </n-button>
+          </div>
         </div>
-        <div class="stats-grid">
+        
+        <!-- 紧凑型性能卡片 -->
+        <div class="compact-stats-grid">
           <div 
             v-for="stat in systemStats" 
             :key="stat.title"
-            class="stat-card"
+            class="compact-stat-card"
           >
-            <div class="stat-header">
-              <div class="stat-icon">
-                <n-icon :size="16" :component="stat.icon" />
+            <div class="compact-stat-content">
+              <div class="stat-icon-small" :style="{ color: stat.color }">
+                <n-icon :size="14" :component="stat.icon" />
               </div>
-              <div class="stat-info">
-                <div class="stat-title">{{ stat.title }}</div>
-                <div class="stat-value">{{ stat.value }}</div>
+              <div class="stat-main">
+                <div class="stat-title-small">{{ stat.title }}</div>
+                <div class="stat-value-large">{{ stat.value }}</div>
+                <div v-if="stat.total || stat.free" class="stat-extra-small">
+                  <span v-if="stat.total">/ {{ stat.total }}</span>
+                  <span v-if="stat.free" class="free-space-small">剩余 {{ stat.free }}</span>
+                </div>
+              </div>
+              
+              <!-- 网速卡片：显示实时指示器而不是百分比 -->
+              <div v-if="stat.title === '网络速度'" class="stat-network-indicator">
+                <div v-if="stat.value.includes('未知') || stat.value.includes('初始化') || stat.value.includes('计算中') || stat.value.includes('获取失败')" class="network-status-text">
+                  <span class="status-text">{{ stat.value.includes('未知') ? '检测中' : stat.value.includes('初始化') ? '准备中' : stat.value.includes('计算中') ? '计算中' : '获取失败' }}</span>
+                </div>
+                <div v-else class="network-status" :class="{ active: stat.percentage > 0 }">
+                  <div class="signal-bars">
+                    <div class="bar" :class="{ active: stat.percentage >= 25 }"></div>
+                    <div class="bar" :class="{ active: stat.percentage >= 50 }"></div>
+                    <div class="bar" :class="{ active: stat.percentage >= 75 }"></div>
+                    <div class="bar" :class="{ active: stat.percentage >= 100 }"></div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 其他卡片：显示百分比圆形进度条 -->
+              <div v-else class="stat-percentage">
+                <div class="percentage-text">{{ stat.percentage.toFixed(0) }}%</div>
+                <n-progress
+                  type="circle"
+                  :percentage="stat.percentage"
+                  :stroke-width="8"
+                  :show-indicator="false"
+                  :color="stat.color"
+                  :rail-color="'rgba(255,255,255,0.1)'"
+                  style="width: 32px; height: 32px;"
+                />
               </div>
             </div>
-            <div class="stat-progress">
-              <n-progress
-                type="line"
-                :percentage="stat.percentage"
-                :height="3"
-                :show-indicator="false"
-                :color="stat.color"
-                :rail-color="'rgba(255,255,255,0.08)'"
-              />
+          </div>
+        </div>
+        
+        <!-- 详细系统信息 - 可折叠 -->
+        <div v-show="showDetailedInfo" class="detailed-info-section">
+          <div class="info-summary">
+            <div class="summary-item">
+              <span class="summary-label">主机</span>
+              <span class="summary-value">{{ systemInfo.hostname }} ({{ systemInfo.os }})</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">硬件</span>
+              <span class="summary-value">{{ systemInfo.cpuCores }}核心 {{ systemInfo.cpuModel }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">运行</span>
+              <span class="summary-value">{{ systemInfo.uptime }}</span>
+            </div>
+                         <div class="summary-item">
+               <span class="summary-label">网络</span>
+               <span class="summary-value">{{ systemInfo.ipAddress }}</span>
+             </div>
+             <div class="summary-item">
+               <span class="summary-label">网速</span>
+               <span class="summary-value">{{ systemStats[4]?.value || '初始化中...' }}</span>
+             </div>
+             <div class="summary-item">
+               <span class="summary-label">Docker</span>
+               <span class="summary-value">{{ systemInfo.dockerVersion }}</span>
+             </div>
+            <div class="summary-item">
+              <span class="summary-label">内核</span>
+              <span class="summary-value">{{ systemInfo.kernel }}</span>
             </div>
           </div>
         </div>
@@ -325,6 +386,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
+import { useMessage } from 'naive-ui'
+import { getSystemStatus } from '@/api/system'
 import {
   CubeOutline,
   SearchOutline,
@@ -346,6 +409,7 @@ import {
 } from '@vicons/ionicons5'
 
 const router = useRouter()
+const message = useMessage()
 
 // 时间状态
 const currentTime = ref('')
@@ -386,46 +450,71 @@ const newApp = ref({
 // 系统统计数据
 const systemStats = ref([
   {
-    title: '运行容器',
-    value: '12',
-    trend: '+8.5%',
-    percentage: 75,
-    color: '#10b981',
-    icon: markRaw(CubeOutline)
-  },
-  {
-    title: '镜像数量',
-    value: '28',
-    trend: '+12.3%',
-    percentage: 60,
-    color: '#3b82f6',
-    icon: markRaw(ImageOutline)
-  },
-  {
-    title: '网络连接',
-    value: '5',
-    trend: '+2.1%',
-    percentage: 40,
-    color: '#8b5cf6',
-    icon: markRaw(GlobeOutline)
+    title: 'CPU使用率',
+    value: '0%',
+    percentage: 0,
+    color: '#ef4444',
+    icon: markRaw(StatsChartOutline),
+    description: '处理器负载'
   },
   {
     title: '内存使用',
-    value: '6.2GB',
-    trend: '+5.3%',
-    percentage: 68,
+    value: '0MB',
+    total: '0MB',
+    percentage: 0,
     color: '#f59e0b',
-    icon: markRaw(StatsChartOutline)
+    icon: markRaw(StatsChartOutline),
+    description: '系统内存'
   },
   {
-    title: 'CPU使用率',
-    value: '45%',
-    trend: '-3.2%',
-    percentage: 45,
-    color: '#ef4444',
-    icon: markRaw(StatsChartOutline)
+    title: '磁盘使用',
+    value: '0%',
+    free: '0GB',
+    percentage: 0,
+    color: '#8b5cf6',
+    icon: markRaw(StatsChartOutline),
+    description: '存储空间'
+  },
+  {
+    title: '运行容器',
+    value: '0',
+    total: '0',
+    percentage: 0,
+    color: '#10b981',
+    icon: markRaw(CubeOutline),
+    description: 'Docker容器'
+  },
+  {
+    title: '网络速度',
+    value: '初始化中...',
+    percentage: 0,
+    color: '#06b6d4',
+    icon: markRaw(GlobeOutline),
+    description: '实时网速'
   }
 ])
+
+// 系统基础信息
+const systemInfo = ref({
+  hostname: '获取中...',
+  os: '获取中...',
+  kernel: '获取中...',
+  uptime: '获取中...',
+  cpuModel: '获取中...',
+  cpuCores: 0,
+  ipAddress: '获取中...',
+  gateway: '获取中...',
+  dockerVersion: '获取中...'
+})
+
+// 系统状态加载状态
+const systemStatusLoading = ref(false)
+
+// 详细信息显示状态
+const showDetailedInfo = ref(false)
+
+// 系统状态定时器
+let systemStatusTimer: NodeJS.Timeout | null = null
 
 // 应用分类数据 - 外部应用假数据
 const appCategories = ref([
@@ -730,7 +819,7 @@ const filteredCategories = computed(() => {
 
 // 获取所有应用（不分组）
 const allApps = computed(() => {
-  const apps = []
+  const apps: any[] = []
   if (!searchQuery.value) {
     // 没有搜索时，显示所有应用
     appCategories.value.forEach(category => {
@@ -802,7 +891,9 @@ const handleFabAction = (action: any) => {
   switch (action.name) {
     case 'refresh':
       // 刷新数据
-      console.log('刷新数据')
+      loadSystemStatus()
+      getLocationAndWeather()
+      message.success('数据刷新中，网速需5-10秒显示准确值')
       break
     case 'terminal':
       // 打开终端
@@ -899,6 +990,112 @@ const getInternalUrlIcon = () => {
   }
 }
 
+// 获取系统状态
+const loadSystemStatus = async () => {
+  if (systemStatusLoading.value) return
+  
+  systemStatusLoading.value = true
+  
+  try {
+    await getSystemStatus({
+      onComplete: (data) => {
+        const status = data.data
+        if (status) {
+          // 更新系统统计数据
+          // 0. CPU使用率
+          if (status.cpuUsage !== undefined) {
+            systemStats.value[0].value = `${status.cpuUsage.toFixed(1)}%`
+            systemStats.value[0].percentage = status.cpuUsage
+          }
+          
+          // 1. 内存使用
+          if (status.memoryTotal && status.memoryUsed) {
+            const memoryUsedGB = (status.memoryUsed / 1024).toFixed(1)
+            const memoryTotalGB = (status.memoryTotal / 1024).toFixed(1)
+            systemStats.value[1].value = `${memoryUsedGB}GB`
+            systemStats.value[1].total = `${memoryTotalGB}GB`
+            systemStats.value[1].percentage = status.memoryUsage || 0
+          }
+          
+          // 2. 磁盘使用
+          if (status.diskUsage && status.diskFree) {
+            systemStats.value[2].value = status.diskUsage
+            systemStats.value[2].free = status.diskFree
+            // 从百分比字符串中提取数字
+            const diskPercent = parseInt(status.diskUsage.replace('%', ''))
+            systemStats.value[2].percentage = isNaN(diskPercent) ? 0 : diskPercent
+          }
+          
+          // 3. 运行容器
+          systemStats.value[3].value = status.runningContainers?.toString() || '0'
+          systemStats.value[3].total = status.totalContainers?.toString() || '0'
+          systemStats.value[3].percentage = status.totalContainers > 0 
+            ? Math.round((status.runningContainers / status.totalContainers) * 100) 
+            : 0
+          
+          // 4. 网络速度
+          if (status.networkDownloadSpeed && status.networkUploadSpeed) {
+            // 检查是否为特殊状态
+            if (status.networkDownloadSpeed.includes('初始化') || status.networkDownloadSpeed.includes('计算中') || status.networkDownloadSpeed.includes('未知') || status.networkDownloadSpeed.includes('获取失败')) {
+              systemStats.value[4].value = status.networkDownloadSpeed
+              systemStats.value[4].percentage = 0
+            } else {
+              systemStats.value[4].value = `↓${status.networkDownloadSpeed} ↑${status.networkUploadSpeed}`
+              // 根据网速设置信号强度（用下载速度计算）
+              const downloadSpeedRaw = status.networkDownloadSpeedRaw || 0
+              
+              // 信号强度分级：
+              // 0: 无网络 (0KB/s)
+              // 25: 低速 (0-100KB/s) 
+              // 50: 中速 (100KB/s-1MB/s)
+              // 75: 高速 (1MB/s-10MB/s)
+              // 100: 极速 (>10MB/s)
+              let signalStrength = 0
+              if (downloadSpeedRaw > 0) {
+                if (downloadSpeedRaw < 100 * 1024) {        // < 100KB/s
+                  signalStrength = 25
+                } else if (downloadSpeedRaw < 1024 * 1024) { // < 1MB/s
+                  signalStrength = 50
+                } else if (downloadSpeedRaw < 10 * 1024 * 1024) { // < 10MB/s
+                  signalStrength = 75
+                } else {                                      // >= 10MB/s
+                  signalStrength = 100
+                }
+              }
+              systemStats.value[4].percentage = signalStrength
+            }
+          } else {
+            systemStats.value[4].value = '0KB/s'
+            systemStats.value[4].percentage = 0
+          }
+          
+          // 更新系统基础信息
+          systemInfo.value = {
+            hostname: status.hostname || '未知',
+            os: status.os || '未知',
+            kernel: status.kernel || '未知',
+            uptime: status.uptime || '未知',
+            cpuModel: status.cpuModel || '未知',
+            cpuCores: status.cpuCores || 0,
+            ipAddress: status.ipAddress || '未知',
+            gateway: status.gateway || '未知',
+            dockerVersion: status.dockerVersion || '未知'
+          }
+        }
+      },
+      onError: (error) => {
+        console.error('获取系统状态失败:', error)
+        message.error('获取系统状态失败: ' + error)
+      }
+    })
+  } catch (error) {
+    console.error('获取系统状态失败:', error)
+    message.error('获取系统状态失败')
+  } finally {
+    systemStatusLoading.value = false
+  }
+}
+
 // 显示天气详情
 const showWeatherDetails = () => {
   // 可以跳转到天气详情页面或显示弹窗
@@ -982,8 +1179,8 @@ const getDefaultWeather = async () => {
 }
 
 // 从时区获取位置名称
-const getLocationFromTimezone = (timezone) => {
-  const cityMap = {
+const getLocationFromTimezone = (timezone: string) => {
+  const cityMap: Record<string, string> = {
     'Asia/Shanghai': '上海',
     'Asia/Beijing': '北京',
     'Asia/Tokyo': '东京',
@@ -994,11 +1191,11 @@ const getLocationFromTimezone = (timezone) => {
     'Australia/Sydney': '悉尼'
   }
   
-  return cityMap[timezone] || timezone.split('/').pop().replace('_', ' ')
+  return cityMap[timezone] || timezone.split('/').pop()?.replace('_', ' ') || timezone
 }
 
 // 根据天气代码获取图标
-const getWeatherIcon = (weatherCode) => {
+const getWeatherIcon = (weatherCode: number) => {
   // WMO Weather interpretation codes (WW)
   if (weatherCode === 0) return markRaw(SunnyOutline) // 晴天
   if (weatherCode <= 3) return markRaw(PartlySunnyOutline) // 晴到多云
@@ -1018,11 +1215,22 @@ onMounted(async () => {
   updateTime()
   timeInterval = setInterval(updateTime, 1000)
   getLocationAndWeather()
+  
+  // 立即加载一次系统状态
+  await loadSystemStatus()
+  
+  // 启动系统状态定时刷新（5秒间隔）
+  systemStatusTimer = setInterval(() => {
+    loadSystemStatus()
+  }, 5000)
 })
 
 onUnmounted(() => {
   if (timeInterval) {
     clearInterval(timeInterval)
+  }
+  if (systemStatusTimer) {
+    clearInterval(systemStatusTimer)
   }
 })
 </script>
@@ -1233,9 +1441,9 @@ onUnmounted(() => {
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
 }
 
-/* 统计卡片网格 */
+/* 系统状态总览 - 紧凑版 */
 .stats-section {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   width: 100%;
   max-width: 1200px;
 }
@@ -1244,107 +1452,236 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 0px;
-  margin-bottom: 8px;
+  padding: 8px 0;
+  margin-bottom: 12px;
 }
 
 .section-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #f8fafc;
-  opacity: 0.9;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
-.stats-grid {
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 紧凑型性能卡片网格 */
+.compact-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 8px;
-  margin-bottom: 20px;
-  background: transparent;
-  border: none;
-  padding: 16px;
-  justify-content: center;
+  margin-bottom: 12px;
 }
 
-.stat-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: none;
+.compact-stat-card {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  padding: 12px;
   transition: all 0.3s ease;
-  min-height: 50px;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
-.stat-card:hover {
-  background: rgba(255, 255, 255, 0.1);
+.compact-stat-card:hover {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.25);
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
 }
 
-.stat-header {
+.compact-stat-content {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
+  gap: 12px;
 }
 
-.stat-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  background: rgba(59, 130, 246, 0.15);
-  border: none;
+.stat-icon-small {
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #3b82f6;
   flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
-.stat-info {
+.stat-main {
   flex: 1;
   min-width: 0;
 }
 
-.stat-title {
+.stat-title-small {
   font-size: 10px;
-  color: #94a3b8;
-  margin-bottom: 1px;
+  color: #e2e8f0;
+  margin-bottom: 2px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.stat-value-large {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.2;
+  margin-bottom: 1px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+.stat-extra-small {
+  font-size: 9px;
+  color: #cbd5e1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.free-space-small {
+  color: #34d399;
   font-weight: 500;
 }
 
-.stat-value {
-  font-size: 13px;
+.stat-percentage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.percentage-text {
+  font-size: 9px;
+  color: #e2e8f0;
   font-weight: 600;
-  color: #f8fafc;
-  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-.stat-progress {
-  width: 100%;
-  margin-top: 2px;
+/* 网络速度指示器样式 */
+.stat-network-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
-.stat-progress :deep(.n-progress-line) {
-  height: 3px !important;
-  border-radius: 2px !important;
+.network-status-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
 }
 
-.stat-progress :deep(.n-progress-line__fill) {
-  border-radius: 2px !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+.status-text {
+  font-size: 8px;
+  color: #94a3b8;
+  text-align: center;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-.stat-progress :deep(.n-progress-line__rail) {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border-radius: 2px !important;
+.network-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.signal-bars {
+  display: flex;
+  align-items: end;
+  gap: 2px;
+  height: 16px;
+}
+
+.signal-bars .bar {
+  width: 3px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.signal-bars .bar:nth-child(1) { height: 4px; }
+.signal-bars .bar:nth-child(2) { height: 7px; }
+.signal-bars .bar:nth-child(3) { height: 10px; }
+.signal-bars .bar:nth-child(4) { height: 13px; }
+
+.signal-bars .bar.active {
+  background: #06b6d4;
+  box-shadow: 0 0 4px rgba(6, 182, 212, 0.4);
+}
+
+.network-status.active .signal-bars .bar.active {
+  animation: pulse-bar 2s ease-in-out infinite;
+}
+
+@keyframes pulse-bar {
+  0%, 100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scaleY(1.2);
+  }
+}
+
+/* 详细系统信息 - 可折叠 */
+.detailed-info-section {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.info-summary {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+  backdrop-filter: blur(20px);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+}
+
+.summary-label {
+  font-size: 9px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.summary-value {
+  font-size: 11px;
+  color: #ffffff;
+  font-weight: 500;
+  word-break: break-all;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 
 /* 应用网格 - 简洁布局 */
@@ -1535,10 +1872,22 @@ onUnmounted(() => {
     padding: 12px;
   }
   
-  .stats-grid {
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  .compact-stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 6px;
-    padding: 12px;
+  }
+  
+  .compact-stat-card {
+    padding: 10px;
+  }
+  
+  .stat-value-large {
+    font-size: 14px;
+  }
+  
+  .info-summary {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 6px;
   }
   
   .all-apps-grid {
@@ -1593,33 +1942,56 @@ onUnmounted(() => {
     font-size: 20px;
   }
   
-  .stats-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
+  .compact-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  
+  .compact-stat-card {
     padding: 10px;
   }
   
-  .stat-card {
-    padding: 8px;
-    gap: 4px;
-    min-height: 40px;
+  .compact-stat-content {
+    gap: 8px;
   }
   
-  .stat-icon {
-    width: 16px;
-    height: 16px;
+  .stat-icon-small {
+    width: 20px;
+    height: 20px;
   }
   
-  .stat-value {
-    font-size: 11px;
+  .stat-value-large {
+    font-size: 13px;
   }
   
-  .stat-title {
+  .stat-title-small {
+    font-size: 9px;
+  }
+  
+  .stat-extra-small {
     font-size: 8px;
   }
   
-  .stat-progress :deep(.n-progress-line) {
-    height: 2px !important;
+  .percentage-text {
+    font-size: 8px;
+  }
+  
+  .info-summary {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 10px;
+  }
+  
+  .summary-item {
+    padding: 4px 0;
+  }
+  
+  .summary-label {
+    font-size: 8px;
+  }
+  
+  .summary-value {
+    font-size: 10px;
   }
   
   .all-apps-grid {
@@ -1688,33 +2060,65 @@ onUnmounted(() => {
     font-size: 10px;
   }
   
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 3px;
+  .section-header h3 {
+    font-size: 14px;
+  }
+  
+  .compact-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  
+  .compact-stat-card {
     padding: 8px;
   }
   
-  .stat-card {
-    padding: 6px;
-    gap: 3px;
-    min-height: 35px;
+  .compact-stat-content {
+    gap: 6px;
   }
   
-  .stat-icon {
-    width: 14px;
-    height: 14px;
+  .stat-icon-small {
+    width: 18px;
+    height: 18px;
   }
   
-  .stat-value {
-    font-size: 10px;
+  .stat-value-large {
+    font-size: 11px;
   }
   
-  .stat-title {
+  .stat-title-small {
+    font-size: 8px;
+  }
+  
+  .stat-extra-small {
     font-size: 7px;
   }
   
-  .stat-progress :deep(.n-progress-line) {
-    height: 2px !important;
+  .percentage-text {
+    font-size: 7px;
+  }
+  
+  .info-summary {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 8px;
+  }
+  
+  .summary-item {
+    padding: 3px 0;
+  }
+  
+  .summary-label {
+    font-size: 7px;
+  }
+  
+  .summary-value {
+    font-size: 9px;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    gap: 4px;
   }
   
   .all-apps-grid {
