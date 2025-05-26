@@ -40,7 +40,7 @@ if [ "$1" == "latest" ]; then
     BRANCH=${2:-main}
 else
     VERSION="test"
-    BRANCH=${2:-feature/yaml-template}
+    BRANCH=${2:-main}
 fi
 GIT_REPO="https://github.com/kidoneself/DockPilot.git"
 
@@ -441,13 +441,13 @@ show_usage() {
     echo ""
     echo "参数:"
     echo "  VERSION  - 镜像版本标签 (默认: test，只有输入latest时才使用latest)"
-    echo "  BRANCH   - Git分支名称 (test版本默认: feature/yaml-template, latest版本默认: main)"
+    echo "  BRANCH   - Git分支名称 (默认: main)"
     echo ""
     echo "示例:"
-    echo "  $0                          # 构建test版本，使用feature/yaml-template分支"
+    echo "  $0                          # 构建test版本，使用main分支"
     echo "  $0 latest                   # 构建latest版本，使用main分支"
-    echo "  $0 latest feature/yaml-template  # 构建latest版本，使用feature/yaml-template分支"
-    echo "  $0 v1.0.0                   # 构建test版本，使用feature/yaml-template分支（任何非latest参数都默认为test）"
+    echo "  $0 latest main              # 构建latest版本，使用main分支"
+    echo "  $0 v1.0.0                   # 构建test版本，使用main分支（任何非latest参数都默认为test）"
     echo ""
     echo "🚀 自动化构建流程:"
     echo "  1. 清理所有相关Docker资源（容器、镜像、缓存）"
