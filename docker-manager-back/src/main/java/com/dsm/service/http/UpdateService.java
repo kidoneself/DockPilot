@@ -404,18 +404,142 @@ public class UpdateService {
     }
 
     /**
-     * 获取当前版本
+     * 获取当前版本 - 多种方式尝试
      */
     private String getCurrentVersion() {
+        log.debug("🔍 开始获取当前版本信息...");
+        
+        // 方法1: 从版本文件读取（热更新后会写入）
         try {
             Path versionFile = Paths.get(VERSION_FILE);
             if (Files.exists(versionFile)) {
-                return Files.readString(versionFile).trim();
+                String version = Files.readString(versionFile).trim();
+                if (!version.isEmpty() && !version.equals("unknown")) {
+                    log.debug("✅ 从版本文件获取版本: {}", version);
+                    return version;
+                }
             }
         } catch (IOException e) {
-            log.warn("读取版本文件失败", e);
+            log.warn("读取版本文件失败: {}", e.getMessage());
         }
-        return "unknown";
+        
+        // 方法2: 从环境变量读取
+        String envVersion = System.getenv("DOCKPILOT_VERSION");
+        if (envVersion != null && !envVersion.trim().isEmpty() && !envVersion.equals("latest")) {
+            log.debug("✅ 从环境变量获取版本: {}", envVersion);
+            return envVersion;
+        }
+        
+        // 方法3: 从application.properties读取
+        try {
+            String propVersion = getVersionFromProperties();
+            if (propVersion != null && !propVersion.trim().isEmpty()) {
+                log.debug("✅ 从配置文件获取版本: {}", propVersion);
+                return propVersion;
+            }
+        } catch (Exception e) {
+            log.warn("从配置文件读取版本失败: {}", e.getMessage());
+        }
+        
+        // 方法4: 从MANIFEST.MF读取
+        try {
+            String manifestVersion = getVersionFromManifest();
+            if (manifestVersion != null && !manifestVersion.trim().isEmpty()) {
+                log.debug("✅ 从MANIFEST获取版本: {}", manifestVersion);
+                return manifestVersion;
+            }
+        } catch (Exception e) {
+            log.warn("从MANIFEST读取版本失败: {}", e.getMessage());
+        }
+        
+        // 方法5: 返回默认版本
+        String defaultVersion = "v1.0.7";
+        log.warn("⚠️ 无法获取版本信息，使用默认版本: {}", defaultVersion);
+        
+        // 尝试创建版本文件
+        try {
+            createDefaultVersionFile(defaultVersion);
+        } catch (Exception e) {
+            log.warn("创建默认版本文件失败: {}", e.getMessage());
+        }
+        
+        return defaultVersion;
+    }
+    
+    /**
+     * 从application.properties读取版本
+     */
+    private String getVersionFromProperties() {
+        try {
+            // 尝试从Spring Boot的配置中读取
+            String version = System.getProperty("app.version");
+            if (version != null && !version.trim().isEmpty()) {
+                return version;
+            }
+            
+            // 尝试从类路径下的配置文件读取
+            InputStream is = getClass().getClassLoader().getResourceAsStream("application.properties");
+            if (is != null) {
+                java.util.Properties props = new java.util.Properties();
+                props.load(is);
+                version = props.getProperty("app.version");
+                if (version != null && !version.trim().isEmpty()) {
+                    return version;
+                }
+            }
+        } catch (Exception e) {
+            log.debug("从properties读取版本失败: {}", e.getMessage());
+        }
+        return null;
+    }
+    
+    /**
+     * 从MANIFEST.MF读取版本
+     */
+    private String getVersionFromManifest() {
+        try {
+            Package pkg = this.getClass().getPackage();
+            String version = pkg.getImplementationVersion();
+            if (version != null && !version.trim().isEmpty()) {
+                return "v" + version;
+            }
+            
+            // 尝试从jar的MANIFEST.MF读取
+            java.net.URL jarUrl = this.getClass().getProtectionDomain().getCodeSource().getLocation();
+            if (jarUrl.toString().endsWith(".jar")) {
+                java.util.jar.JarFile jarFile = new java.util.jar.JarFile(jarUrl.getPath());
+                java.util.jar.Manifest manifest = jarFile.getManifest();
+                if (manifest != null) {
+                    java.util.jar.Attributes attrs = manifest.getMainAttributes();
+                    version = attrs.getValue("Implementation-Version");
+                    if (version != null && !version.trim().isEmpty()) {
+                        return "v" + version;
+                    }
+                    version = attrs.getValue("Bundle-Version");
+                    if (version != null && !version.trim().isEmpty()) {
+                        return "v" + version;
+                    }
+                }
+                jarFile.close();
+            }
+        } catch (Exception e) {
+            log.debug("从MANIFEST读取版本失败: {}", e.getMessage());
+        }
+        return null;
+    }
+    
+    /**
+     * 创建默认版本文件
+     */
+    private void createDefaultVersionFile(String defaultVersion) {
+        try {
+            Path versionFile = Paths.get(VERSION_FILE);
+            Files.createDirectories(versionFile.getParent());
+            Files.writeString(versionFile, defaultVersion);
+            log.info("✅ 已创建默认版本文件: {} -> {}", VERSION_FILE, defaultVersion);
+        } catch (IOException e) {
+            log.warn("创建默认版本文件失败: {}", e.getMessage());
+        }
     }
 
     /**

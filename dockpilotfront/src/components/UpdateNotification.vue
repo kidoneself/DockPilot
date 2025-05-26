@@ -1,175 +1,101 @@
-<!-- 更新通知组件 -->
+<!-- 关于项目组件 -->
 <template>
-  <div class="update-notification">
-    <!-- 更新提示按钮 -->
-    <n-badge :value="hasUpdate ? '!' : ''" class="update-badge">
-      <n-button 
-        type="primary" 
-        circle 
-        @click="showUpdateDialog = true"
-        :loading="checking"
-        :disabled="isUpdating"
-        class="update-button"
-      >
-        <template #icon>
-          <n-icon :component="updateIcon" />
-        </template>
-      </n-button>
-    </n-badge>
-
-    <!-- 更新对话框 -->
-    <n-modal 
-      v-model:show="showUpdateDialog" 
-      preset="dialog"
-      title="系统更新" 
-      style="width: 600px"
-      :close-on-esc="!isUpdating"
-      :mask-closable="!isUpdating"
-    >
-      <!-- 检查更新状态 -->
-      <div v-if="!updateInfo && checking" class="loading-state">
-        <n-spin size="medium" />
-        <span>正在检查更新...</span>
-      </div>
-
-      <!-- 没有更新 -->
-      <div v-else-if="updateInfo && !updateInfo.hasUpdate" class="no-update">
-        <n-result 
-          status="success" 
-          title="当前已是最新版本"
-          :description="'当前版本: ' + updateInfo.currentVersion"
-        >
-          <template #footer>
-            <n-button type="primary" @click="recheckUpdate">重新检查</n-button>
-          </template>
-        </n-result>
-      </div>
-
-      <!-- 有新版本可用 -->
-      <div v-else-if="updateInfo && updateInfo.hasUpdate && !isUpdating" class="update-available">
-        <div class="version-info">
-          <h3>🎉 发现新版本</h3>
-          <div class="version-comparison">
-            <span class="current-version">当前版本: {{ updateInfo.currentVersion }}</span>
-            <n-icon class="arrow-icon"><ArrowForward /></n-icon>
-            <span class="latest-version">最新版本: {{ updateInfo.latestVersion }}</span>
-          </div>
-        </div>
-
-        <div v-if="updateInfo.releaseNotes" class="release-notes">
-          <h4>更新内容</h4>
-          <div class="notes-content" v-html="formatReleaseNotes(updateInfo.releaseNotes)"></div>
-        </div>
-
-        <div class="update-options">
-          <n-alert
-            title="热更新说明"
-            type="info"
-            :closable="false"
+  <div class="about-notification">
+    <!-- 简洁的关于按钮 -->
+    <div class="about-button-container">
+      <n-tooltip trigger="hover" placement="bottom">
+        <template #trigger>
+          <n-button 
+            text
+            @click="showAboutDialog = true"
+            class="about-button"
+            :class="{ 'has-update': hasUpdate }"
           >
-            将在容器内进行热更新，无需重启容器，期间可能有短暂的服务中断
-          </n-alert>
+            <template #icon>
+              <n-icon size="16" :component="InformationCircleOutline" />
+            </template>
+            {{ displayVersion }}
+          </n-button>
+        </template>
+        <div class="tooltip-content">
+          <div>DockPilot {{ displayVersion }}</div>
+          <div v-if="hasUpdate" style="color: #f0a020;">🎉 有新版本可用</div>
+          <div v-else-if="isUpdating" style="color: #409eff;">🔄 正在更新中</div>
+          <div v-else style="color: #18a058;">✅ 当前最新版本</div>
         </div>
+      </n-tooltip>
+      
+      <!-- 更新提示小红点 -->
+      <div v-if="hasUpdate && !isUpdating" class="update-dot"></div>
       </div>
 
-      <!-- 更新进行中 -->
-      <div v-else-if="isUpdating" class="updating-state">
-        <div class="update-header">
-          <h3>🚀 正在执行热更新</h3>
-          <p>目标版本: {{ updateProgress.targetVersion || updateInfo?.latestVersion }}</p>
-        </div>
-
-        <div class="progress-section">
-          <n-progress 
-            type="line"
-            :percentage="updateProgress.progress || 0" 
-            :status="getProgressStatus()"
-            :stroke-width="8"
-          />
-          <div class="progress-message">
-            {{ updateProgress.message || '准备中...' }}
+        <!-- 关于项目对话框 -->
+    <n-modal 
+      v-model:show="showAboutDialog" 
+      preset="card"
+      title="关于 DockPilot" 
+      style="width: 500px"
+    >
+      <div class="about-content">
+        <!-- 项目头部 -->
+        <div class="project-header">
+          <div class="project-logo">🐳</div>
+          <div class="project-info">
+            <h2>DockPilot {{ displayVersion }}</h2>
+            <p>现代化Docker容器管理平台</p>
+            <div class="version-status">
+              <n-tag v-if="hasUpdate" type="warning" size="small">🎉 有新版本可用</n-tag>
+              <n-tag v-else-if="isUpdating" type="info" size="small">🔄 更新中</n-tag>
+              <n-tag v-else type="success" size="small">✅ 最新版本</n-tag>
+      </div>
           </div>
         </div>
 
-        <div class="update-logs">
-          <h4>更新日志</h4>
-          <div class="logs-container" ref="logsContainer">
-            <div v-for="(log, index) in updateLogs" :key="index" class="log-item">
-              <span class="log-time">{{ log.time }}</span>
-              <span class="log-message">{{ log.message }}</span>
+        <!-- 作者信息 -->
+        <div class="contact-section">
+          <div class="author-info">
+            <h3>👨‍💻 kidoneself</h3>
+            <p>GitHub: <n-text type="info" @click="openGithub" class="github-link">kidoneself/DockPilot</n-text></p>
+          </div>
+        </div>
+
+        <!-- 版本更新区域 -->
+        <div class="update-section">
+          <!-- 有新版本 -->
+          <div v-if="hasUpdate && !isUpdating" class="update-alert">
+            <n-alert type="warning" :closable="false">
+              <template #header>🎉 发现新版本 {{ updateInfo?.latestVersion }}</template>
+              <div class="update-actions">
+                <n-button type="primary" size="small" @click="startUpdate" :loading="startingUpdate">
+                  立即更新
+                </n-button>
+                <n-button size="small" @click="recheckUpdate">重新检查</n-button>
+              </div>
+            </n-alert>
+          </div>
+          
+          <!-- 更新中 -->
+          <div v-else-if="isUpdating" class="updating-status">
+            <n-progress :percentage="updateProgress.progress || 0" :status="getProgressStatus()" />
+            <p class="update-message">{{ updateProgress.message || '正在更新...' }}</p>
+          </div>
+          
+          <!-- 正常状态 -->
+          <div v-else class="normal-status">
+            <n-button text size="small" @click="checkForUpdates" :loading="checking">
+              检查更新
+            </n-button>
+            <div v-if="updateInfo && !hasUpdate" class="up-to-date">
+              ✅ 当前已是最新版本
             </div>
           </div>
         </div>
 
-        <!-- 只有在非关键阶段才显示取消按钮 -->
-        <div v-if="canCancel" class="cancel-section">
-          <n-button type="error" @click="handleCancelUpdate" :loading="cancelling">
-            取消更新
-          </n-button>
+        <!-- 支持项目 -->
+        <div class="support-section">
+          <p class="support-text">🙏 如果项目对你有帮助，欢迎 Star ⭐ 或打赏支持</p>
         </div>
       </div>
-
-      <!-- 更新完成 -->
-      <div v-else-if="updateCompleted" class="update-completed">
-        <n-result 
-          status="success" 
-          title="更新完成！"
-          :description="'已成功更新到版本: ' + (updateProgress.targetVersion || updateInfo?.latestVersion)"
-        >
-          <template #footer>
-            <n-space>
-              <n-button type="primary" @click="reloadPage">刷新页面</n-button>
-              <n-button @click="closeDialog">稍后刷新</n-button>
-            </n-space>
-          </template>
-        </n-result>
-      </div>
-
-      <!-- 更新失败 -->
-      <div v-else-if="updateFailed" class="update-failed">
-        <n-result 
-          status="error" 
-          title="更新失败"
-          :description="updateProgress.error || '未知错误'"
-        >
-          <template #footer>
-            <n-space>
-              <n-button type="primary" @click="retryUpdate">重试更新</n-button>
-              <n-button @click="closeDialog">关闭</n-button>
-            </n-space>
-          </template>
-        </n-result>
-      </div>
-
-      <!-- 初始状态 -->
-      <div v-else class="initial-state">
-        <div class="update-content">
-          <p>点击下方按钮检查是否有新版本可用</p>
-          <p>当前版本: {{ currentVersion }}</p>
-        </div>
-      </div>
-
-      <template #action v-if="!isUpdating && !updateCompleted && !updateFailed">
-        <n-space>
-          <n-button @click="closeDialog">关闭</n-button>
-          <n-button 
-            v-if="!updateInfo"
-            type="primary" 
-            @click="checkForUpdates"
-            :loading="checking"
-          >
-            检查更新
-          </n-button>
-          <n-button 
-            v-else-if="updateInfo.hasUpdate" 
-            type="primary" 
-            @click="startUpdate"
-            :loading="startingUpdate"
-          >
-            开始更新
-          </n-button>
-        </n-space>
-      </template>
     </n-modal>
   </div>
 </template>
@@ -177,7 +103,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
-import { CloudUploadOutline, ReloadOutline, ArrowForward } from '@vicons/ionicons5'
+import { 
+  InformationCircleOutline, 
+  CloudUploadOutline, 
+  ReloadOutline
+} from '@vicons/ionicons5'
 import { 
   checkUpdate, 
   applyHotUpdate, 
@@ -192,7 +122,7 @@ const message = useMessage()
 const dialog = useDialog()
 
 // 响应式数据
-const showUpdateDialog = ref(false)
+const showAboutDialog = ref(false)
 const checking = ref(false)
 const updateInfo = ref<UpdateInfo | null>(null)
 const updateProgress = ref<UpdateProgress>({
@@ -202,15 +132,14 @@ const updateProgress = ref<UpdateProgress>({
   isUpdating: false,
   timestamp: ''
 })
-const updateLogs = ref<Array<{ time: string, message: string }>>([])
 const startingUpdate = ref(false)
-const cancelling = ref(false)
-const logsContainer = ref<HTMLElement>()
 const currentVersion = ref('v1.0.0')
 
 // 定时器
 let checkTimer: NodeJS.Timeout | null = null
 let progressTimer: NodeJS.Timeout | null = null
+
+// 删除不需要的数据，简化组件
 
 // 计算属性
 const hasUpdate = computed(() => updateInfo.value?.hasUpdate || false)
@@ -222,12 +151,19 @@ const canCancel = computed(() => {
   return status === 'downloading' || status === 'starting'
 })
 
-const updateIcon = computed(() => {
-  if (isUpdating.value) return ReloadOutline
-  return CloudUploadOutline
+const displayVersion = computed(() => {
+  if (updateInfo.value?.currentVersion) {
+    return updateInfo.value.currentVersion
+  }
+  return currentVersion.value
 })
 
 // 方法
+
+const openGithub = () => {
+  window.open('https://github.com/kidoneself/DockPilot', '_blank')
+}
+
 const checkForUpdates = async () => {
   if (checking.value) return
   
@@ -235,7 +171,24 @@ const checkForUpdates = async () => {
   try {
     const result = await checkUpdate()
     updateInfo.value = result
-    currentVersion.value = result.currentVersion
+    
+    // 确保版本信息有效，防止显示 "unknown" 或空值
+    if (result.currentVersion && result.currentVersion !== 'unknown' && result.currentVersion.trim() !== '') {
+      currentVersion.value = result.currentVersion
+      console.log('✅ 从后端获取版本:', result.currentVersion)
+    } else {
+      console.warn('⚠️ 后端返回的版本信息无效:', result.currentVersion, '保持前端默认版本:', currentVersion.value)
+      // 确保不会被覆盖为unknown
+      if (!currentVersion.value || currentVersion.value === 'unknown') {
+        currentVersion.value = 'v1.0.7'
+      }
+    }
+    
+    console.log('✅ 更新检查完成:', {
+      hasUpdate: result.hasUpdate,
+      currentVersion: currentVersion.value,
+      latestVersion: result.latestVersion
+    })
     
     if (result.hasUpdate) {
       message.success(`发现新版本 ${result.latestVersion}`)
@@ -244,7 +197,10 @@ const checkForUpdates = async () => {
     }
   } catch (error) {
     console.error('检查更新失败:', error)
-    message.error('检查更新失败：' + (error as any)?.message || '网络连接错误')
+    // 开发环境显示错误，生产环境静默处理
+    if (process.env.NODE_ENV === 'development') {
+      message.error('检查更新失败：' + (error as any)?.message || '网络连接错误')
+    }
   } finally {
     checking.value = false
   }
@@ -263,20 +219,43 @@ const startUpdate = async () => {
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        startingUpdate.value = true
-        await applyHotUpdate()
-        
-        // 开始监控更新进度
-        startProgressMonitoring()
-        
-      } catch (error) {
-        console.error('启动更新失败:', error)
+    startingUpdate.value = true
+    await applyHotUpdate()
+    
+    // 开始监控更新进度
+    startProgressMonitoring()
+    
+  } catch (error) {
+      console.error('启动更新失败:', error)
         message.error('启动更新失败：' + (error as any)?.message)
-      } finally {
-        startingUpdate.value = false
-      }
+  } finally {
+    startingUpdate.value = false
+  }
     }
   })
+}
+
+// 处理更新完成和失败的情况
+const handleUpdateComplete = () => {
+  message.success('更新完成！页面即将刷新')
+  setTimeout(() => {
+    window.location.reload()
+  }, 2000)
+}
+
+const handleUpdateFailed = () => {
+  message.error('更新失败，请稍后重试')
+  // 重置状态以便重新尝试
+  setTimeout(() => {
+    updateInfo.value = null
+    updateProgress.value = {
+      status: '',
+      progress: 0,
+      message: '',
+      isUpdating: false,
+      timestamp: ''
+    }
+  }, 3000)
 }
 
 const startProgressMonitoring = () => {
@@ -287,14 +266,15 @@ const startProgressMonitoring = () => {
       const progress = await getUpdateProgress()
       updateProgress.value = progress
       
-      // 添加到日志
-      if (progress.message && progress.message !== updateLogs.value[updateLogs.value.length - 1]?.message) {
-        addUpdateLog(progress.message)
-      }
+      // 简化版本不显示详细日志
       
-      // 如果更新完成或失败，停止监控
-      if (progress.status === 'completed' || progress.status === 'failed') {
+      // 如果更新完成或失败，停止监控并处理
+      if (progress.status === 'completed') {
         stopProgressMonitoring()
+        handleUpdateComplete()
+      } else if (progress.status === 'failed') {
+        stopProgressMonitoring()
+        handleUpdateFailed()
       }
       
     } catch (error) {
@@ -311,44 +291,16 @@ const stopProgressMonitoring = () => {
   }
 }
 
-const addUpdateLog = (message: string) => {
-  const now = new Date().toLocaleTimeString()
-  updateLogs.value.push({ time: now, message })
-  
-  // 自动滚动到底部
-  nextTick(() => {
-    if (logsContainer.value) {
-      logsContainer.value.scrollTop = logsContainer.value.scrollHeight
-    }
-  })
-}
+// 删除日志和取消相关功能，简化版本不需要
 
-const handleCancelUpdate = async () => {
-  dialog.warning({
-    title: '取消更新',
-    content: '确定要取消更新吗？这可能导致系统处于不稳定状态。',
-    positiveText: '确定取消',
-    negativeText: '继续更新',
-    onPositiveClick: async () => {
-      try {
-        cancelling.value = true
-        await cancelUpdate()
-        stopProgressMonitoring()
-        
-        message.info('更新已取消')
-        closeDialog()
-        
-      } catch (error) {
-        console.error('取消更新失败:', error)
-        message.error('取消更新失败')
-      } finally {
-        cancelling.value = false
-      }
-    }
-  })
-}
+// 删除不再需要的方法
 
-const retryUpdate = () => {
+const closeDialog = () => {
+  showAboutDialog.value = false
+    stopProgressMonitoring()
+  // 重置状态
+  if (!isUpdating.value) {
+    updateInfo.value = null
   updateProgress.value = {
     status: '',
     progress: 0,
@@ -356,28 +308,6 @@ const retryUpdate = () => {
     isUpdating: false,
     timestamp: ''
   }
-  updateLogs.value = []
-  startUpdate()
-}
-
-const reloadPage = () => {
-  window.location.reload()
-}
-
-const closeDialog = () => {
-  showUpdateDialog.value = false
-  stopProgressMonitoring()
-  // 重置状态
-  if (!isUpdating.value) {
-    updateInfo.value = null
-    updateProgress.value = {
-      status: '',
-      progress: 0,
-      message: '',
-      isUpdating: false,
-      timestamp: ''
-    }
-    updateLogs.value = []
   }
 }
 
@@ -399,10 +329,24 @@ const formatReleaseNotes = (notes: string) => {
 
 // 生命周期
 onMounted(() => {
+  // 设置默认版本 - 确保总是有一个合理的版本显示
+  const defaultVersion = 'v1.0.7'
+  currentVersion.value = process.env.VUE_APP_VERSION || defaultVersion
+  
+  console.log('🔍 初始化版本信息:', {
+    envVersion: process.env.VUE_APP_VERSION,
+    currentVersion: currentVersion.value,
+    nodeEnv: process.env.NODE_ENV
+  })
+  
   // 静默检查一次更新（不显示错误）
-  checkForUpdates().catch(() => {
+  checkForUpdates().catch((error) => {
     // 静默失败，可能后端未启动
-    console.log('后端服务暂未启动，将在需要时连接')
+    console.log('后端服务暂未启动，将在需要时连接:', error?.message || 'unknown error')
+    // 即使后端失败，也保持默认版本
+    if (!currentVersion.value || currentVersion.value === 'unknown') {
+      currentVersion.value = defaultVersion
+    }
   })
   
   // 每30分钟自动检查一次更新
@@ -422,23 +366,188 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.update-notification {
+.about-notification {
   position: relative;
 }
 
-.update-button {
+.about-button-container {
+  position: relative;
+  display: inline-block;
+}
+
+.about-button {
+  color: #666666 !important;
   transition: all 0.3s ease;
+  padding: 4px 8px;
+  font-size: 13px;
+  border-radius: 6px;
+  font-weight: 500;
 }
 
-.update-button:hover {
-  transform: scale(1.1);
+.about-button:hover {
+  color: #333333 !important;
 }
 
-.update-badge :deep(.n-badge-sup) {
-  background-color: #f56c6c;
-  border-color: #f56c6c;
+.about-button.has-update {
+  color: #f0a020 !important;
 }
 
+.update-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background: #f56c6c;
+  border: 1px solid white;
+  border-radius: 50%;
+  animation: pulse-dot 2s infinite;
+  z-index: 10;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+.tooltip-content {
+  text-align: center;
+  font-size: 12px;
+}
+
+/* 简化的关于页面样式 */
+.about-content {
+  padding: 0;
+}
+
+.project-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.project-logo {
+  font-size: 32px;
+  margin-right: 12px;
+}
+
+.project-info h2 {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  color: #ffffff !important;
+}
+
+.project-info p {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  opacity: 0.95;
+  color: #ffffff !important;
+}
+
+.version-status {
+  display: flex;
+  gap: 8px;
+}
+
+.version-status .n-tag {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  backdrop-filter: blur(10px);
+  font-weight: 500;
+}
+
+.contact-section {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.author-info {
+  padding: 16px;
+}
+
+.author-info h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.author-info p {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.github-link {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.github-link:hover {
+  text-decoration: underline;
+}
+
+.update-section {
+  margin: 16px 0;
+  padding: 12px 0;
+  border-top: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+
+
+.update-alert .update-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.updating-status {
+  text-align: center;
+}
+
+.update-message {
+  margin: 8px 0 0 0;
+  font-size: 12px;
+  color: #666;
+}
+
+.normal-status {
+  text-align: center;
+}
+
+.up-to-date {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #18a058;
+}
+
+.support-section {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.support-text {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.4;
+}
+
+/* 更新相关样式 */
 .loading-state {
   text-align: center;
   padding: 40px 0;
@@ -456,7 +565,7 @@ onUnmounted(() => {
   padding: 20px 0;
 }
 
-.version-info h3 {
+.version-info-section h3 {
   margin: 0 0 16px 0;
   color: #18a058;
 }
@@ -503,6 +612,12 @@ onUnmounted(() => {
 
 .update-options {
   margin-top: 20px;
+}
+
+.update-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
 }
 
 .updating-state {
