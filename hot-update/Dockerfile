@@ -49,10 +49,10 @@ FROM node:18-alpine AS frontend-builder
 WORKDIR /build
 
 # 复制前端源码
-COPY ../dockpilot-frontend/package*.json ./
+COPY dockpilot-frontend/package*.json ./
 RUN npm ci
 
-COPY ../dockpilot-frontend/ ./
+COPY dockpilot-frontend/ ./
 RUN npm run build
 
 # Stage 2: 构建后端
@@ -60,10 +60,10 @@ FROM maven:3.8-openjdk-11-slim AS backend-builder
 WORKDIR /build
 
 # 复制后端源码和pom.xml
-COPY ../dockpilot-backend/pom.xml ./
+COPY dockpilot-backend/pom.xml ./
 RUN mvn dependency:go-offline -q
 
-COPY ../dockpilot-backend/src ./src
+COPY dockpilot-backend/src ./src
 RUN mvn clean package -DskipTests -q
 
 # Stage 3: 最终镜像
@@ -112,11 +112,11 @@ COPY --from=frontend-builder /build/dist/ /usr/share/html-builtin/
 COPY --from=backend-builder /build/target/*.jar /app/builtin/backend.jar
 
 # 复制启动脚本和配置
-COPY start-hot-update.sh /start.sh
-COPY Caddyfile /etc/caddy/Caddyfile
-COPY download-app.sh /app/download-app.sh
-COPY loading.html /usr/share/html/index.html
-COPY init-builtin.sh /app/init-builtin.sh
+COPY hot-update/start-hot-update.sh /start.sh
+COPY hot-update/Caddyfile /etc/caddy/Caddyfile
+COPY hot-update/download-app.sh /app/download-app.sh
+COPY hot-update/loading.html /usr/share/html/index.html
+COPY hot-update/init-builtin.sh /app/init-builtin.sh
 
 # 设置权限
 RUN chmod +x /start.sh /app/download-app.sh /app/init-builtin.sh
