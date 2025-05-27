@@ -29,6 +29,13 @@
           @update:model-value="update"
         />
         
+        <!-- 分类管理配置 -->
+        <CategoryManageConfig
+          v-else-if="currentConfigType === 'category-manage'"
+          :model-value="data"
+          @update:model-value="update"
+        />
+        
         <!-- 其他通用配置 -->
         <FormConfig
           v-else-if="currentConfigType === 'form' && currentFormFields.length > 0"
@@ -67,6 +74,7 @@ import FeatureCard from '@/components/FeatureCard.vue'
 import ConfigModal from '@/components/ConfigModal.vue'
 import BackgroundConfig from '@/components/config/BackgroundConfig.vue'
 import FormConfig from '@/components/config/FormConfig.vue'
+import CategoryManageConfig from '@/components/config/CategoryManageConfig.vue'
 import type { ConfigModalConfig } from '@/components/ConfigModal.vue'
 import { getCurrentBackground, setCurrentBackground } from '@/api/http/background'
 import { 
@@ -216,6 +224,12 @@ const features = ref([
     configType: 'background'
   },
   {
+    key: 'categoryManage',
+    title: '分类管理',
+    desc: '管理应用分类，支持增删改查和排序',
+    configType: 'category-manage'
+  },
+  {
     key: 'proxy',
     title: '代理设置',
     desc: '配置HTTP代理，提升Docker镜像下载速度',
@@ -311,6 +325,26 @@ const openConfig = async (item: any) => {
       } catch {
         configData.value = ''
       }
+      break
+
+    case 'categoryManage':
+      currentConfig.value = {
+        title: '📁 分类管理',
+        width: '800px',
+        confirmText: '关闭',
+        showResetButton: false,
+        beforeConfirm: () => {
+          // 分类管理不需要确认，直接关闭
+          return true
+        },
+        afterConfirm: async () => {
+          // 分类管理的保存操作在组件内部处理
+          message.success('分类管理操作完成')
+        }
+      }
+      
+      // 分类管理不需要初始数据
+      configData.value = {}
       break
 
     case 'proxy':
