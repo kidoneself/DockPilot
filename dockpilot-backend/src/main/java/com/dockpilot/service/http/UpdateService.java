@@ -791,15 +791,25 @@ public class UpdateService {
         HttpResponse<InputStream> response = httpClient.send(request, 
             HttpResponse.BodyHandlers.ofInputStream());
 
-        // 检查HTTP状态码 - 接受200和重定向后的成功响应
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IOException("下载失败: " + url + " - HTTP状态码: " + response.statusCode());
+        // 检查HTTP状态码 - 接受200和重定向，HttpClient会自动处理302重定向
+        // GitHub Release返回302重定向到S3，HttpClient会自动跟随并下载实际文件
+        if (response.statusCode() != 200) {
+            throw new IOException("下载失败: " + url + " - HTTP状态码: " + response.statusCode() + 
+                                " (预期: 200, GitHub Release应该自动重定向到文件下载地址)");
         }
 
         Files.createDirectories(destination.getParent());
         try (InputStream in = response.body()) {
             long bytesWritten = Files.copy(in, destination, StandardCopyOption.REPLACE_EXISTING);
             log.info("✅ 文件下载完成: {} (大小: {} bytes)", destination.getFileName(), bytesWritten);
+            
+            // 验证下载的文件大小 - 前端包应该大于100KB，后端包应该大于10MB
+            if (destination.getFileName().toString().contains("frontend.tar.gz") && bytesWritten < 100_000) {
+                throw new IOException("前端包文件太小: " + bytesWritten + " bytes，可能下载不完整");
+            }
+            if (destination.getFileName().toString().contains("backend.jar") && bytesWritten < 10_000_000) {
+                throw new IOException("后端包文件太小: " + bytesWritten + " bytes，可能下载不完整");
+            }
         }
     }
 
