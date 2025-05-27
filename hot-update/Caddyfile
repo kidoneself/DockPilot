@@ -1,138 +1,183 @@
 # DockPilot 热更新版本 Caddy 配置
 # 功能完整版本，支持健康检查、CORS、错误处理等
 
-:8888 {
-    # 前端静态文件根目录
-    root * /usr/share/html
+# DockPilot Caddy 配置 - 支持热更新和零停机部署
+{
+    # 启用Admin API (监听所有接口)
+    admin :2019
+    
+    # 全局选项
+    auto_https off
+    local_certs
+}
 
-    # API 代理到后端
-    handle /api/* {
-        uri strip_prefix /api
-        reverse_proxy localhost:8080 {
-            # 增加超时时间，支持长时间的更新操作
-            transport http {
-                dial_timeout 30s
-                read_timeout 300s
-                write_timeout 300s
+# 主服务配置
+:8888 {
+    # 启用访问日志
+    log {
+        output file /dockpilot/logs/caddy-access.log
+        format json
+    }
+    
+    # 错误处理 - 当后端不可用时显示更新页面
+    handle_errors {
+        @update_error expression {http.error.status_code} == 502
+        handle @update_error {
+            respond `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DockPilot 正在更新</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0; padding: 0; min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            color: white;
+        }
+        .container { 
+            text-align: center; padding: 2rem;
+            background: rgba(255,255,255,0.1); border-radius: 15px;
+            backdrop-filter: blur(10px); max-width: 500px;
+        }
+        .logo { font-size: 3rem; margin-bottom: 1rem; }
+        .spinner { 
+            width: 50px; height: 50px; margin: 2rem auto;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white; border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .message { font-size: 1.2rem; margin: 1rem 0; }
+        .details { font-size: 0.9rem; opacity: 0.8; margin-top: 1rem; }
+        .refresh-btn {
+            background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
+            color: white; padding: 0.5rem 1rem; border-radius: 5px;
+            cursor: pointer; margin-top: 1rem; font-size: 0.9rem;
+        }
+        .refresh-btn:hover { background: rgba(255,255,255,0.3); }
+    </style>
+    <script>
+        let checkCount = 0;
+        const maxChecks = 120;
+        
+        function checkBackend() {
+            if (checkCount >= maxChecks) {
+                document.getElementById('message').innerHTML = '⚠️ 更新时间较长，请手动刷新页面';
+                return;
             }
             
-            # 健康检查配置
-            health_uri /api/update/version
-            health_interval 30s
-            health_timeout 5s
+            checkCount++;
+            fetch('/api/update/version')
+                .then(response => {
+                    if (response.ok) {
+                        document.getElementById('message').innerHTML = '✅ 更新完成，正在跳转...';
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        setTimeout(checkBackend, 2000);
+                    }
+                })
+                .catch(() => {
+                    setTimeout(checkBackend, 2000);
+                });
+        }
+        
+        window.onload = () => setTimeout(checkBackend, 3000);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🚀</div>
+        <h1>DockPilot 正在更新</h1>
+        <div class="spinner"></div>
+        <div class="message" id="message">
+            系统正在进行热更新，预计需要1-2分钟<br>
+            请稍等，更新完成后将自动刷新页面
+        </div>
+        <div class="details">
+            🔄 前后端代码正在更新<br>
+            📦 无需重启容器，保持数据完整
+        </div>
+        <button class="refresh-btn" onclick="location.reload()">手动刷新</button>
+    </div>
+</body>
+</html>` 502
+        }
+        
+        respond "DockPilot 服务暂时不可用，请稍后再试" {http.error.status_code}
+    }
+    
+    # CORS 处理
+    @options method OPTIONS
+    handle @options {
+        header Access-Control-Allow-Origin "*"
+        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization"
+        header Access-Control-Max-Age "86400"
+        respond "" 204
+    }
+    
+    # API代理配置 - 优化零停机切换
+    handle /api/* {
+        reverse_proxy {
+            # 主后端端口（优先使用）
+            to localhost:8080
+            # 备用后端端口（零停机更新时使用）
+            to localhost:8081
             
-            # 请求头处理
+            # 负载均衡策略：优先使用8080，失败时自动切换到8081
+            lb_policy first
+            
+            # 优化的健康检查配置 - 快速检测和切换
+            health_uri /api/update/version
+            health_interval 2s        # 更频繁的检查（每2秒）
+            health_timeout 2s         # 更短的超时（2秒）
+            health_passes 1           # 1次成功就标记健康
+            health_fails 1            # 1次失败就标记不健康（快速切换）
+            
             header_up Host {upstream_hostport}
             header_up X-Real-IP {remote_host}
         }
+        
+        header Access-Control-Allow-Origin "*"
+        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization"
     }
-
-    # WebSocket 代理
+    
+    # WebSocket代理
     handle /ws/* {
         reverse_proxy localhost:8080 {
-            # WebSocket 特定配置
             header_up Upgrade {http.request.header.Upgrade}
             header_up Connection {http.request.header.Connection}
             header_up Host {upstream_hostport}
             header_up X-Real-IP {remote_host}
         }
     }
-
-    # 文件上传代理
-    handle /uploads/* {
-        root * /dockpilot
-        file_server {
-            # 支持文件浏览
-            browse
-        }
-        
-        # 缓存设置
-        header Cache-Control "public, max-age=2592000"
-        header Access-Control-Allow-Origin "*"
-        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-        header Access-Control-Allow-Headers "Content-Type, Authorization"
-    }
-
-    # 处理 OPTIONS 请求（CORS 预检）
-    @options {
-        method OPTIONS
-        path /api/*
-    }
-    header @options Access-Control-Allow-Origin "*"
-    header @options Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-    header @options Access-Control-Allow-Headers "Content-Type, Authorization"
-    header @options Access-Control-Max-Age "86400"
-    respond @options "" 204
-
-    # 前端路由处理（SPA 支持）
+    
+    # 静态文件服务
     handle {
-        # 静态资源缓存策略
+        root * /usr/share/html
+        
+        # 缓存配置
         @static path_regexp \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|map)$
         header @static Cache-Control "public, max-age=31536000"
-        header @static Vary "Accept-Encoding"
         
-        # HTML 文件不缓存，支持热更新
         @html path_regexp \.(html|htm)$
         header @html Cache-Control "no-cache, no-store, must-revalidate"
-        header @html Pragma "no-cache"
-        header @html Expires "0"
         
-        # 尝试提供请求的文件，如果不存在则返回 index.html
+        # SPA路由支持
         try_files {path} /index.html
         file_server
     }
-
-    # 日志配置
-    log {
-        output file /dockpilot/logs/caddy.log {
-            roll_size 10mb
-            roll_keep 5
-            roll_keep_for 720h
-        }
-        format json
-        level INFO
-    }
-
-    # 错误页面处理
-    handle_errors {
-        # 404 错误返回到前端路由（支持SPA路由）
-        @404 expression `{err.status_code} == 404`
-        handle @404 {
-            rewrite * /index.html
-            file_server
-        }
-        
-        # 其他错误显示友好页面
-        respond "服务暂时不可用，请稍后重试" 503
-    }
-
+    
     # 安全头
     header {
-        # XSS 保护
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
         X-XSS-Protection "1; mode=block"
-        
-        # 内容类型嗅探保护
-        X-Content-Type-Options "nosniff"
-        
-        # 点击劫持保护
-        X-Frame-Options "SAMEORIGIN"
-        
-        # 推荐HTTPS
-        Strict-Transport-Security "max-age=31536000"
-        
-        # 隐藏服务器信息
-        -Server
-    }
-
-    # 压缩
-    encode {
-        gzip 6
-        # 压缩文本类型文件
-        match {
-            header Content-Type text/*
-            header Content-Type application/json*
-            header Content-Type application/javascript*
-            header Content-Type application/xml*
-        }
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        Referrer-Policy "strict-origin-when-cross-origin"
     }
 } 
