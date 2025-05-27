@@ -171,12 +171,49 @@ const openGithub = () => {
   window.open('https://github.com/kidoneself/DockPilot', '_blank')
 }
 
+// 从缓存快速检查更新（页面加载时使用）
+const checkForUpdatesFromCache = async () => {
+  if (checking.value) return
+  
+  checking.value = true
+  try {
+    console.log('🔍 从缓存快速检查版本信息...')
+    
+    const result = await checkUpdate()
+    updateInfo.value = result
+    
+    // 确保版本信息有效，防止显示 "unknown" 或空值
+    if (result.currentVersion && result.currentVersion !== 'unknown' && result.currentVersion.trim() !== '') {
+      currentVersion.value = result.currentVersion
+      console.log('✅ 从后端获取版本:', result.currentVersion)
+    } else {
+      console.warn('⚠️ 后端返回的版本信息无效:', result.currentVersion, '保持前端默认版本:', currentVersion.value)
+      // 确保不会被覆盖为unknown
+      if (!currentVersion.value || currentVersion.value === 'unknown') {
+        currentVersion.value = 'v1.0.7'
+      }
+    }
+    
+    console.log('✅ 缓存检查完成:', {
+      hasUpdate: result.hasUpdate,
+      currentVersion: currentVersion.value,
+      latestVersion: result.latestVersion
+    })
+    
+  } catch (error) {
+    console.warn('⚠️ 缓存检查失败，但不影响使用:', error)
+  } finally {
+    checking.value = false
+  }
+}
+
+// 强制检查更新（用户手动点击时使用）
 const checkForUpdates = async () => {
   if (checking.value) return
   
   checking.value = true
   try {
-    console.log('🔍 开始检查更新，清除可能的缓存...')
+    console.log('🔍 用户手动检查更新，强制获取最新信息...')
     
     // 先清除后端缓存，确保获取最新信息
     try {
@@ -201,7 +238,7 @@ const checkForUpdates = async () => {
       }
     }
     
-    console.log('✅ 更新检查完成:', {
+    console.log('✅ 强制检查完成:', {
       hasUpdate: result.hasUpdate,
       currentVersion: currentVersion.value,
       latestVersion: result.latestVersion,
@@ -357,22 +394,18 @@ onMounted(async () => {
     nodeEnv: process.env.NODE_ENV
   })
   
-  // 自动检查更新 - 修复缓存问题
+  // 页面加载时从缓存快速检查版本信息
   try {
-    console.log('🔄 自动检查版本更新...')
-    await checkForUpdates()
-    console.log('✅ 自动版本检查完成')
+    console.log('🔄 页面加载：从缓存读取版本信息...')
+    await checkForUpdatesFromCache()
+    console.log('✅ 缓存版本检查完成')
   } catch (error) {
-    console.warn('⚠️ 自动版本检查失败，但不影响使用:', error)
+    console.warn('⚠️ 缓存版本检查失败，但不影响使用:', error)
     // 生产环境静默处理，开发环境可以看到错误
   }
   
-  // 可选：定时检查更新（目前禁用，避免频繁请求）
-  // checkTimer = setInterval(() => {
-  //   checkForUpdates().catch(() => {
-  //     // 静默失败
-  //   })
-  // }, 2 * 60 * 60 * 1000)
+  // 注意：后端已有定时检查机制，前端不需要定时检查
+  // 用户可以手动点击"检查更新"按钮强制刷新
 })
 
 onUnmounted(() => {

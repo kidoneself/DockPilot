@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.springframework.scheduling.annotation.Scheduled;
+import javax.annotation.PostConstruct;
 
 /**
  * 容器内热更新服务
@@ -1193,6 +1195,59 @@ public class UpdateService {
         } catch (Exception e) {
             log.warn("⚠️ 删除缓存文件失败: {}", e.getMessage());
         }
+    }
+
+    /**
+     * 定时检查更新（每2小时执行一次）
+     * 后台静默更新缓存，用户界面从缓存快速读取
+     */
+    @Scheduled(fixedRate = 2 * 60 * 60 * 1000) // 2小时 = 2 * 60 * 60 * 1000 毫秒
+    public void scheduledUpdateCheck() {
+        try {
+            log.debug("⏰ 定时检查更新开始...");
+            
+            // 强制清除缓存，确保获取最新信息
+            cachedUpdateInfo = null;
+            lastCheckTime = null;
+            lastReleaseData = null;
+            
+            // 执行检查并更新缓存
+            UpdateInfoDTO updateInfo = checkForUpdates();
+            
+            log.info("✅ 定时检查更新完成: {} -> {} (有更新: {})", 
+                    updateInfo.getCurrentVersion(), 
+                    updateInfo.getLatestVersion(), 
+                    updateInfo.isHasUpdate());
+                    
+        } catch (Exception e) {
+            log.warn("⚠️ 定时检查更新失败，但不影响系统运行: {}", e.getMessage());
+            // 定时任务失败不抛出异常，避免影响其他功能
+        }
+    }
+
+    /**
+     * 服务启动后初始化
+     */
+    @PostConstruct
+    public void initializeService() {
+        // 初始化HTTP客户端
+        if (httpClient == null) {
+            httpClient = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(15))
+                    .build();
+            log.info("✅ HTTP客户端已初始化");
+        }
+        
+        // 延迟30秒后执行首次检查，避免启动时网络未就绪
+        CompletableFuture.runAsync(() -> {
+            try {
+                Thread.sleep(30000); // 等待30秒
+                log.info("🚀 应用启动后首次检查更新...");
+                scheduledUpdateCheck();
+            } catch (Exception e) {
+                log.warn("⚠️ 启动后首次检查更新失败: {}", e.getMessage());
+            }
+        });
     }
 
 
