@@ -3,6 +3,7 @@ package com.dockpilot.controller;
 import com.dockpilot.common.annotation.Anonymous;
 import com.dockpilot.model.dto.WebServerDTO;
 import com.dockpilot.model.vo.WebServerVO;
+import com.dockpilot.model.vo.CategoryVO;
 import com.dockpilot.service.http.WebServerService;
 import com.dockpilot.utils.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -65,11 +66,21 @@ public class WebServerController {
         return ApiResponse.success(list);
     }
 
-    @Operation(summary = "根据分类获取Web服务")
-    @GetMapping("/category/{category}")
-    public ApiResponse<List<WebServerVO>> listByCategory(
-            @Parameter(description = "分类名称") @PathVariable String category) {
-        List<WebServerVO> list = webServerService.listByCategory(category);
+    @Anonymous
+    @Operation(summary = "根据分类ID获取Web服务")
+    @GetMapping("/category/{categoryId}")
+    public ApiResponse<List<WebServerVO>> listByCategoryId(
+            @Parameter(description = "分类ID") @PathVariable Integer categoryId) {
+        List<WebServerVO> list = webServerService.listByCategoryId(categoryId);
+        return ApiResponse.success(list);
+    }
+
+    @Anonymous
+    @Operation(summary = "根据分类名称获取Web服务")
+    @GetMapping("/category/name/{categoryName}")
+    public ApiResponse<List<WebServerVO>> listByCategoryName(
+            @Parameter(description = "分类名称") @PathVariable String categoryName) {
+        List<WebServerVO> list = webServerService.listByCategoryName(categoryName);
         return ApiResponse.success(list);
     }
 
@@ -89,10 +100,19 @@ public class WebServerController {
         return ApiResponse.success();
     }
 
+    @Anonymous
     @Operation(summary = "获取所有分类")
     @GetMapping("/categories")
-    public ApiResponse<List<String>> listAllCategories() {
-        List<String> categories = webServerService.listAllCategories();
+    public ApiResponse<List<CategoryVO>> listAllCategories() {
+        List<CategoryVO> categories = webServerService.listAllCategories();
         return ApiResponse.success(categories);
+    }
+
+    @Anonymous
+    @Operation(summary = "获取分类详情")
+    @GetMapping("/categories/{id}")
+    public ApiResponse<CategoryVO> getCategoryById(@Parameter(description = "分类ID") @PathVariable Integer id) {
+        CategoryVO category = webServerService.getCategoryById(id);
+        return category != null ? ApiResponse.success(category) : ApiResponse.error("分类不存在");
     }
 } 

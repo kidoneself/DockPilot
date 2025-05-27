@@ -38,14 +38,34 @@ public class WebServer {
     private String description;
 
     /**
-     * 分类名称
+     * 分类ID
      */
-    private String category;
+    private Integer categoryId;
 
     /**
      * 应用排序
      */
     private Integer itemSort;
+
+    /**
+     * 背景色（支持transparent、rgba、渐变等）
+     */
+    private String bgColor;
+
+    /**
+     * 卡片类型（normal、text）
+     */
+    private String cardType;
+
+    /**
+     * 图标类型（image、text、icon）
+     */
+    private String iconType;
+
+    /**
+     * 打开方式（current、new）
+     */
+    private String openType;
 
     /**
      * 创建时间

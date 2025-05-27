@@ -23,7 +23,7 @@ const routes: RouteRecordRaw[] = [
     name: 'NavigationHome',
     component: () => import('@/views/navigation/NavigationHome.vue'),
     meta: {
-      title: 'Docker Pilot - 智能容器管理平台',
+      title: 'DockPilot - 智能容器管理平台',
       requiresAuth: false
     }
   },

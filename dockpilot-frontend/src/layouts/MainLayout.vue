@@ -95,6 +95,12 @@
       © 2025 DockPilot Powered by KID
     </n-layout-footer>
   </n-layout>
+
+  <!-- 修改密码模态框 -->
+  <ChangePasswordModal 
+    v-model:show="showChangePasswordModal" 
+    @success="handlePasswordChangeSuccess"
+  />
 </template>
 
 <script setup lang="ts">
@@ -105,6 +111,7 @@ import type { MenuOption } from 'naive-ui'
 import { NIcon } from 'naive-ui'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import UpdateNotification from '@/components/UpdateNotification.vue'
+import ChangePasswordModal from '@/components/common/ChangePasswordModal.vue'
 import * as Icons from '@vicons/ionicons5'
 import { useUserStore } from '@/store/user'
 import { useThemeStore } from '@/store/theme'
@@ -121,6 +128,7 @@ const collapsed = ref(false)
 const activeKey = computed(() => route.path)
 const username = computed(() => userStore.userInfo?.username || 'Admin')
 const userAvatar = ref('')
+const showChangePasswordModal = ref(false)
 
 // 渲染图标
 function renderIcon(icon: string) {
@@ -150,13 +158,17 @@ const dropdownOptions = [
 const handleDropdownSelect = (key: string) => {
   switch (key) {
     case 'profile':
-      // TODO: 实现个人中心功能
-      message.info('个人中心功能开发中')
+      showChangePasswordModal.value = true
       break
     case 'logout':
       handleLogout()
       break
   }
+}
+
+// 处理密码修改成功
+const handlePasswordChangeSuccess = () => {
+  // 可以在这里添加额外的成功处理逻辑，比如重新获取用户信息等
 }
 
 // 退出登录处理

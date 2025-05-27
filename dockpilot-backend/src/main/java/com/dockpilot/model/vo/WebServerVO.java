@@ -38,14 +38,39 @@ public class WebServerVO {
     private String description;
 
     /**
+     * 分类ID
+     */
+    private Integer categoryId;
+
+    /**
      * 分类名称
      */
-    private String category;
+    private String categoryName;
 
     /**
      * 应用排序
      */
     private Integer itemSort;
+
+    /**
+     * 背景色
+     */
+    private String bgColor;
+
+    /**
+     * 卡片类型
+     */
+    private String cardType;
+
+    /**
+     * 图标类型
+     */
+    private String iconType;
+
+    /**
+     * 打开方式
+     */
+    private String openType;
 
     /**
      * 创建时间

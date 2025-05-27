@@ -11,9 +11,14 @@
               返回
             </NButton>
             <div class="title-section">
-              <span class="title">
-                {{ container?.containerName || container?.containerId?.slice(0, 12) || '容器详情' }}
-              </span>
+              <div class="title-and-status">
+                <span class="title" :title="container?.containerName || container?.containerId || '容器详情'">
+                  {{ container?.containerName || container?.containerId?.slice(0, 12) || '容器详情' }}
+                </span>
+                <NTag v-if="container" :type="getStatusType(container.status)" size="small" class="status-tag">
+                  {{ container.status }}
+                </NTag>
+              </div>
               <div 
                 v-if="container?.lastError && container?.operationStatus === 'failed'" 
                 class="error-info"
@@ -21,24 +26,21 @@
                 <NIcon class="error-icon"><WarningOutline /></NIcon>
                 <span class="error-text">{{ container.lastError }}</span>
               </div>
-              <NTag v-if="container" :type="getStatusType(container.status)" size="small">
-                {{ container.status }}
-              </NTag>
             </div>
-            <div class="header-right">
-              <NButton :loading="wsLoading" @click="handleRefresh">
-                <template #icon>
-                  <NIcon><RefreshOutline /></NIcon>
-                </template>
-                刷新
-              </NButton>
-              <NButton type="primary" style="margin-left: 8px;" @click="handleEdit">
-                <template #icon>
-                  <NIcon><CreateOutline /></NIcon>
-                </template>
-                编辑
-              </NButton>
-            </div>
+          </div>
+          <div class="header-right">
+            <NButton :loading="wsLoading" @click="handleRefresh">
+              <template #icon>
+                <NIcon><RefreshOutline /></NIcon>
+              </template>
+              刷新
+            </NButton>
+            <NButton type="primary" style="margin-left: 8px;" @click="handleEdit">
+              <template #icon>
+                <NIcon><CreateOutline /></NIcon>
+              </template>
+              编辑
+            </NButton>
           </div>
         </div>
       </template>
@@ -565,18 +567,37 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex: 1;
 }
 
 .title-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.title-and-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
 }
 
 .title {
   font-size: 18px;
   font-weight: bold;
   color: var(--n-text-color-base);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+}
+
+.status-tag {
+  flex-shrink: 0;
 }
 
 .error-info {

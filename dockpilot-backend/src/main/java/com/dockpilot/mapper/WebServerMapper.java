@@ -1,6 +1,7 @@
 package com.dockpilot.mapper;
 
 import com.dockpilot.model.entity.WebServer;
+import com.dockpilot.model.vo.WebServerVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -37,9 +38,24 @@ public interface WebServerMapper {
     List<WebServer> selectAll();
 
     /**
-     * 根据分类查询服务
+     * 查询所有服务（包含分类信息）
      */
-    List<WebServer> selectByCategory(@Param("category") String category);
+    List<WebServerVO> selectAllWithCategory();
+
+    /**
+     * 根据分类ID查询服务
+     */
+    List<WebServer> selectByCategoryId(@Param("categoryId") Integer categoryId);
+
+    /**
+     * 根据分类ID查询服务（包含分类信息）
+     */
+    List<WebServerVO> selectByCategoryIdWithCategory(@Param("categoryId") Integer categoryId);
+
+    /**
+     * 根据分类名称查询服务（包含分类信息）
+     */
+    List<WebServerVO> selectByCategoryNameWithCategory(@Param("categoryName") String categoryName);
 
     /**
      * 更新服务排序
@@ -50,9 +66,4 @@ public interface WebServerMapper {
      * 批量更新服务排序
      */
     int batchUpdateSort(@Param("servers") List<WebServer> servers);
-
-    /**
-     * 获取所有分类
-     */
-    List<String> selectAllCategories();
 } 

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dockpilot.mapper.CategoryMapper">
+
+    <!-- 基础字段 -->
+    <sql id="Base_Column_List">
+        id, name, sort_order, created_at, updated_at
+    </sql>
+
+    <!-- 新增分类 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO categories (name, sort_order, created_at, updated_at)
+        VALUES (#{name}, #{sortOrder}, datetime('now'), datetime('now'))
+    </insert>
+
+    <!-- 根据ID删除分类 -->
+    <delete id="deleteById">
+        DELETE FROM categories WHERE id = #{id}
+    </delete>
+
+    <!-- 更新分类信息 -->
+    <update id="update">
+        UPDATE categories 
+        SET name = #{name},
+            sort_order = #{sortOrder},
+            updated_at = datetime('now')
+        WHERE id = #{id}
+    </update>
+
+    <!-- 根据ID查询分类 -->
+    <select id="selectById" resultType="com.dockpilot.model.entity.Category">
+        SELECT <include refid="Base_Column_List"/>
+        FROM categories
+        WHERE id = #{id}
+    </select>
+
+    <!-- 查询所有分类 -->
+    <select id="selectAll" resultType="com.dockpilot.model.entity.Category">
+        SELECT <include refid="Base_Column_List"/>
+        FROM categories
+        ORDER BY sort_order ASC, id ASC
+    </select>
+
+    <!-- 查询所有分类及应用数量（包含未分类的虚拟分类） -->
+    <select id="selectAllWithAppCount" resultType="com.dockpilot.model.vo.CategoryVO">
+        SELECT * FROM (
+            SELECT 
+                c.id,
+                c.name,
+                c.sort_order as sortOrder,
+                c.created_at as createdAt,
+                c.updated_at as updatedAt,
+                COUNT(w.id) as appCount
+            FROM categories c
+            LEFT JOIN web_servers w ON c.id = w.category_id
+            GROUP BY c.id, c.name, c.sort_order, c.created_at, c.updated_at
+            HAVING COUNT(w.id) > 0
+            
+            UNION
+            
+            SELECT 
+                0 as id,
+                '未分类' as name,
+                999 as sortOrder,
+                datetime('now') as createdAt,
+                datetime('now') as updatedAt,
+                COUNT(w.id) as appCount
+            FROM web_servers w
+            LEFT JOIN categories c ON w.category_id = c.id
+            WHERE c.id IS NULL
+            HAVING COUNT(w.id) > 0
+        ) ORDER BY sortOrder ASC, id ASC
+    </select>
+
+    <!-- 更新分类排序 -->
+    <update id="updateSort">
+        UPDATE categories
+        SET sort_order = #{sortOrder},
+            updated_at = datetime('now')
+        WHERE id = #{id}
+    </update>
+
+    <!-- 批量更新分类排序 -->
+    <update id="batchUpdateSort">
+        UPDATE categories
+        SET sort_order = CASE id
+        <foreach collection="categories" item="category">
+            WHEN #{category.id} THEN #{category.sortOrder}
+        </foreach>
+        END,
+        updated_at = datetime('now')
+        WHERE id IN
+        <foreach collection="categories" item="category" open="(" separator="," close=")">
+            #{category.id}
+        </foreach>
+    </update>
+
+    <!-- 根据名称查询分类 -->
+    <select id="selectByName" resultType="com.dockpilot.model.entity.Category">
+        SELECT <include refid="Base_Column_List"/>
+        FROM categories
+        WHERE name = #{name}
+    </select>
+</mapper> 

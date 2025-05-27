@@ -33,8 +33,7 @@ public class WebServerDTO {
     /**
      * 内网访问地址
      */
-    @NotBlank(message = "内网访问地址不能为空")
-    @Pattern(regexp = "^https?://[\\w.-]+(:\\d+)?(/[\\w.-]*)*$", message = "内网访问地址格式不正确")
+    @Pattern(regexp = "^$|^https?://[\\w.-]+(:\\d+)?(/[\\w.-]*)*$", message = "内网访问地址格式不正确")
     private String internalUrl;
 
     /**
@@ -50,15 +49,38 @@ public class WebServerDTO {
     private String description;
 
     /**
-     * 分类名称
+     * 分类ID
      */
-    @NotBlank(message = "分类名称不能为空")
-    @Size(max = 50, message = "分类名称长度不能超过50个字符")
-    private String category;
+    @NotNull(message = "分类ID不能为空")
+    private Integer categoryId;
 
     /**
      * 应用排序
      */
     @NotNull(message = "应用排序不能为空")
     private Integer itemSort;
+
+    /**
+     * 背景色（支持transparent、rgba、渐变等）
+     */
+    @Size(max = 200, message = "背景色设置长度不能超过200个字符")
+    private String bgColor;
+
+    /**
+     * 卡片类型（normal、text）
+     */
+    @Pattern(regexp = "^(normal|text)$", message = "卡片类型只能是 normal 或 text")
+    private String cardType;
+
+    /**
+     * 图标类型（image、text、icon）
+     */
+    @Pattern(regexp = "^(image|text|icon)$", message = "图标类型只能是 image、text 或 icon")
+    private String iconType;
+
+    /**
+     * 打开方式（current、new）
+     */
+    @Pattern(regexp = "^(current|new)$", message = "打开方式只能是 current 或 new")
+    private String openType;
 } 

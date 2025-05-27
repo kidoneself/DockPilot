@@ -3,17 +3,24 @@
 <mapper namespace="com.dockpilot.mapper.WebServerMapper">
     <!-- 基础列 -->
     <sql id="Base_Column_List">
-        id
-        , name, icon, internal_url, external_url, description, category, item_sort,
-        created_at, updated_at
+        id, name, icon, internal_url, external_url, description, category_id, item_sort,
+        bg_color, card_type, icon_type, open_type, created_at, updated_at
+    </sql>
+
+    <!-- 包含分类信息的查询列 -->
+    <sql id="With_Category_Column_List">
+        w.id, w.name, w.icon, w.internal_url as internalUrl, w.external_url as externalUrl, 
+        w.description, w.category_id as categoryId, c.name as categoryName, w.item_sort as itemSort,
+        w.bg_color as bgColor, w.card_type as cardType, w.icon_type as iconType, w.open_type as openType,
+        w.created_at as createdAt, w.updated_at as updatedAt
     </sql>
 
     <!-- 新增服务器 -->
     <insert id="insert" parameterType="com.dockpilot.model.entity.WebServer">
-        INSERT INTO web_servers (id, name, icon, internal_url, external_url, description, category, item_sort,
-                                 created_at, updated_at)
-        VALUES (#{id}, #{name}, #{icon}, #{internalUrl}, #{externalUrl}, #{description}, #{category},
-                #{itemSort}, datetime('now'), datetime('now'))
+        INSERT INTO web_servers (id, name, icon, internal_url, external_url, description, category_id, item_sort,
+                                 bg_color, card_type, icon_type, open_type, created_at, updated_at)
+        VALUES (#{id}, #{name}, #{icon}, #{internalUrl}, #{externalUrl}, #{description}, #{categoryId},
+                #{itemSort}, #{bgColor}, #{cardType}, #{iconType}, #{openType}, datetime('now'), datetime('now'))
     </insert>
 
     <!-- 根据ID删除服务器 -->
@@ -31,8 +38,12 @@
             internal_url = #{internalUrl},
             external_url = #{externalUrl},
             description  = #{description},
-            category     = #{category},
+            category_id  = #{categoryId},
             item_sort    = #{itemSort},
+            bg_color     = #{bgColor},
+            card_type    = #{cardType},
+            icon_type    = #{iconType},
+            open_type    = #{openType},
             updated_at   = datetime('now')
         WHERE id = #{id}
     </update>
@@ -53,20 +64,48 @@
         ORDER BY item_sort
     </select>
 
-    <!-- 获取所有分类 -->
-    <select id="selectAllCategories" resultType="java.lang.String">
-        SELECT DISTINCT category
-        FROM web_servers
-        ORDER BY category
+    <!-- 查询所有服务器（包含分类信息，处理分类被删除的情况） -->
+    <select id="selectAllWithCategory" resultType="com.dockpilot.model.vo.WebServerVO">
+        SELECT
+        w.id, w.name, w.icon, w.internal_url as internalUrl, w.external_url as externalUrl, 
+        w.description, 
+        CASE WHEN c.id IS NULL THEN 0 ELSE w.category_id END as categoryId, 
+        CASE WHEN c.id IS NULL THEN '未分类' ELSE c.name END as categoryName, 
+        w.item_sort as itemSort,
+        w.bg_color as bgColor, w.card_type as cardType, w.icon_type as iconType, w.open_type as openType,
+        w.created_at as createdAt, w.updated_at as updatedAt
+        FROM web_servers w
+        LEFT JOIN categories c ON w.category_id = c.id
+        ORDER BY CASE WHEN c.id IS NULL THEN 999 ELSE c.sort_order END ASC, w.item_sort ASC
     </select>
 
-    <!-- 根据分类查询服务器 -->
-    <select id="selectByCategory" resultType="com.dockpilot.model.entity.WebServer">
+    <!-- 根据分类ID查询服务器 -->
+    <select id="selectByCategoryId" resultType="com.dockpilot.model.entity.WebServer">
         SELECT
         <include refid="Base_Column_List"/>
         FROM web_servers
-        WHERE category = #{category}
+        WHERE category_id = #{categoryId}
         ORDER BY item_sort
+    </select>
+
+    <!-- 根据分类ID查询服务器（包含分类信息） -->
+    <select id="selectByCategoryIdWithCategory" resultType="com.dockpilot.model.vo.WebServerVO">
+        SELECT
+        <include refid="With_Category_Column_List"/>
+        FROM web_servers w
+        LEFT JOIN categories c ON w.category_id = c.id
+        WHERE w.category_id = #{categoryId}
+        ORDER BY w.item_sort ASC
+    </select>
+
+    <!-- 根据分类名称查询服务器（包含分类信息） -->
+    <select id="selectByCategoryNameWithCategory" resultType="com.dockpilot.model.vo.WebServerVO">
+        SELECT
+        <include refid="With_Category_Column_List"/>
+        FROM web_servers w
+        LEFT JOIN categories c ON w.category_id = c.id
+        WHERE c.name = #{categoryName}
+        ORDER BY w.item_sort ASC
     </select>
 
     <!-- 更新服务器排序 -->

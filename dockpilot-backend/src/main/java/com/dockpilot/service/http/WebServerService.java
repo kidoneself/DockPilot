@@ -2,6 +2,7 @@ package com.dockpilot.service.http;
 
 import com.dockpilot.model.dto.WebServerDTO;
 import com.dockpilot.model.vo.WebServerVO;
+import com.dockpilot.model.vo.CategoryVO;
 
 import java.util.List;
 
@@ -41,19 +42,27 @@ public interface WebServerService {
     WebServerVO getById(String id);
 
     /**
-     * 获取所有服务列表
+     * 获取所有服务列表（包含分类信息）
      *
      * @return 服务列表
      */
     List<WebServerVO> listAll();
 
     /**
-     * 根据分类获取服务列表
+     * 根据分类ID获取服务列表
      *
-     * @param category 分类名称
+     * @param categoryId 分类ID
      * @return 服务列表
      */
-    List<WebServerVO> listByCategory(String category);
+    List<WebServerVO> listByCategoryId(Integer categoryId);
+
+    /**
+     * 根据分类名称获取服务列表
+     *
+     * @param categoryName 分类名称
+     * @return 服务列表
+     */
+    List<WebServerVO> listByCategoryName(String categoryName);
 
     /**
      * 更新服务排序
@@ -71,9 +80,17 @@ public interface WebServerService {
     void batchUpdateSort(List<WebServerDTO> servers);
 
     /**
-     * 获取所有分类
+     * 获取所有分类（包含应用数量）
      *
      * @return 分类列表
      */
-    List<String> listAllCategories();
+    List<CategoryVO> listAllCategories();
+
+    /**
+     * 获取分类详情
+     *
+     * @param id 分类ID
+     * @return 分类详情
+     */
+    CategoryVO getCategoryById(Integer id);
 } 

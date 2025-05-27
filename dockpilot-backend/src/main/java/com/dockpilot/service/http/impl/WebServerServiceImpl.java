@@ -1,9 +1,12 @@
 package com.dockpilot.service.http.impl;
 
 import com.dockpilot.mapper.WebServerMapper;
+import com.dockpilot.mapper.CategoryMapper;
 import com.dockpilot.model.dto.WebServerDTO;
 import com.dockpilot.model.entity.WebServer;
+import com.dockpilot.model.entity.Category;
 import com.dockpilot.model.vo.WebServerVO;
+import com.dockpilot.model.vo.CategoryVO;
 import com.dockpilot.service.http.WebServerService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -20,9 +23,11 @@ import java.util.stream.Collectors;
 public class WebServerServiceImpl implements WebServerService {
 
     private final WebServerMapper webServerMapper;
+    private final CategoryMapper categoryMapper;
 
-    public WebServerServiceImpl(WebServerMapper webServerMapper) {
+    public WebServerServiceImpl(WebServerMapper webServerMapper, CategoryMapper categoryMapper) {
         this.webServerMapper = webServerMapper;
+        this.categoryMapper = categoryMapper;
     }
 
     @Override
@@ -66,26 +71,17 @@ public class WebServerServiceImpl implements WebServerService {
 
     @Override
     public List<WebServerVO> listAll() {
-        List<WebServer> entities = webServerMapper.selectAll();
-        return entities.stream()
-                .map(entity -> {
-                    WebServerVO vo = new WebServerVO();
-                    BeanUtils.copyProperties(entity, vo);
-                    return vo;
-                })
-                .collect(Collectors.toList());
+        return webServerMapper.selectAllWithCategory();
     }
 
     @Override
-    public List<WebServerVO> listByCategory(String category) {
-        List<WebServer> entities = webServerMapper.selectByCategory(category);
-        return entities.stream()
-                .map(entity -> {
-                    WebServerVO vo = new WebServerVO();
-                    BeanUtils.copyProperties(entity, vo);
-                    return vo;
-                })
-                .collect(Collectors.toList());
+    public List<WebServerVO> listByCategoryId(Integer categoryId) {
+        return webServerMapper.selectByCategoryIdWithCategory(categoryId);
+    }
+
+    @Override
+    public List<WebServerVO> listByCategoryName(String categoryName) {
+        return webServerMapper.selectByCategoryNameWithCategory(categoryName);
     }
 
     @Override
@@ -108,7 +104,22 @@ public class WebServerServiceImpl implements WebServerService {
     }
 
     @Override
-    public List<String> listAllCategories() {
-        return webServerMapper.selectAllCategories();
+    public List<CategoryVO> listAllCategories() {
+        return categoryMapper.selectAllWithAppCount();
+    }
+
+    @Override
+    public CategoryVO getCategoryById(Integer id) {
+        Category entity = categoryMapper.selectById(id);
+        if (entity == null) {
+            return null;
+        }
+        
+        // 查询该分类下的应用数量
+        List<CategoryVO> categoriesWithCount = categoryMapper.selectAllWithAppCount();
+        return categoriesWithCount.stream()
+                .filter(category -> category.getId().equals(id))
+                .findFirst()
+                .orElse(null);
     }
 } 
