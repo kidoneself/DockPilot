@@ -149,6 +149,18 @@
         }
     }
     
+    # 上传文件静态服务
+    handle /uploads/* {
+        root * /dockpilot
+        
+        # 缓存配置
+        header Cache-Control "public, max-age=31536000"
+        header X-Content-Type-Options nosniff
+        
+        # 直接提供文件服务
+        file_server
+    }
+    
     # 静态文件服务
     handle {
         root * /usr/share/html
