@@ -33,10 +33,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: dockpilotfront/package-lock.json
+          cache-dependency-path: dockpilot-frontend/package-lock.json
 
       - name: 📦 安装前端依赖
-        working-directory: dockpilotfront
+        working-directory: dockpilot-frontend
         run: |
           npm ci
           # 升级关键依赖以解决兼容性问题
@@ -44,7 +44,7 @@ jobs:
           npm install terser --save-dev
 
       - name: 🔧 构建前端（跳过类型检查）
-        working-directory: dockpilotfront
+        working-directory: dockpilot-frontend
         run: |
           echo "🚀 开始构建前端..."
           
@@ -63,7 +63,7 @@ jobs:
           echo "✅ 前端构建完成"
 
       - name: 📁 打包前端文件
-        working-directory: dockpilotfront
+        working-directory: dockpilot-frontend
         run: |
           echo "📦 打包前端文件..."
           tar -czf ../frontend.tar.gz -C dist .
@@ -97,14 +97,14 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
 
       - name: 🔧 构建后端
-        working-directory: docker-manager-back
+        working-directory: dockpilot-backend
         run: |
           echo "⚙️ 开始构建后端..."
           mvn clean package -DskipTests -q
           echo "✅ 后端构建完成"
 
       - name: 📁 准备后端文件
-        working-directory: docker-manager-back
+        working-directory: dockpilot-backend
         run: |
           echo "📦 准备后端jar文件..."
           
@@ -219,15 +219,27 @@ jobs:
           
           #### 方式一：直接部署热更新镜像
           \`\`\`bash
+          # 推荐方式（latest即热更新版）
           docker run -d --privileged \\
-            --name dockpilot-hot \\
+            --name dockpilot \\
             -p 8888:8888 \\
             -v /var/run/docker.sock:/var/run/docker.sock \\
             -v /:/mnt/host \\
             -v /home/dockpilot:/dockpilot \\
             -e DOCKPILOT_VERSION=$VERSION \\
             --restart unless-stopped \\
-            kidself/dockpilot-hot:latest
+            kidself/dockpilot:latest
+          
+          # 或明确指定热更新版
+          docker run -d --privileged \\
+            --name dockpilot \\
+            -p 8888:8888 \\
+            -v /var/run/docker.sock:/var/run/docker.sock \\
+            -v /:/mnt/host \\
+            -v /home/dockpilot:/dockpilot \\
+            -e DOCKPILOT_VERSION=$VERSION \\
+            --restart unless-stopped \\
+            kidself/dockpilot:hot
           \`\`\`
           
           #### 方式二：在现有容器中手动更新
@@ -284,8 +296,8 @@ jobs:
           echo "  前端: https://github.com/${{ github.repository }}/releases/download/${{ steps.release-notes.outputs.VERSION }}/frontend.tar.gz"
           echo "  后端: https://github.com/${{ github.repository }}/releases/download/${{ steps.release-notes.outputs.VERSION }}/backend.jar"
 
-  build-hot-update-image:
-    name: 🐳 构建热更新镜像
+  build-docker-image:
+    name: 🐳 构建Docker镜像
     needs: [create-release]
     runs-on: ubuntu-latest
     # 🔥 热更新策略：镜像只需构建一次，代码通过热更新！
@@ -336,8 +348,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            kidself/dockpilot-hot:latest
-            kidself/dockpilot-hot:${{ steps.version.outputs.VERSION }}
+            kidself/dockpilot:latest
+            kidself/dockpilot:hot
+            kidself/dockpilot:${{ steps.version.outputs.VERSION }}
+            kidself/dockpilot:${{ steps.version.outputs.VERSION }}-hot
           build-args: |
             VERSION=${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
@@ -345,17 +359,27 @@ jobs:
 
       - name: 📊 镜像构建总结
         run: |
-          echo "🐳 热更新镜像构建完成！"
+          echo "🐳 DockPilot镜像构建完成！"
           echo "📋 镜像信息:"
-          echo "  仓库: kidself/dockpilot-hot"
-          echo "  标签: latest, ${{ steps.version.outputs.VERSION }}"
+          echo "  仓库: kidself/dockpilot"
+          echo "  标签: latest, hot, ${{ steps.version.outputs.VERSION }}, ${{ steps.version.outputs.VERSION }}-hot"
           echo "  平台: linux/amd64, linux/arm64"
           echo ""
           echo "🚀 使用方法:"
-          echo "  docker run -d --privileged --name dockpilot-hot \\"
+          echo "  # 推荐方式（latest即热更新版）"
+          echo "  docker run -d --privileged --name dockpilot \\"
           echo "    -p 8888:8888 \\"
           echo "    -v /var/run/docker.sock:/var/run/docker.sock \\"
           echo "    -v /:/mnt/host \\"
           echo "    -v /home/dockpilot:/dockpilot \\"
           echo "    --restart unless-stopped \\"
-          echo "    kidself/dockpilot-hot:latest" 
+          echo "    kidself/dockpilot:latest"
+          echo ""
+          echo "  # 或明确指定热更新版"
+          echo "  docker run -d --privileged --name dockpilot \\"
+          echo "    -p 8888:8888 \\"
+          echo "    -v /var/run/docker.sock:/var/run/docker.sock \\"
+          echo "    -v /:/mnt/host \\"
+          echo "    -v /home/dockpilot:/dockpilot \\"
+          echo "    --restart unless-stopped \\"
+          echo "    kidself/dockpilot:hot" 

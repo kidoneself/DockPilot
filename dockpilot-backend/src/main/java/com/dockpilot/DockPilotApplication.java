@@ -4,8 +4,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class DsmApplication {
+public class DockPilotApplication {
     public static void main(String[] args) {
-        SpringApplication.run(DsmApplication.class, args);
+        SpringApplication.run(DockPilotApplication.class, args);
     }
 } 

@@ -35,24 +35,18 @@
 - JDK 17 或更高版本
 - Node.js 16 或更高版本
 
-### 方法一：使用运行脚本（推荐）
+### 🏷️ Docker 标签说明
+| 标签 | 说明 | 推荐场景 |
+|------|------|----------|
+| `latest` | 热更新版（默认推荐） | 生产环境，支持容器内热更新 |
+| `hot` | 热更新版（明确标识） | 需要明确指定热更新功能时 |
+| `v1.2.0` | 版本标签（热更新版） | 需要固定版本时 |
+| `v1.2.0-hot` | 版本标签（热更新版明确标识） | 需要固定版本且明确热更新时 |
+
+### 方法一：直接部署（推荐）
 ```bash
-# 进入build目录
-cd build
-
-# 运行脚本（默认使用test测试版本）
-./run-dockerhub.sh
-
-# 指定其他版本
-./run-dockerhub.sh latest      # 使用最新版本
-./run-dockerhub.sh v1.0.0      # 使用指定版本
-./run-dockerhub.sh test 9999   # 使用test版本，自定义端口
-```
-
-### 方法二：手动运行
-```bash
-# 拉取测试版镜像（默认）
-docker pull kidself/dockpilot:test
+# 拉取热更新版镜像（推荐）
+docker pull kidself/dockpilot:latest
 
 # 运行容器
 docker run -d --privileged \
@@ -60,9 +54,32 @@ docker run -d --privileged \
    --name dockpilot \
    -v /var/run/docker.sock:/var/run/docker.sock \
    -v /:/mnt/host \
-   -v dockpilot-data:/dockpilot \
+   -v /home/dockpilot:/dockpilot \
    --restart unless-stopped \
-   kidself/dockpilot:test
+   kidself/dockpilot:latest
+```
+
+### 方法二：选择特定版本
+```bash
+# 明确指定热更新版
+docker run -d --privileged \
+   -p 8888:8888 \
+   --name dockpilot \
+   -v /var/run/docker.sock:/var/run/docker.sock \
+   -v /:/mnt/host \
+   -v /home/dockpilot:/dockpilot \
+   --restart unless-stopped \
+   kidself/dockpilot:hot
+
+# 或指定版本号
+docker run -d --privileged \
+   -p 8888:8888 \
+   --name dockpilot \
+   -v /var/run/docker.sock:/var/run/docker.sock \
+   -v /:/mnt/host \
+   -v /home/dockpilot:/dockpilot \
+   --restart unless-stopped \
+   kidself/dockpilot:v1.2.0
 ```
 
 ### 访问系统
@@ -104,14 +121,14 @@ git push origin v1.x.x
 
 #### 前端开发
 ```bash
-cd dockpilotfront
+cd dockpilot-frontend
 npm install
 npm run dev
 ```
 
 #### 后端开发
 ```bash
-cd docker-manager-back
+cd dockpilot-backend
 mvn spring-boot:run
 ```
 

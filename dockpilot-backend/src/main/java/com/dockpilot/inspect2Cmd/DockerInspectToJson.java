@@ -17,7 +17,7 @@ public class DockerInspectToJson {
     public static void main(String[] args) {
         try {
             // 获取当前类文件所在的目录
-            String currentDir = "/Users/lizhiqiang/coding-my/docker/docker-manager-back/src/main/java/com/dsm/inspect2Cmd";
+            String currentDir = "/Users/lizhiqiang/coding-my/docker/dockpilot-backend/src/main/java/com/dockpilot/inspect2Cmd";
 
             // 只使用一个参数，同时作为文件夹名和模板名
             String name = "mp";

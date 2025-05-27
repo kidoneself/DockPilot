@@ -6,7 +6,7 @@
 
 # Build
 build/dist/
-build/docker-manager-back-*.jar
+build/dockpilot-backend-*.jar
 build/data.db
 
 # Database
@@ -70,8 +70,8 @@ docker-manager-front/.cache/
 docker-manager-front/.temp/
 
 # 后端项目打包文件
-docker-manager-back/target/
-docker-manager-back/*.jar
-docker-manager-back/.mvn/
-docker-manager-back/mvnw
-docker-manager-back/mvnw.cmd
+dockpilot-backend/target/
+dockpilot-backend/*.jar
+dockpilot-backend/.mvn/
+dockpilot-backend/mvnw
+dockpilot-backend/mvnw.cmd

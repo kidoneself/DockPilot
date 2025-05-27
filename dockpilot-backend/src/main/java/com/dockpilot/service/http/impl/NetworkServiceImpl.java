@@ -5,7 +5,7 @@ import com.dockpilot.model.IPAMConfigFlatDTO;
 import com.dockpilot.model.NetworkContainerDTO;
 import com.dockpilot.model.NetworkInfoDTO;
 import com.dockpilot.service.http.NetworkService;
-import com.dockpilot.util.NetworkUtil;
+import com.dockpilot.utils.NetworkUtil;
 import com.github.dockerjava.api.model.Network;
 import org.springframework.stereotype.Service;
 

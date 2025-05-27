@@ -17,7 +17,7 @@
 // public class JsonToDockerCmd {
 //     public static void main(String[] args) {
 //         // 1. 读取简化 json 文件（如 naspt-mpv2.json）
-//         String jsonPath = "/Users/lizhiqiang/coding-my/docker/docker-manager-back/src/main/java/com/dsm/inspect2Cmd/naspt-mpv2.json";
+//         String jsonPath = "/Users/lizhiqiang/coding-my/docker/dockpilot-backend/src/main/java/com/dockpilot/inspect2Cmd/naspt-mpv2.json";
 //         ObjectMapper mapper = new ObjectMapper();
 //         try {
 //             JsonNode root = mapper.readTree(new File(jsonPath));

@@ -1,4 +1,4 @@
-package com.dockpilot.util;
+package com.dockpilot.utils;
 
 import com.dockpilot.model.IPAMConfigFlatDTO;
 import com.dockpilot.model.NetworkContainerDTO;

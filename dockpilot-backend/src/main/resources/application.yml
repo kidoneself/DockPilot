@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: docker-manager-back
+    name: dockpilot-backend
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   datasource:
@@ -107,5 +107,5 @@ file:
 #file:
 #  download:
 #    path:
-#      dev: /Users/lizhiqiang/coding-my/docker/docker-manager-back/src/main/resources/app
+#      dev: /Users/lizhiqiang/coding-my/docker/dockpilot-backend/src/main/resources/app
 #      prod: /app/template

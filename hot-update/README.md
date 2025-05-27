@@ -38,17 +38,27 @@
 
 ```bash
 # 拉取热更新镜像
-docker pull kidself/dockpilot-hot:latest
+docker pull kidself/dockpilot:latest
 
-# 启动容器
+# 启动容器（推荐方式）
 docker run -d --privileged \
-  --name dockpilot-hot \
+  --name dockpilot \
   -p 8888:8888 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v /:/mnt/host \
   -v /home/dockpilot:/dockpilot \
   --restart unless-stopped \
-  kidself/dockpilot-hot:latest
+  kidself/dockpilot:latest
+
+# 或明确指定热更新版
+docker run -d --privileged \
+  --name dockpilot \
+  -p 8888:8888 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /:/mnt/host \
+  -v /home/dockpilot:/dockpilot \
+  --restart unless-stopped \
+  kidself/dockpilot:hot
 ```
 
 ### 方法二：从现有容器升级
@@ -102,14 +112,14 @@ graph TD
 1. **添加UpdateController和UpdateService**
    ```bash
    # 复制文件到对应目录
-   cp hot-update/UpdateController.java docker-manager-back/src/main/java/com/dsm/controller/
-   cp hot-update/UpdateService.java docker-manager-back/src/main/java/com/dsm/service/http/
-   cp hot-update/UpdateInfoDTO.java docker-manager-back/src/main/java/com/dsm/model/dto/
+   cp hot-update/UpdateController.java dockpilot-backend/src/main/java/com/dockpilot/controller/
+   cp hot-update/UpdateService.java dockpilot-backend/src/main/java/com/dockpilot/service/http/
+   cp hot-update/UpdateInfoDTO.java dockpilot-backend/src/main/java/com/dockpilot/model/dto/
    ```
 
 2. **修改API导出**
    ```typescript
-   // 在 dockpilotfront/src/api/http/index.ts 中添加
+   // 在 dockpilot-frontend/src/api/http/index.ts 中添加
    export * from './update'
    ```
 
@@ -117,12 +127,12 @@ graph TD
 
 1. **添加更新API**
    ```bash
-   cp hot-update/update.ts dockpilotfront/src/api/http/
+   cp hot-update/update.ts dockpilot-frontend/src/api/http/
    ```
 
 2. **添加更新组件**
    ```bash
-   cp hot-update/UpdateNotification.vue dockpilotfront/src/components/
+   cp hot-update/UpdateNotification.vue dockpilot-frontend/src/components/
    ```
 
 3. **在布局中引入组件**
@@ -184,7 +194,7 @@ hot-update/
 1. **更新下载失败**
    - 检查网络连接
    - 确认GitHub Releases中存在对应版本
-   - 查看容器日志: `docker logs dockpilot-hot`
+   - 查看容器日志: `docker logs dockpilot`
 
 2. **Java应用启动失败**
    - 检查jar文件是否完整
@@ -198,7 +208,7 @@ hot-update/
 
 ### 日志位置
 
-- **容器启动日志**: `docker logs dockpilot-hot`
+- **容器启动日志**: `docker logs dockpilot`
 - **应用日志**: `/dockpilot/logs/application.log`
 - **更新日志**: `/dockpilot/logs/application-restart.log`
 - **Caddy日志**: `/dockpilot/logs/caddy-access.log`
@@ -209,7 +219,7 @@ hot-update/
 
 ```bash
 # 进入容器
-docker exec -it dockpilot-hot /bin/bash
+docker exec -it dockpilot /bin/bash
 
 # 恢复备份（如果存在）
 cp /tmp/dockpilot-backup/backend.jar /app/app.jar
