@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.dockpilot.mapper.TemplateMapper">
+
+    <resultMap id="templateMap" type="com.dockpilot.model.Template">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="category" column="category"/>
+        <result property="version" column="version"/>
+        <result property="description" column="description"/>
+        <result property="iconUrl" column="icon_url"/>
+        <result property="template" column="template"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="sortWeight" column="sort_weight"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id
+        , name, category, version, description, icon_url, template, created_at, updated_at, sort_weight
+    </sql>
+
+    <select id="selectTemplates" resultMap="templateMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM application_templates
+        <where>
+            <if test="param.category != null and param.category != ''">
+                AND category = #{param.category}
+            </if>
+            <if test="param.search != null and param.search != ''">
+                AND (
+                name LIKE CONCAT('%', #{param.search}, '%')
+                OR description LIKE CONCAT('%', #{param.search}, '%')
+                )
+            </if>
+        </where>
+        ORDER BY ${param.sortBy} ${param.sortDirection}
+        LIMIT #{param.size} OFFSET #{param.offset}
+    </select>
+
+    <select id="countTemplates" resultType="long">
+        SELECT COUNT(*)
+        FROM application_templates
+        <where>
+            <if test="param.category != null and param.category != ''">
+                AND category = #{param.category}
+            </if>
+            <if test="param.search != null and param.search != ''">
+                AND (
+                name LIKE CONCAT('%', #{param.search}, '%')
+                OR description LIKE CONCAT('%', #{param.search}, '%')
+                )
+            </if>
+        </where>
+    </select>
+
+    <select id="selectTemplateById" resultMap="templateMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM application_templates
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.dockpilot.model.Template">
+        INSERT INTO application_templates (id, name, category, version, description, icon_url, template, created_at,
+                                           updated_at, sort_weight)
+        VALUES (#{id}, #{name}, #{category}, #{version}, #{description}, #{iconUrl}, #{template}, #{createdAt},
+                #{updatedAt}, #{sortWeight})
+    </insert>
+
+    <!-- 删除模板 -->
+    <delete id="deleteById">
+        DELETE
+        FROM application_templates
+        WHERE id = #{id}
+    </delete>
+
+</mapper> 

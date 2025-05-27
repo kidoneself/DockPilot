@@ -51,6 +51,7 @@ _site
 package
 tmp*
 temp*
+!**/Template*
 coverage
 *.zip
 .history
