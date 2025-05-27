@@ -109,4 +109,17 @@ public class UpdateController {
             return ApiResponse.error("清空缓存失败: " + e.getMessage());
         }
     }
+
+    @Operation(summary = "更新当前版本记录", description = "手动更新当前版本记录为最新发布版本")
+    @PostMapping("/update-version-record")
+    public ApiResponse<String> updateCurrentVersionRecord() {
+        try {
+            String result = updateService.updateCurrentVersionToLatest();
+            log.info("✅ 当前版本记录已更新: {}", result);
+            return ApiResponse.success(result);
+        } catch (Exception e) {
+            log.error("更新版本记录失败", e);
+            return ApiResponse.error("更新版本记录失败: " + e.getMessage());
+        }
+    }
 } 

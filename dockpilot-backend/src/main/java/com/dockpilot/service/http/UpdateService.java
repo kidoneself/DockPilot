@@ -705,6 +705,36 @@ public class UpdateService {
     }
 
     /**
+     * 手动更新当前版本记录为最新版本
+     */
+    public String updateCurrentVersionToLatest() throws Exception {
+        log.info("🔄 开始更新当前版本记录为最新版本...");
+        
+        // 清除缓存，确保获取最新信息
+        clearCache();
+        
+        // 获取最新版本信息
+        JsonNode latestRelease = getLatestReleaseWithFallback();
+        if (latestRelease == null) {
+            throw new RuntimeException("无法获取最新版本信息");
+        }
+        
+        String latestVersion = latestRelease.get("tag_name").asText();
+        String currentVersion = getCurrentVersion();
+        
+        if (latestVersion.equals(currentVersion)) {
+            log.info("✅ 当前版本已是最新: {}", currentVersion);
+            return "当前版本已是最新: " + currentVersion;
+        }
+        
+        // 更新版本记录
+        updateVersionRecord(latestVersion);
+        
+        log.info("✅ 版本记录已从 {} 更新为 {}", currentVersion, latestVersion);
+        return String.format("版本记录已从 %s 更新为 %s", currentVersion, latestVersion);
+    }
+
+    /**
      * 获取Java进程PID
      */
     private String getJavaProcessPid() {
@@ -869,7 +899,11 @@ public class UpdateService {
     private void updateVersionRecord(String newVersion) throws IOException {
         Files.createDirectories(Paths.get(VERSION_FILE).getParent());
         Files.writeString(Paths.get(VERSION_FILE), newVersion);
-        log.info("版本记录已更新: {}", newVersion);
+        log.info("✅ 版本记录已更新: {} -> {}", VERSION_FILE, newVersion);
+        
+        // 清除缓存，强制下次重新读取
+        clearCache();
+        log.info("🗑️ 版本缓存已清除，下次将读取新版本");
     }
 
     /**

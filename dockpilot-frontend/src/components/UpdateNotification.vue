@@ -176,6 +176,16 @@ const checkForUpdates = async () => {
   
   checking.value = true
   try {
+    console.log('🔍 开始检查更新，清除可能的缓存...')
+    
+    // 先清除后端缓存，确保获取最新信息
+    try {
+      await fetch('/api/update/clear-cache', { method: 'POST' })
+      console.log('🗑️ 后端缓存已清除')
+    } catch (e) {
+      console.warn('清除后端缓存失败，继续检查:', e)
+    }
+    
     const result = await checkUpdate()
     updateInfo.value = result
     
@@ -194,13 +204,14 @@ const checkForUpdates = async () => {
     console.log('✅ 更新检查完成:', {
       hasUpdate: result.hasUpdate,
       currentVersion: currentVersion.value,
-      latestVersion: result.latestVersion
+      latestVersion: result.latestVersion,
+      详细信息: result
     })
     
     if (result.hasUpdate) {
-      message.success(`发现新版本 ${result.latestVersion}`)
+      message.success(`🎉 发现新版本 ${result.latestVersion}，当前版本 ${currentVersion.value}`)
     } else {
-      message.info('当前已是最新版本')
+      message.info(`✅ 当前已是最新版本 ${currentVersion.value}`)
     }
   } catch (error) {
     console.error('检查更新失败:', error)
@@ -335,7 +346,7 @@ const formatReleaseNotes = (notes: string) => {
 }
 
 // 生命周期
-onMounted(() => {
+onMounted(async () => {
   // 设置默认版本 - 确保总是有一个合理的版本显示
   const defaultVersion = 'v1.0.7'
   currentVersion.value = process.env.VUE_APP_VERSION || defaultVersion
@@ -346,11 +357,17 @@ onMounted(() => {
     nodeEnv: process.env.NODE_ENV
   })
   
-  // 移除页面刷新时的自动版本检查
-  // 用户反馈：后台已有定时检查，用户也可手动检查，不需要页面刷新时自动检查
+  // 自动检查更新 - 修复缓存问题
+  try {
+    console.log('🔄 自动检查版本更新...')
+    await checkForUpdates()
+    console.log('✅ 自动版本检查完成')
+  } catch (error) {
+    console.warn('⚠️ 自动版本检查失败，但不影响使用:', error)
+    // 生产环境静默处理，开发环境可以看到错误
+  }
   
-  // 如果需要定时检查，可以取消注释下面的代码
-  // 每2小时自动检查一次更新（降低频率）
+  // 可选：定时检查更新（目前禁用，避免频繁请求）
   // checkTimer = setInterval(() => {
   //   checkForUpdates().catch(() => {
   //     // 静默失败
