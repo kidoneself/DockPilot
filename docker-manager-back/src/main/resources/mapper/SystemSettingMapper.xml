@@ -3,7 +3,7 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.dsm.mapper.SystemSettingMapper">
+<mapper namespace="com.dockpilot.mapper.SystemSettingMapper">
 
     <select id="getSettingValue" resultType="string">
         SELECT setting_value
@@ -17,7 +17,7 @@
         UPDATE SET setting_value = #{value}
     </insert>
 
-    <select id="getAllSettings" resultType="com.dsm.model.SystemSetting">
+    <select id="getAllSettings" resultType="com.dockpilot.model.SystemSetting">
         SELECT setting_key AS key, setting_value AS value
         FROM system_settings
     </select>

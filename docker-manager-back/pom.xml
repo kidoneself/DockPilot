@@ -10,11 +10,11 @@
         <version>2.7.18</version>
     </parent>
 
-    <groupId>com.dsm</groupId>
-    <artifactId>docker-manager-back</artifactId>
-    <version>1.0.0</version>
-    <name>docker-manager-back</name>
-    <description>Docker容器管理系统</description>
+    <groupId>com.dockpilot</groupId>
+    <artifactId>dockpilot-backend</artifactId>
+    <version>1.2.0</version>
+    <name>dockpilot-backend</name>
+    <description>DockPilot Docker管理平台后端服务</description>
 
     <properties>
         <java.version>11</java.version>

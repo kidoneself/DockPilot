@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.dsm.mapper.TemplateMapper">
+<mapper namespace="com.dockpilot.mapper.TemplateMapper">
 
-    <resultMap id="templateMap" type="com.dsm.model.Template">
+    <resultMap id="templateMap" type="com.dockpilot.model.Template">
         <id property="id" column="id"/>
         <result property="name" column="name"/>
         <result property="category" column="category"/>
@@ -62,7 +62,7 @@
         WHERE id = #{id}
     </select>
 
-    <insert id="insert" parameterType="com.dsm.model.Template">
+    <insert id="insert" parameterType="com.dockpilot.model.Template">
         INSERT INTO application_templates (id, name, category, version, description, icon_url, template, created_at,
                                            updated_at, sort_weight)
         VALUES (#{id}, #{name}, #{category}, #{version}, #{description}, #{iconUrl}, #{template}, #{createdAt},

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.dsm.mapper.ContainerInfoMapper">
+<mapper namespace="com.dockpilot.mapper.ContainerInfoMapper">
 
-    <resultMap id="BaseResultMap" type="com.dsm.model.ContainerInfo">
+    <resultMap id="BaseResultMap" type="com.dockpilot.model.ContainerInfo">
         <id column="id" property="id"/>
         <result column="container_id" property="containerId"/>
         <result column="name" property="name"/>
@@ -22,14 +22,14 @@
         , container_id, name, image, status, operation_status, last_error, need_update, icon_url, web_url, created_at, updated_at
     </sql>
 
-    <insert id="insert" parameterType="com.dsm.model.ContainerInfo" useGeneratedKeys="true" keyProperty="id">
+    <insert id="insert" parameterType="com.dockpilot.model.ContainerInfo" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO container_info (container_id, name, image, status, operation_status, last_error, need_update,
                                     icon_url, web_url, created_at, updated_at)
         VALUES (#{containerId}, #{name}, #{image}, #{status}, #{operationStatus}, #{lastError}, #{needUpdate},
                 #{iconUrl}, #{webUrl}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     </insert>
 
-    <update id="update" parameterType="com.dsm.model.ContainerInfo">
+    <update id="update" parameterType="com.dockpilot.model.ContainerInfo">
         UPDATE container_info
         <set>
             <if test="containerId != null">

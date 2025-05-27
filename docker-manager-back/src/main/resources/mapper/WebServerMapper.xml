@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.dsm.mapper.WebServerMapper">
+<mapper namespace="com.dockpilot.mapper.WebServerMapper">
     <!-- 基础列 -->
     <sql id="Base_Column_List">
         id
@@ -9,7 +9,7 @@
     </sql>
 
     <!-- 新增服务器 -->
-    <insert id="insert" parameterType="com.dsm.model.entity.WebServer">
+    <insert id="insert" parameterType="com.dockpilot.model.entity.WebServer">
         INSERT INTO web_servers (id, name, icon, internal_url, external_url, description, category, item_sort,
                                  created_at, updated_at)
         VALUES (#{id}, #{name}, #{icon}, #{internalUrl}, #{externalUrl}, #{description}, #{category},
@@ -24,7 +24,7 @@
     </delete>
 
     <!-- 更新服务器信息 -->
-    <update id="update" parameterType="com.dsm.model.entity.WebServer">
+    <update id="update" parameterType="com.dockpilot.model.entity.WebServer">
         UPDATE web_servers
         SET name         = #{name},
             icon         = #{icon},
@@ -38,7 +38,7 @@
     </update>
 
     <!-- 根据ID查询服务器 -->
-    <select id="selectById" resultType="com.dsm.model.entity.WebServer">
+    <select id="selectById" resultType="com.dockpilot.model.entity.WebServer">
         SELECT
         <include refid="Base_Column_List"/>
         FROM web_servers
@@ -46,7 +46,7 @@
     </select>
 
     <!-- 查询所有服务器 -->
-    <select id="selectAll" resultType="com.dsm.model.entity.WebServer">
+    <select id="selectAll" resultType="com.dockpilot.model.entity.WebServer">
         SELECT
         <include refid="Base_Column_List"/>
         FROM web_servers
@@ -61,7 +61,7 @@
     </select>
 
     <!-- 根据分类查询服务器 -->
-    <select id="selectByCategory" resultType="com.dsm.model.entity.WebServer">
+    <select id="selectByCategory" resultType="com.dockpilot.model.entity.WebServer">
         SELECT
         <include refid="Base_Column_List"/>
         FROM web_servers

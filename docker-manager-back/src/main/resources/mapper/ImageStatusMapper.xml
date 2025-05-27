@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.dsm.mapper.ImageStatusMapper">
+<mapper namespace="com.dockpilot.mapper.ImageStatusMapper">
 
     <!-- 结果映射 -->
-    <resultMap id="BaseResultMap" type="com.dsm.model.ImageStatus">
+    <resultMap id="BaseResultMap" type="com.dockpilot.model.ImageStatus">
         <id column="id" property="id"/>
         <result column="name" property="name"/>
         <result column="tag" property="tag"/>
@@ -49,7 +49,7 @@
     </select>
 
     <!-- 插入镜像状态记录 -->
-    <insert id="insert" parameterType="com.dsm.model.ImageStatus" useGeneratedKeys="true" keyProperty="id">
+    <insert id="insert" parameterType="com.dockpilot.model.ImageStatus" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO image_status (name, tag, local_create_time, remote_create_time, need_update, last_checked, image_id,
                                   pulling, progress, created_at, updated_at)
         VALUES (#{name}, #{tag}, #{localCreateTime}, #{remoteCreateTime}, #{needUpdate}, #{lastChecked}, #{imageId},
@@ -57,7 +57,7 @@
     </insert>
 
     <!-- 通用更新镜像状态记录 -->
-    <update id="update" parameterType="com.dsm.model.ImageStatus">
+    <update id="update" parameterType="com.dockpilot.model.ImageStatus">
         UPDATE image_status
         <set>
             <if test="localCreateTime != null">local_create_time = #{localCreateTime},</if>
@@ -107,7 +107,7 @@
     </delete>
 
     <!-- 插入或更新镜像状态记录 -->
-    <insert id="insertOrUpdate" parameterType="com.dsm.model.ImageStatus" useGeneratedKeys="true" keyProperty="id">
+    <insert id="insertOrUpdate" parameterType="com.dockpilot.model.ImageStatus" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO image_status (name, tag, local_create_time, remote_create_time, need_update, last_checked, image_id,
                                   pulling, progress, created_at, updated_at)
         VALUES (#{name}, #{tag}, #{localCreateTime}, #{remoteCreateTime}, #{needUpdate}, #{lastChecked}, #{imageId},
