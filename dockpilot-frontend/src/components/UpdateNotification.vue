@@ -39,7 +39,11 @@
       <div class="about-content">
         <!-- 项目头部 -->
         <div class="project-header">
-          <div class="project-logo">🐳</div>
+          <img 
+            src="@/assets/icons/logo.svg" 
+            class="project-logo" 
+            alt="DockPilot"
+          />
           <div class="project-info">
             <h2>DockPilot {{ displayVersion }}</h2>
             <p>现代化Docker容器管理平台</p>
@@ -116,10 +120,13 @@ import {
   type UpdateInfo,
   type UpdateProgress 
 } from '@/api/http/update'
+import { useThemeStore } from '@/store/theme'
+import logo from '@/assets/icons/logo.svg'
 
 // 组合式API
 const message = useMessage()
 const dialog = useDialog()
+const themeStore = useThemeStore()
 
 // 响应式数据
 const showAboutDialog = ref(false)
@@ -339,22 +346,16 @@ onMounted(() => {
     nodeEnv: process.env.NODE_ENV
   })
   
-  // 静默检查一次更新（不显示错误）
-  checkForUpdates().catch((error) => {
-    // 静默失败，可能后端未启动
-    console.log('后端服务暂未启动，将在需要时连接:', error?.message || 'unknown error')
-    // 即使后端失败，也保持默认版本
-    if (!currentVersion.value || currentVersion.value === 'unknown') {
-      currentVersion.value = defaultVersion
-    }
-  })
+  // 移除页面刷新时的自动版本检查
+  // 用户反馈：后台已有定时检查，用户也可手动检查，不需要页面刷新时自动检查
   
+  // 如果需要定时检查，可以取消注释下面的代码
   // 每2小时自动检查一次更新（降低频率）
-  checkTimer = setInterval(() => {
-    checkForUpdates().catch(() => {
-      // 静默失败
-    })
-  }, 2 * 60 * 60 * 1000)
+  // checkTimer = setInterval(() => {
+  //   checkForUpdates().catch(() => {
+  //     // 静默失败
+  //   })
+  // }, 2 * 60 * 60 * 1000)
 })
 
 onUnmounted(() => {
@@ -438,8 +439,16 @@ onUnmounted(() => {
 }
 
 .project-logo {
-  font-size: 32px;
-  margin-right: 12px;
+  width: 120px;  /* 调整尺寸以适应对话框 */
+  height: auto;
+  object-fit: contain;
+  /* 确保 logo 颜色跟随主题 */
+  filter: var(--logo-filter, none);
+}
+
+/* 深色主题下的 logo 样式 */
+:root[data-theme="dark"] .project-logo {
+  --logo-filter: brightness(0) invert(1);
 }
 
 .project-info h2 {

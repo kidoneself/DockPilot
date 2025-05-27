@@ -3,6 +3,7 @@ package com.dockpilot.service.http;
 
 import com.dockpilot.model.dto.UpdateInfoDTO;
 import com.dockpilot.service.http.SystemSettingService;
+import com.dockpilot.common.config.AppConfig;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
-import java.net.URI;
+import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 容器内热更新服务
  * 核心功能：不重启容器的情况下更新前后端代码
+ * 新增功能：缓存机制 + 完善容错处理
  */
 @Slf4j
 @Service
@@ -33,17 +35,28 @@ public class UpdateService {
 
     @Autowired
     private SystemSettingService systemSettingService;
+    
+    @Autowired
+    private AppConfig appConfig;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
+    
+    // HTTP客户端（会根据代理配置动态创建）
+    private volatile HttpClient httpClient;
+    private volatile String lastProxyUrl; // 缓存最后使用的代理URL
 
     // 更新状态管理
     private volatile Map<String, Object> updateProgress = new HashMap<>();
     private final AtomicBoolean isUpdating = new AtomicBoolean(false);
     private volatile CompletableFuture<Void> currentUpdateTask;
+
+    // 📦 缓存机制相关
+    private volatile UpdateInfoDTO cachedUpdateInfo;
+    private volatile LocalDateTime lastCheckTime;
+    private volatile JsonNode lastReleaseData;
+    private static final int CACHE_DURATION_MINUTES = 10; // 缓存10分钟
+    private static final String CACHE_FILE = "/dockpilot/data/update_cache.json";
+    private static final String FALLBACK_FILE = "/dockpilot/data/fallback_update.json";
 
     // 系统路径配置
     private static final String GITHUB_API_URL = "https://api.github.com/repos/kidoneself/DockPilot/releases/latest";
@@ -54,23 +67,41 @@ public class UpdateService {
     private static final String BACKUP_DIR = "/tmp/dockpilot-backup";
 
     /**
-     * 检查是否有新版本
+     * 检查是否有新版本 - 带缓存和容错机制
      */
     public UpdateInfoDTO checkForUpdates() throws Exception {
         log.info("🔍 开始检查新版本...");
         
-        String currentVersion = getCurrentVersion();
-        JsonNode latestRelease = getLatestReleaseFromGitHub();
+        // 1. 尝试使用缓存
+        UpdateInfoDTO cachedResult = getCachedUpdateInfo();
+        if (cachedResult != null) {
+            log.info("✅ 使用缓存的更新信息 (缓存时间: {})", lastCheckTime);
+            return cachedResult;
+        }
         
+        // 2. 获取当前版本
+        String currentVersion = getCurrentVersion();
+        
+        // 3. 获取最新版本信息（带容错）
+        JsonNode latestRelease = getLatestReleaseWithFallback();
+        
+        if (latestRelease == null) {
+            // 完全失败时，返回基于当前版本的默认信息
+            log.warn("⚠️ 无法获取最新版本信息，返回当前版本状态");
+            return createFallbackUpdateInfo(currentVersion);
+        }
+        
+        // 4. 解析版本信息
         String latestVersion = latestRelease.get("tag_name").asText();
-        String releaseNotes = latestRelease.get("body").asText();
-        String publishedAt = latestRelease.get("published_at").asText();
+        String releaseNotes = latestRelease.has("body") ? latestRelease.get("body").asText() : "无发布说明";
+        String publishedAt = latestRelease.has("published_at") ? latestRelease.get("published_at").asText() : "";
         
         boolean hasUpdate = !currentVersion.equals(latestVersion) && 
                            !latestVersion.equals("unknown") && 
                            !currentVersion.equals("unknown");
         
-        return UpdateInfoDTO.builder()
+        // 5. 构建结果并缓存
+        UpdateInfoDTO result = UpdateInfoDTO.builder()
                 .currentVersion(currentVersion)
                 .latestVersion(latestVersion)
                 .hasUpdate(hasUpdate)
@@ -79,6 +110,12 @@ public class UpdateService {
                 .status(hasUpdate ? "available" : "up-to-date")
                 .progress(0)
                 .build();
+        
+        // 6. 缓存结果
+        cacheUpdateInfo(result, latestRelease);
+        
+        log.info("✅ 版本检查完成: {} -> {} (有更新: {})", currentVersion, latestVersion, hasUpdate);
+        return result;
     }
 
     /**
@@ -349,47 +386,183 @@ public class UpdateService {
         return "没有正在进行的更新操作";
     }
 
-    /**
-     * 设置自动检查更新
-     */
-    public void setAutoCheckEnabled(boolean enabled) {
-        systemSettingService.set("auto_check_update_enabled", String.valueOf(enabled));
-        log.info("自动检查更新设置: {}", enabled);
-    }
 
-    /**
-     * 获取更新历史
-     */
-    public Map<String, Object> getUpdateHistory() {
-        Map<String, Object> history = new HashMap<>();
-        history.put("currentVersion", getCurrentVersion());
-        history.put("lastCheckTime", LocalDateTime.now());
-        history.put("autoCheckEnabled", isAutoCheckEnabled());
-        history.put("updateMethod", "hot-update");
-        return history;
-    }
 
     // ==================== 私有工具方法 ====================
 
     /**
-     * 从GitHub API获取最新版本信息
+     * 从GitHub API获取最新版本信息 - 带重试机制
      */
     private JsonNode getLatestReleaseFromGitHub() throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(GITHUB_API_URL))
-                .header("Accept", "application/vnd.github.v3+json")
-                .header("User-Agent", "DockPilot-UpdateService")
-                .timeout(Duration.ofSeconds(30))
-                .build();
+        Exception lastException = null;
+        
+        // 最多重试3次
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                log.debug("🔄 第{}次尝试获取GitHub Release信息...", attempt);
+                
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(GITHUB_API_URL))
+                        .header("Accept", "application/vnd.github.v3+json")
+                        .header("User-Agent", "DockPilot-UpdateService")
+                        .timeout(Duration.ofSeconds(15 + attempt * 5)) // 递增超时时间
+                        .build();
 
-        HttpResponse<String> response = httpClient.send(request, 
-            HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = httpClient.send(request, 
+                    HttpResponse.BodyHandlers.ofString());
 
-        if (response.statusCode() != 200) {
-            throw new IOException("GitHub API请求失败: " + response.statusCode());
+                if (response.statusCode() == 200) {
+                    JsonNode result = objectMapper.readTree(response.body());
+                    log.debug("✅ 成功获取GitHub Release信息 (第{}次尝试)", attempt);
+                    
+                    // 保存到备用文件
+                    saveFallbackData(result);
+                    return result;
+                } else if (response.statusCode() == 403) {
+                    // GitHub API限流
+                    log.warn("⚠️ GitHub API限流 (403)，尝试使用备用方案");
+                    throw new IOException("GitHub API限流: " + response.statusCode());
+                } else if (response.statusCode() == 404) {
+                    // 仓库不存在或私有
+                    log.error("❌ GitHub仓库不存在或无权限访问 (404)");
+                    throw new IOException("GitHub仓库访问失败: " + response.statusCode());
+                } else {
+                    throw new IOException("GitHub API请求失败: " + response.statusCode() + 
+                                        " - " + response.body());
+                }
+
+            } catch (java.net.ConnectException e) {
+                lastException = e;
+                log.warn("🌐 网络连接失败 (第{}次尝试): {}", attempt, e.getMessage());
+            } catch (java.net.http.HttpTimeoutException e) {
+                lastException = e;
+                log.warn("⏰ 请求超时 (第{}次尝试): {}", attempt, e.getMessage());
+            } catch (java.net.UnknownHostException e) {
+                lastException = e;
+                log.warn("🔍 域名解析失败 (第{}次尝试): {}", attempt, e.getMessage());
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("❌ 第{}次尝试失败: {}", attempt, e.getMessage());
+            }
+            
+            // 等待后重试（递增等待时间）
+            if (attempt < 3) {
+                try {
+                    long waitTime = attempt * 2000; // 2秒、4秒
+                    log.debug("⏳ 等待{}毫秒后重试...", waitTime);
+                    Thread.sleep(waitTime);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("重试被中断", ie);
+                }
+            }
         }
+        
+        // 所有重试都失败，尝试使用备用数据
+        log.warn("❌ 所有重试都失败，尝试使用备用数据");
+        JsonNode fallbackData = loadFallbackData();
+        if (fallbackData != null) {
+            log.info("✅ 使用备用数据");
+            return fallbackData;
+        }
+        
+        // 完全失败
+        throw new RuntimeException("获取GitHub Release信息失败，已重试3次: " + 
+                                 (lastException != null ? lastException.getMessage() : "未知错误"));
+    }
 
-        return objectMapper.readTree(response.body());
+    /**
+     * 带备用方案的获取最新版本信息
+     */
+    private JsonNode getLatestReleaseWithFallback() {
+        // 1. 尝试从主API获取
+        try {
+            return getLatestReleaseFromGitHub();
+        } catch (Exception e) {
+            log.warn("🔄 主API失败，尝试备用方案: {}", e.getMessage());
+        }
+        
+        // 2. 尝试从备用文件加载
+        try {
+            JsonNode fallbackData = loadFallbackData();
+            if (fallbackData != null) {
+                log.info("✅ 使用本地备用数据");
+                return fallbackData;
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ 加载备用数据失败: {}", e.getMessage());
+        }
+        
+        // 3. 最后的备用方案：使用内置的最小化版本信息
+        log.warn("⚠️ 所有获取方式都失败，使用最小化版本信息");
+        return createMinimalReleaseData();
+    }
+
+    /**
+     * 保存备用数据到文件
+     */
+    private void saveFallbackData(JsonNode data) {
+        try {
+            Path fallbackFile = Paths.get(FALLBACK_FILE);
+            Files.createDirectories(fallbackFile.getParent());
+            
+            Map<String, Object> fallbackData = new HashMap<>();
+            fallbackData.put("data", data);
+            fallbackData.put("timestamp", LocalDateTime.now().toString());
+            fallbackData.put("source", "github_api");
+            
+            Files.writeString(fallbackFile, objectMapper.writeValueAsString(fallbackData));
+            log.debug("💾 已保存备用数据到: {}", FALLBACK_FILE);
+        } catch (Exception e) {
+            log.warn("⚠️ 保存备用数据失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 从文件加载备用数据
+     */
+    private JsonNode loadFallbackData() {
+        try {
+            Path fallbackFile = Paths.get(FALLBACK_FILE);
+            if (!Files.exists(fallbackFile)) {
+                return null;
+            }
+            
+            String content = Files.readString(fallbackFile);
+            JsonNode fallbackJson = objectMapper.readTree(content);
+            
+            // 检查数据是否过期（超过7天）
+            String timestampStr = fallbackJson.get("timestamp").asText();
+            LocalDateTime timestamp = LocalDateTime.parse(timestampStr);
+            if (timestamp.isBefore(LocalDateTime.now().minusDays(7))) {
+                log.warn("⚠️ 备用数据已过期 ({}天前)", java.time.Duration.between(timestamp, LocalDateTime.now()).toDays());
+                return null;
+            }
+            
+            return fallbackJson.get("data");
+        } catch (Exception e) {
+            log.warn("⚠️ 加载备用数据失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 创建最小化的版本数据（最后的备用方案）
+     */
+    private JsonNode createMinimalReleaseData() {
+        try {
+            String currentVersion = getCurrentVersion();
+            Map<String, Object> minimalData = new HashMap<>();
+            minimalData.put("tag_name", currentVersion);
+            minimalData.put("body", "无法获取最新版本信息，当前显示为本地版本");
+            minimalData.put("published_at", LocalDateTime.now().toString());
+            minimalData.put("name", "Local Version");
+            
+            return objectMapper.valueToTree(minimalData);
+        } catch (Exception e) {
+            log.error("❌ 创建最小化版本数据失败", e);
+            return null;
+        }
     }
 
     /**
@@ -784,13 +957,7 @@ public class UpdateService {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 
-    /**
-     * 检查是否启用自动检查
-     */
-    private boolean isAutoCheckEnabled() {
-        String setting = systemSettingService.get("auto_check_update_enabled");
-        return "true".equals(setting);
-    }
+
 
     /**
      * 重启Java应用（原始方法，保持兼容性）
@@ -882,4 +1049,134 @@ public class UpdateService {
         log.error("❌ 端口{}上的应用启动超时", port);
         return false;
     }
+
+    // 📦 缓存机制相关
+    
+    /**
+     * 获取缓存的更新信息
+     */
+    private UpdateInfoDTO getCachedUpdateInfo() {
+        // 1. 检查内存缓存
+        if (cachedUpdateInfo != null && lastCheckTime != null && 
+            LocalDateTime.now().isBefore(lastCheckTime.plusMinutes(CACHE_DURATION_MINUTES))) {
+            log.debug("✅ 使用内存缓存 (剩余{}分钟)", 
+                java.time.Duration.between(LocalDateTime.now(), lastCheckTime.plusMinutes(CACHE_DURATION_MINUTES)).toMinutes());
+            return cachedUpdateInfo;
+        }
+        
+        // 2. 尝试从文件缓存加载
+        try {
+            UpdateInfoDTO fileCache = loadCacheFromFile();
+            if (fileCache != null) {
+                log.debug("✅ 使用文件缓存");
+                // 更新内存缓存
+                cachedUpdateInfo = fileCache;
+                lastCheckTime = fileCache.getLastCheckTime();
+                return fileCache;
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ 加载文件缓存失败: {}", e.getMessage());
+        }
+        
+        return null;
+    }
+
+    /**
+     * 缓存更新信息（内存+文件）
+     */
+    private void cacheUpdateInfo(UpdateInfoDTO updateInfo, JsonNode releaseData) {
+        // 内存缓存
+        cachedUpdateInfo = updateInfo;
+        lastCheckTime = LocalDateTime.now();
+        lastReleaseData = releaseData;
+        
+        // 文件缓存
+        try {
+            saveCacheToFile(updateInfo);
+        } catch (Exception e) {
+            log.warn("⚠️ 保存缓存到文件失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 保存缓存到文件
+     */
+    private void saveCacheToFile(UpdateInfoDTO updateInfo) throws Exception {
+        Path cacheFile = Paths.get(CACHE_FILE);
+        Files.createDirectories(cacheFile.getParent());
+        
+        Map<String, Object> cacheData = new HashMap<>();
+        cacheData.put("updateInfo", updateInfo);
+        cacheData.put("timestamp", LocalDateTime.now().toString());
+        cacheData.put("cacheVersion", "1.0");
+        
+        Files.writeString(cacheFile, objectMapper.writeValueAsString(cacheData));
+        log.debug("💾 已保存缓存到文件: {}", CACHE_FILE);
+    }
+
+    /**
+     * 从文件加载缓存
+     */
+    private UpdateInfoDTO loadCacheFromFile() throws Exception {
+        Path cacheFile = Paths.get(CACHE_FILE);
+        if (!Files.exists(cacheFile)) {
+            return null;
+        }
+        
+        String content = Files.readString(cacheFile);
+        JsonNode cacheJson = objectMapper.readTree(content);
+        
+        // 检查缓存是否过期
+        String timestampStr = cacheJson.get("timestamp").asText();
+        LocalDateTime timestamp = LocalDateTime.parse(timestampStr);
+        if (timestamp.isBefore(LocalDateTime.now().minusMinutes(CACHE_DURATION_MINUTES))) {
+            log.debug("⏰ 文件缓存已过期，删除缓存文件");
+            Files.deleteIfExists(cacheFile);
+            return null;
+        }
+        
+        // 解析更新信息
+        JsonNode updateInfoNode = cacheJson.get("updateInfo");
+        return objectMapper.treeToValue(updateInfoNode, UpdateInfoDTO.class);
+    }
+
+    /**
+     * 清空缓存
+     */
+    public void clearCache() {
+        log.info("🗑️ 清空版本检查缓存");
+        
+        // 清空内存缓存
+        cachedUpdateInfo = null;
+        lastCheckTime = null;
+        lastReleaseData = null;
+        
+        // 删除文件缓存
+        try {
+            Files.deleteIfExists(Paths.get(CACHE_FILE));
+            Files.deleteIfExists(Paths.get(FALLBACK_FILE));
+            log.info("✅ 缓存文件已删除");
+        } catch (Exception e) {
+            log.warn("⚠️ 删除缓存文件失败: {}", e.getMessage());
+        }
+    }
+
+
+
+    /**
+     * 创建fallback更新信息
+     */
+    private UpdateInfoDTO createFallbackUpdateInfo(String currentVersion) {
+        return UpdateInfoDTO.builder()
+                .currentVersion(currentVersion)
+                .latestVersion("unknown")
+                .hasUpdate(false)
+                .releaseNotes("无法获取最新版本信息，请检查网络连接")
+                .lastCheckTime(LocalDateTime.now())
+                .status("network-error")
+                .progress(0)
+                .build();
+    }
+
+
 } 

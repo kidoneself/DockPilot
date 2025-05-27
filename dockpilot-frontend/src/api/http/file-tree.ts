@@ -10,7 +10,7 @@ export interface FileNode {
 
 // 获取文件树列表
 export function getFileTree(path: string = '/', maxFilesPerDir: number = 100): Promise<FileNode[]> {
-  return request.get('/api/file-tree/list', {
+  return request.get('/file-tree/list', {
     params: {
       path,
       maxFilesPerDir

@@ -1,5 +1,38 @@
 <template>
   <div class="background-config">
+    <!-- 系统预设 -->
+    <div class="image-gallery">
+      <div class="gallery-header">
+        <h4>🎨 系统预设</h4>
+      </div>
+      
+      <div class="gallery-grid">
+        <!-- 默认背景 -->
+        <div 
+          class="gallery-item"
+          :class="{ active: selectedBackground === defaultBackgroundImg }"
+          @click="selectBackground(defaultBackgroundImg)"
+        >
+          <div class="gallery-thumbnail" :style="{ backgroundImage: `url(${defaultBackgroundImg})` }">
+            <div class="system-badge">系统</div>
+          </div>
+          <div class="gallery-name">默认背景</div>
+        </div>
+        
+        <!-- 透明背景选项 -->
+        <div 
+          class="gallery-item"
+          :class="{ active: selectedBackground === '' }"
+          @click="selectBackground('')"
+        >
+          <div class="gallery-thumbnail transparent-bg">
+            <div class="transparent-icon">🚫</div>
+          </div>
+          <div class="gallery-name">无背景</div>
+        </div>
+      </div>
+    </div>
+
     <!-- 本地图库 -->
     <div class="image-gallery">
       <div class="gallery-header">
@@ -66,6 +99,8 @@ import ImageUpload from '@/components/ImageUpload.vue'
 import type { FileUploadResponse } from '@/api/http/file-upload'
 import { getAllImages, getImageUrl } from '@/api/http/file-upload'
 import { getCurrentBackground } from '@/api/http/background'
+// 导入默认背景图片
+import defaultBackgroundImg from '@/assets/background.png'
 
 interface Props {
   modelValue?: string
@@ -321,6 +356,31 @@ onMounted(async () => {
 .empty-tip {
   font-size: 14px;
   color: var(--n-text-color-disabled);
+}
+
+/* 系统预设样式 */
+.system-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: var(--n-primary-color);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.transparent-bg {
+  background: repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 50% / 20px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transparent-icon {
+  font-size: 32px;
+  opacity: 0.6;
 }
 
 @media (max-width: 768px) {

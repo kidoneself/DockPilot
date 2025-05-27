@@ -21,6 +21,8 @@ import { getCurrentBackground } from '@/api/http/background'
 import WebSocketError from '@/components/WebSocketError.vue'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
+// 导入默认背景图片
+import defaultBackgroundImg from '@/assets/background.png'
 
 // 配置 highlight.js
 hljs.configure({
@@ -31,19 +33,30 @@ const themeStore = useThemeStore()
 const theme = computed(() => themeStore.theme === 'dark' ? darkTheme : null)
 
 // 应用背景
+const applyBackground = (backgroundUrl: string) => {
+  document.body.style.backgroundImage = `url(${backgroundUrl}?t=${Date.now()})`
+  document.body.style.backgroundSize = 'cover'
+  document.body.style.backgroundPosition = 'center'
+  document.body.style.backgroundAttachment = 'fixed'
+  document.body.style.backgroundRepeat = 'no-repeat'
+}
+
 onMounted(async () => {
   try {
     const backgroundUrl = await getCurrentBackground()
     if (backgroundUrl) {
-      document.body.style.backgroundImage = `url(${backgroundUrl}?t=${Date.now()})`
-      document.body.style.backgroundSize = 'cover'
-      document.body.style.backgroundPosition = 'center'
-      document.body.style.backgroundAttachment = 'fixed'
-      document.body.style.backgroundRepeat = 'no-repeat'
-      console.log('✅ 背景已应用:', backgroundUrl)
+      // 使用后端配置的背景
+      applyBackground(backgroundUrl)
+      console.log('✅ 后端背景已应用:', backgroundUrl)
+    } else {
+      // 使用默认背景图片
+      applyBackground(defaultBackgroundImg)
+      console.log('✅ 默认背景已应用:', defaultBackgroundImg)
     }
   } catch (error) {
-    console.log('获取背景失败:', error)
+    // 如果获取后端背景失败，也使用默认背景
+    applyBackground(defaultBackgroundImg)
+    console.log('⚠️ 获取后端背景失败，使用默认背景:', error)
   }
 })
 </script>

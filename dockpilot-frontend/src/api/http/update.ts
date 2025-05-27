@@ -49,14 +49,14 @@ export interface UpdateHistory {
  * 检查是否有新版本
  */
 export const checkUpdate = () => {
-  return request.get<UpdateInfo>('/api/update/check')
+  return request.get<UpdateInfo>('/update/check')
 }
 
 /**
  * 获取当前版本信息
  */
 export const getCurrentVersion = () => {
-  return request.get<VersionInfo>('/api/update/version')
+  return request.get<VersionInfo>('/update/version')
 }
 
 /**
@@ -64,28 +64,28 @@ export const getCurrentVersion = () => {
  */
 export const applyHotUpdate = (version?: string) => {
   const params = version ? { version } : {}
-  return request.post<string>('/api/update/apply', null, { params })
+  return request.post<string>('/update/apply', null, { params })
 }
 
 /**
  * 获取更新进度
  */
 export const getUpdateProgress = () => {
-  return request.get<UpdateProgress>('/api/update/progress')
+  return request.get<UpdateProgress>('/update/progress')
 }
 
 /**
  * 取消更新
  */
 export const cancelUpdate = () => {
-  return request.post<string>('/api/update/cancel')
+  return request.post<string>('/update/cancel')
 }
 
 /**
  * 设置自动检查更新
  */
 export const setAutoCheck = (enabled: boolean) => {
-  return request.post<void>('/api/update/auto-check', null, {
+  return request.post<void>('/update/auto-check', null, {
     params: { enabled }
   })
 }
@@ -94,5 +94,5 @@ export const setAutoCheck = (enabled: boolean) => {
  * 获取更新历史
  */
 export const getUpdateHistory = () => {
-  return request.get<UpdateHistory>('/api/update/history')
+  return request.get<UpdateHistory>('/update/history')
 } 

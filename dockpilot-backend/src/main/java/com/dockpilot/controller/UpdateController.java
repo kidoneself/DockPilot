@@ -97,28 +97,16 @@ public class UpdateController {
         }
     }
 
-    @Operation(summary = "设置自动检查更新", description = "启用或禁用自动检查更新功能")
-    @PostMapping("/auto-check")
-    public ApiResponse<Void> setAutoCheck(@RequestParam boolean enabled) {
+    @Operation(summary = "清空版本检查缓存", description = "清空所有版本检查缓存，强制下次重新检查")
+    @PostMapping("/clear-cache")
+    public ApiResponse<Void> clearCache() {
         try {
-            updateService.setAutoCheckEnabled(enabled);
-            log.info("📋 自动检查更新设置已更新: {}", enabled ? "启用" : "禁用");
+            updateService.clearCache();
+            log.info("🗑️ 版本检查缓存已清空");
             return ApiResponse.success(null);
         } catch (Exception e) {
-            log.error("设置自动检查失败", e);
-            return ApiResponse.error("设置自动检查失败: " + e.getMessage());
-        }
-    }
-
-    @Operation(summary = "获取更新历史", description = "获取系统更新历史记录")
-    @GetMapping("/history")
-    public ApiResponse<Map<String, Object>> getUpdateHistory() {
-        try {
-            Map<String, Object> history = updateService.getUpdateHistory();
-            return ApiResponse.success(history);
-        } catch (Exception e) {
-            log.error("获取更新历史失败", e);
-            return ApiResponse.error("获取更新历史失败: " + e.getMessage());
+            log.error("清空缓存失败", e);
+            return ApiResponse.error("清空缓存失败: " + e.getMessage());
         }
     }
 } 

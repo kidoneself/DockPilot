@@ -19,13 +19,13 @@ export function getImageList(callbacks: WebSocketCallbacks) {
     type: MessageType.IMAGE_LIST,
     data: {},
     callbacks: {
-      onComplete: (data) => {
+      onComplete: (data, taskId) => {
         console.log('WebSocket 返回的原始数据:', data)
         // 如果返回的是对象且包含 data 字段，使用 data 字段
         if (data && typeof data === 'object' && 'data' in data) {
-          callbacks.onComplete?.(data.data)
+          callbacks.onComplete?.(data.data, taskId)
         } else {
-          callbacks.onComplete?.(data)
+          callbacks.onComplete?.(data, taskId)
         }
       },
       onError: callbacks.onError,
@@ -56,9 +56,9 @@ export function pullImage(params: PullImageParams, callbacks: PullImageCallbacks
         console.log('WebSocket 返回的原始数据:', data)
         // 如果返回的是对象且包含 data 字段，使用 data 字段
         if (data && typeof data === 'object' && 'data' in data) {
-          callbacks.onComplete?.(data.data, taskId)
+          callbacks.onComplete?.(data.data)
         } else {
-          callbacks.onComplete?.(data, taskId)
+          callbacks.onComplete?.(data)
         }
       },
       onError: (error, taskId) => callbacks.onError?.(error, taskId)
@@ -77,9 +77,9 @@ export function deleteImage(imageId: string, callbacks: WebSocketCallbacks) {
     type: MessageType.IMAGE_DELETE,
     data: { imageId },
     callbacks: {
-      onComplete: (data) => {
+      onComplete: (data, taskId) => {
         console.log('删除镜像成功:', data)
-        callbacks.onComplete?.(data)
+        callbacks.onComplete?.(data, taskId)
       },
       onError: callbacks.onError,
       onProgress: callbacks.onProgress,

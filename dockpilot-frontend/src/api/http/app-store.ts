@@ -56,10 +56,10 @@ export const getAppList = (params: {
   pageSize?: number;
   category?: string;
 }) => {
-  return request.get<PageResult<AppStoreAppDTO>>('/api/app-store/apps', { params })
+  return request.get<PageResult<AppStoreAppDTO>>('/app-store/apps', { params })
 }
 
 // 获取应用详情
 export const getAppDetail = (id: string) => {
-  return request.get<AppStoreAppDTO>(`/api/app-store/apps/${id}`)
+  return request.get<AppStoreAppDTO>(`/app-store/apps/${id}`)
 } 

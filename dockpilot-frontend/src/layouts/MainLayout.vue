@@ -8,44 +8,11 @@
     >
       <div class="header-left">
         <div class="logo-container" @click="goToHome">
-          <svg class="logo-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient
-id="logoGradient"
-x1="0%"
-y1="0%"
-x2="100%"
-y2="100%">
-                <stop offset="0%" style="stop-color:#3b82f6"/>
-                <stop offset="100%" style="stop-color:#8b5cf6"/>
-              </linearGradient>
-            </defs>
-            
-            <!-- 简洁的立方体容器 -->
-            <path
-d="M8 12 L16 8 L24 12 L24 20 L16 24 L8 20 Z" 
-                  fill="none" 
-                  stroke="url(#logoGradient)" 
-                  stroke-width="2" 
-                  stroke-linejoin="round"/>
-            
-            <!-- 内部连接点 -->
-            <circle
-cx="16"
-cy="16"
-r="2"
-fill="url(#logoGradient)"/>
-            
-            <!-- 顶部面 -->
-            <path
-d="M8 12 L16 8 L24 12 L16 16 Z" 
-                  fill="url(#logoGradient)" 
-                  opacity="0.2"/>
-          </svg>
-          
-          <div class="logo-text">
-            <span class="brand-name">DockPilot</span>
-          </div>
+          <img 
+            src="@/assets/icons/logo.svg" 
+            class="logo-full" 
+            alt="DockPilot"
+          />
         </div>
       </div>
       <div class="header-right">
@@ -140,11 +107,16 @@ import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import UpdateNotification from '@/components/UpdateNotification.vue'
 import * as Icons from '@vicons/ionicons5'
 import { useUserStore } from '@/store/user'
+import { useThemeStore } from '@/store/theme'
+
+// 导入 logo 图片
+import logo from '@/assets/icons/logo.svg'
 
 const router = useRouter()
 const route = useRoute()
 const message = useMessage()
 const userStore = useUserStore()
+const themeStore = useThemeStore()
 const collapsed = ref(false)
 const activeKey = computed(() => route.path)
 const username = computed(() => userStore.userInfo?.username || 'Admin')
@@ -291,7 +263,6 @@ const goToHome = () => {
 .logo-container {
   display: flex;
   align-items: center;
-  gap: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
   border-radius: 8px;
@@ -302,28 +273,27 @@ const goToHome = () => {
   background-color: rgba(59, 130, 246, 0.1);
 }
 
-.logo-icon {
-  height: 24px;
-  width: 24px;
+.logo-full {
+  height: 32px;
+  width: auto;
   transition: all 0.3s ease;
+  /* 确保 logo 颜色跟随主题 */
+  filter: var(--logo-filter, none);
 }
 
-.logo-icon:hover {
-  transform: scale(1.1);
+.logo-full:hover {
+  transform: scale(1.05);
 }
 
-.logo-text {
-  display: flex;
-  flex-direction: column;
+/* 深色主题下的 logo 样式 */
+:root[data-theme="dark"] .logo-full {
+  --logo-filter: brightness(0) invert(1);
 }
 
+/* 删除不需要的样式 */
+.logo-icon,
+.logo-text,
 .brand-name {
-  font-size: 16px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  line-height: 1;
+  display: none;
 }
 </style>
