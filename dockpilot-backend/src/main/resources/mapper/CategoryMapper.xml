@@ -72,6 +72,21 @@
         ) ORDER BY sortOrder ASC, id ASC
     </select>
 
+    <!-- 查询所有分类及应用数量（包括空分类）- 用于分类管理 -->
+    <select id="selectAllWithAppCountIncludeEmpty" resultType="com.dockpilot.model.vo.CategoryVO">
+        SELECT 
+            c.id,
+            c.name,
+            c.sort_order as sortOrder,
+            c.created_at as createdAt,
+            c.updated_at as updatedAt,
+            COALESCE(COUNT(w.id), 0) as appCount
+        FROM categories c
+        LEFT JOIN web_servers w ON c.id = w.category_id
+        GROUP BY c.id, c.name, c.sort_order, c.created_at, c.updated_at
+        ORDER BY c.sort_order ASC, c.id ASC
+    </select>
+
     <!-- 更新分类排序 -->
     <update id="updateSort">
         UPDATE categories

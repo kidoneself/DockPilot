@@ -41,11 +41,18 @@ public interface CategoryService {
     CategoryVO getById(Integer id);
 
     /**
-     * 获取所有分类列表（包含应用数量）
+     * 获取所有分类列表（包含应用数量）- 只返回有应用的分类
      *
      * @return 分类列表
      */
     List<CategoryVO> listAll();
+
+    /**
+     * 获取所有分类列表（包含应用数量，包括空分类）- 用于分类管理
+     *
+     * @return 分类列表
+     */
+    List<CategoryVO> listAllIncludeEmpty();
 
     /**
      * 更新分类排序

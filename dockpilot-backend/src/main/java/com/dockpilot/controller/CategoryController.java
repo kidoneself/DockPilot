@@ -26,6 +26,20 @@ public class CategoryController {
         this.categoryService = categoryService;
     }
 
+    @Operation(summary = "获取所有分类")
+    @GetMapping
+    public ApiResponse<List<CategoryVO>> listAll() {
+        List<CategoryVO> categories = categoryService.listAllIncludeEmpty();
+        return ApiResponse.success(categories);
+    }
+
+    @Operation(summary = "获取分类详情")
+    @GetMapping("/{id}")
+    public ApiResponse<CategoryVO> getById(@Parameter(description = "分类ID") @PathVariable Integer id) {
+        CategoryVO category = categoryService.getById(id);
+        return category != null ? ApiResponse.success(category) : ApiResponse.error("分类不存在");
+    }
+
     @Operation(summary = "创建分类")
     @PostMapping
     public ApiResponse<Integer> create(@Valid @RequestBody CategoryDTO dto) {

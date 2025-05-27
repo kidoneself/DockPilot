@@ -340,10 +340,10 @@ jobs:
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: 🐳 构建并推送热更新镜像
+      - name: 🐳 构建并推送热更新镜像（内置代码版本）
         uses: docker/build-push-action@v5
         with:
-          context: ./hot-update
+          context: .
           file: ./hot-update/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
@@ -364,6 +364,7 @@ jobs:
           echo "  仓库: kidself/dockpilot"
           echo "  标签: latest, hot, ${{ steps.version.outputs.VERSION }}, ${{ steps.version.outputs.VERSION }}-hot"
           echo "  平台: linux/amd64, linux/arm64"
+          echo "  特性: 内置代码 + 热更新能力"
           echo ""
           echo "🚀 使用方法:"
           echo "  # 推荐方式（latest即热更新版）"
@@ -382,4 +383,10 @@ jobs:
           echo "    -v /:/mnt/host \\"
           echo "    -v /home/dockpilot:/dockpilot \\"
           echo "    --restart unless-stopped \\"
-          echo "    kidself/dockpilot:hot" 
+          echo "    kidself/dockpilot:hot"
+          echo ""
+          echo "🛡️ 新特性:"
+          echo "  • 镜像内置当前最新代码，启动即可用"
+          echo "  • 支持热更新到更新版本"
+          echo "  • 网络故障时自动fallback到内置版本"
+          echo "  • 双重保险，确保服务可用性" 

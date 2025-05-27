@@ -793,11 +793,16 @@ public class UpdateService {
         HttpResponse<InputStream> response = httpClient.send(request, 
             HttpResponse.BodyHandlers.ofInputStream());
 
-        // 检查HTTP状态码 - 接受200和重定向，HttpClient会自动处理302重定向
-        // GitHub Release返回302重定向到S3，HttpClient会自动跟随并下载实际文件
+        // 添加详细的响应信息日志
+        log.info("📊 响应状态码: {}", response.statusCode());
+        log.debug("📋 响应头信息: {}", response.headers().map());
+        
+        // 检查HTTP状态码 - HttpClient已配置自动处理重定向
+        // GitHub Release的302重定向会被自动跟随，最终返回200状态码
         if (response.statusCode() != 200) {
+            String responseHeaders = response.headers().map().toString();
             throw new IOException("下载失败: " + url + " - HTTP状态码: " + response.statusCode() + 
-                                " (预期: 200, GitHub Release应该自动重定向到文件下载地址)");
+                                " (HttpClient已配置自动跟随重定向，最终状态应为200)\n响应头: " + responseHeaders);
         }
 
         Files.createDirectories(destination.getParent());
@@ -1242,12 +1247,13 @@ public class UpdateService {
      */
     @PostConstruct
     public void initializeService() {
-        // 初始化HTTP客户端
+        // 初始化HTTP客户端，支持重定向
         if (httpClient == null) {
             httpClient = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(15))
+                    .followRedirects(HttpClient.Redirect.NORMAL) // 支持HTTP重定向
                     .build();
-            log.info("✅ HTTP客户端已初始化");
+            log.info("✅ HTTP客户端已初始化（支持重定向）");
         }
         
         // 延迟30秒后执行首次检查，避免启动时网络未就绪

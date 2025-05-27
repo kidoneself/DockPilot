@@ -38,9 +38,14 @@ public interface CategoryMapper {
     List<Category> selectAll();
 
     /**
-     * 查询所有分类及应用数量（按排序权重排序）
+     * 查询所有分类及应用数量（按排序权重排序）- 只返回有应用的分类
      */
     List<CategoryVO> selectAllWithAppCount();
+
+    /**
+     * 查询所有分类及应用数量（包括空分类）- 用于分类管理
+     */
+    List<CategoryVO> selectAllWithAppCountIncludeEmpty();
 
     /**
      * 更新分类排序

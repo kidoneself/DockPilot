@@ -17,39 +17,44 @@ export interface CategoryDTO {
   sortOrder?: number
 }
 
-// 获取所有分类（包含应用数量）
+// 获取所有分类（包含应用数量）- 使用WebServerController，只返回有应用的分类
 export const getCategories = () => {
   return request.get<CategoryVO[]>('/web-servers/categories')
 }
 
-// 获取分类详情
+// 获取所有分类（包括空分类）- 使用CategoryController，用于分类管理界面
+export const getAllCategoriesForManage = () => {
+  return request.get<CategoryVO[]>('/categories')
+}
+
+// 获取分类详情 - 使用CategoryController
 export const getCategoryById = (id: number) => {
-  return request.get<CategoryVO>(`/web-servers/categories/${id}`)
+  return request.get<CategoryVO>(`/categories/${id}`)
 }
 
-// 创建分类
+// 创建分类 - 使用CategoryController
 export const createCategory = (data: CategoryDTO) => {
-  return request.post<number>('/web-servers/categories', data)
+  return request.post<number>('/categories', data)
 }
 
-// 更新分类
+// 更新分类 - 使用CategoryController
 export const updateCategory = (id: number, data: CategoryDTO) => {
-  return request.put<void>(`/web-servers/categories/${id}`, data)
+  return request.put<void>(`/categories/${id}`, data)
 }
 
-// 删除分类
+// 删除分类 - 使用CategoryController
 export const deleteCategory = (id: number) => {
-  return request.delete<void>(`/web-servers/categories/${id}`)
+  return request.delete<void>(`/categories/${id}`)
 }
 
-// 更新分类排序
+// 更新分类排序 - 使用CategoryController
 export const updateCategorySort = (id: number, sortOrder: number) => {
-  return request.put<void>(`/web-servers/categories/${id}/sort`, null, {
+  return request.put<void>(`/categories/${id}/sort`, null, {
     params: { sortOrder }
   })
 }
 
-// 批量更新分类排序
+// 批量更新分类排序 - 使用CategoryController
 export const batchUpdateCategorySort = (categories: CategoryDTO[]) => {
-  return request.put<void>('/web-servers/categories/batch-sort', categories)
+  return request.put<void>('/categories/batch-sort', categories)
 } 

@@ -80,8 +80,8 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     public CategoryVO getById(Integer id) {
-        // 获取包含应用数量的分类信息
-        List<CategoryVO> categoriesWithCount = categoryMapper.selectAllWithAppCount();
+        // 获取包含应用数量的分类信息（包括空分类）
+        List<CategoryVO> categoriesWithCount = categoryMapper.selectAllWithAppCountIncludeEmpty();
         return categoriesWithCount.stream()
                 .filter(category -> category.getId().equals(id))
                 .findFirst()
@@ -91,6 +91,11 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public List<CategoryVO> listAll() {
         return categoryMapper.selectAllWithAppCount();
+    }
+
+    @Override
+    public List<CategoryVO> listAllIncludeEmpty() {
+        return categoryMapper.selectAllWithAppCountIncludeEmpty();
     }
 
     @Override

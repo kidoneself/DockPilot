@@ -78,6 +78,13 @@ check_and_download_app() {
         log_info "首次启动，未找到版本信息"
     fi
     
+    # 🔥 新增：检查内置版本是否可用
+    local builtin_available=false
+    if [ "$BUILTIN_FALLBACK" = "true" ] && /app/init-builtin.sh check >/dev/null 2>&1; then
+        builtin_available=true
+        log_info "🛡️ 内置版本可用作为备选方案"
+    fi
+    
     # 检查是否需要下载
     if [ ! -f "/app/app.jar" ] || [ "$current_version" != "$target_version" ]; then
         log_info "🔄 需要下载应用代码..."
@@ -89,31 +96,67 @@ check_and_download_app() {
             target_version=$(curl -s https://api.github.com/repos/kidoneself/DockPilot/releases/latest | jq -r '.tag_name' 2>/dev/null || echo "")
             
             if [ -z "$target_version" ] || [ "$target_version" = "null" ]; then
-                log_warn "无法获取最新版本，使用预设版本"
+                log_warn "无法获取最新版本信息"
+                
+                # 🔥 新增：如果有内置版本，优先使用内置版本
+                if [ "$builtin_available" = "true" ]; then
+                    log_info "🛡️ 使用内置版本作为fallback"
+                    if /app/init-builtin.sh restore; then
+                        log_info "✅ 已使用内置版本启动"
+                        return 0
+                    fi
+                fi
+                
                 target_version="v1.0.0"
+                log_warn "使用预设版本: $target_version"
             fi
             
             log_info "最新版本: $target_version"
         fi
         
-        # 调用下载脚本
-        if ! /app/download-app.sh "$target_version"; then
-            log_error "应用代码下载失败"
-            
-            # 如果有现有的应用，继续使用
-            if [ -f "/app/app.jar" ]; then
-                log_warn "使用现有的应用代码继续启动"
+        # 🔥 新增：如果目标版本就是内置版本，直接使用内置版本
+        if [ "$target_version" = "builtin-version" ] && [ "$builtin_available" = "true" ]; then
+            log_info "🎯 目标版本为内置版本，直接使用内置代码"
+            if /app/init-builtin.sh restore; then
+                log_info "✅ 内置版本已激活"
+                return 0
             else
-                log_error "没有可用的应用代码，无法启动"
-                exit 1
+                log_error "❌ 内置版本激活失败"
+                return 1
+            fi
+        fi
+        
+        # 调用下载脚本
+        log_info "📡 开始下载应用代码..."
+        if ! /app/download-app.sh "$target_version"; then
+            log_error "❌ 应用代码下载失败"
+            
+            # 🔥 新增：下载失败时的fallback策略
+            if [ -f "/app/app.jar" ]; then
+                log_warn "📦 使用现有的应用代码继续启动"
+                return 0
+            elif [ "$builtin_available" = "true" ]; then
+                log_info "🛡️ 下载失败，启用内置版本fallback"
+                if /app/init-builtin.sh restore; then
+                    log_info "✅ 内置版本fallback成功，继续启动"
+                    return 0
+                else
+                    log_error "❌ 内置版本fallback也失败"
+                    return 1
+                fi
+            else
+                log_error "❌ 没有可用的应用代码，无法启动"
+                return 1
             fi
         else
             # 更新版本记录
             echo "$target_version" > /dockpilot/data/current_version
             log_info "✅ 应用代码已更新到版本: $target_version"
+            return 0
         fi
     else
         log_info "✅ 应用代码已是最新版本: $current_version"
+        return 0
     fi
 }
 
@@ -184,6 +227,12 @@ start_java() {
 # 显示启动信息（完整版）
 show_startup_info() {
     local current_version=$(cat /dockpilot/data/current_version 2>/dev/null || echo "unknown")
+    local builtin_available="否"
+    
+    # 检查内置版本是否可用
+    if [ "$BUILTIN_FALLBACK" = "true" ] && /app/init-builtin.sh check >/dev/null 2>&1; then
+        builtin_available="是"
+    fi
     
     log_info "=========================================="
     log_info "🎉 DockPilot 热更新版本启动完成！"
@@ -192,6 +241,7 @@ show_startup_info() {
     log_info "  • 前端访问地址: http://localhost:8888"
     log_info "  • 当前版本: $current_version"
     log_info "  • 更新方式: 热更新 (容器内)"
+    log_info "  • 内置版本fallback: $builtin_available"
     log_info "📊 进程信息:"
     log_info "  • Caddy PID: $CADDY_PID"
     log_info "  • Java PID: $JAVA_PID"
@@ -199,8 +249,14 @@ show_startup_info() {
     log_info "  • 前端目录: /usr/share/html"
     log_info "  • 后端jar: /app/app.jar"
     log_info "  • 数据目录: /dockpilot"
+    if [ "$builtin_available" = "是" ]; then
+        log_info "  • 内置版本: /usr/share/html-builtin, /app/builtin/"
+    fi
     log_info "=========================================="
     log_info "💡 提示: 可通过右上角更新按钮检查和执行热更新"
+    if [ "$current_version" = "builtin-version" ]; then
+        log_info "🛡️ 当前使用内置版本，建议检查网络后尝试热更新"
+    fi
     log_info "=========================================="
 }
 

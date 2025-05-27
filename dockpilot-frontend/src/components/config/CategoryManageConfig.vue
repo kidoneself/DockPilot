@@ -57,7 +57,6 @@
                 tertiary 
                 type="error"
                 @click="() => handleDeleteCategory(category)"
-                :disabled="category.appCount > 0"
               >
                 <template #icon>
                   <n-icon><TrashOutline /></n-icon>
@@ -128,7 +127,7 @@ import { useMessage, useDialog, type FormInst, type FormRules } from 'naive-ui'
 import { AddOutline, CreateOutline, TrashOutline, ReorderThreeOutline } from '@vicons/ionicons5'
 import draggable from 'vuedraggable'
 import { 
-  getCategories, 
+  getAllCategoriesForManage, 
   createCategory, 
   updateCategory, 
   deleteCategory,
@@ -195,9 +194,9 @@ const formRules: FormRules = {
 const loadCategories = async () => {
   try {
     loading.value = true
-    const data = await getCategories()
+    const data = await getAllCategoriesForManage()
     categories.value = data.sort((a, b) => a.sortOrder - b.sortOrder)
-    console.log('✅ 分类列表加载成功:', categories.value.length)
+    console.log('✅ 分类列表加载成功:', categories.value.length, '(包括空分类)')
   } catch (error) {
     console.error('❌ 加载分类列表失败:', error)
     message.error('加载分类列表失败')
@@ -223,8 +222,11 @@ const handleEditCategory = (category: CategoryVO) => {
 }
 
 // 处理保存分类
-const handleSaveCategory = async (e: MouseEvent) => {
-  e.preventDefault()
+const handleSaveCategory = async (e?: MouseEvent) => {
+  // 安全处理事件对象，如果存在则阻止默认行为
+  if (e && e.preventDefault) {
+    e.preventDefault()
+  }
   
   try {
     await formRef.value?.validate()
@@ -269,25 +271,35 @@ const handleCancelEdit = () => {
 
 // 处理删除分类
 const handleDeleteCategory = (category: CategoryVO) => {
-  if (category.appCount > 0) {
-    message.warning('该分类下还有应用，无法删除')
-    return
-  }
+  const hasApps = category.appCount > 0
   
   dialog.warning({
     title: '确认删除',
-    content: `确定要删除分类"${category.name}"吗？此操作无法撤销。`,
+    content: hasApps 
+      ? `分类"${category.name}"下有 ${category.appCount} 个应用，删除分类后这些应用将移动到"未分类"。确定要删除吗？`
+      : `确定要删除分类"${category.name}"吗？此操作无法撤销。`,
     positiveText: '确定删除',
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
         await deleteCategory(category.id)
-        message.success('分类删除成功')
-        console.log('✅ 分类删除成功:', category.name)
+        
+        if (hasApps) {
+          message.success(`分类"${category.name}"已删除，${category.appCount} 个应用已移动到未分类`)
+        } else {
+          message.success('分类删除成功')
+        }
+        
+        console.log('✅ 分类删除成功:', category.name, hasApps ? `(包含${category.appCount}个应用)` : '(空分类)')
         await loadCategories()
       } catch (error) {
         console.error('❌ 删除分类失败:', error)
-        message.error('删除分类失败')
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        if (errorMessage.includes('外键约束') || errorMessage.includes('关联')) {
+          message.error('删除失败：该分类下还有关联的应用，请先清空分类或联系管理员')
+        } else {
+          message.error('删除分类失败')
+        }
       }
     }
   })
