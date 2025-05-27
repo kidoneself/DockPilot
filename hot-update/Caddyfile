@@ -119,8 +119,11 @@
         respond "" 204
     }
     
-    # API代理配置 - 优化零停机切换
+    # API代理配置 - 优化零停机切换，支持路径重写
     handle /api/* {
+        # 重写路径：去掉 /api 前缀
+        uri strip_prefix /api
+        
         reverse_proxy {
             # 主后端端口（优先使用）
             to localhost:8080
@@ -132,10 +135,10 @@
             
             # 优化的健康检查配置 - 快速检测和切换
             health_uri /api/update/version
-            health_interval 2s        # 更频繁的检查（每2秒）
-            health_timeout 2s         # 更短的超时（2秒）
+            health_interval 5s        # 适中的检查频率（每5秒）
+            health_timeout 3s         # 合理的超时时间（3秒）
             health_passes 1           # 1次成功就标记健康
-            health_fails 1            # 1次失败就标记不健康（快速切换）
+            health_fails 2            # 2次失败就标记不健康
             
             header_up Host {upstream_hostport}
             header_up X-Real-IP {remote_host}
