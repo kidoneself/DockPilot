@@ -41,7 +41,9 @@ public class UpdateService {
     @Autowired
     private AppConfig appConfig;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
+            .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     
     // HTTP客户端（会根据代理配置动态创建）
     private volatile HttpClient httpClient;
