@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/file-tree")
+@RequestMapping("/file-tree")
 public class FileTreeController {
 
     private static final int MAX_FILES_PER_DIR = 100;  // 每个目录最大文件数
