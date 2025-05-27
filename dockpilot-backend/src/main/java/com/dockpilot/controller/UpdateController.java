@@ -20,7 +20,7 @@ import java.util.Map;
 @Slf4j
 @Tag(name = "系统热更新", description = "容器内热更新功能，支持前后端代码热替换")
 @RestController
-@RequestMapping("/api/update")
+@RequestMapping("/update")
 @SecurityRequirement(name = "JWT")
 public class UpdateController {
 

@@ -6,6 +6,11 @@
     # 启用Admin API (监听所有接口)
     admin :2019
     
+    # 调整日志级别，减少健康检查失败日志
+    log {
+        level INFO
+    }
+    
     # 全局选项
     auto_https off
     local_certs
@@ -119,27 +124,12 @@
         respond "" 204
     }
     
-    # API代理配置 - 优化零停机切换，支持路径重写
+    # API代理配置 - 简化版本，避免健康检查日志干扰
     handle /api/* {
         # 重写路径：去掉 /api 前缀
         uri strip_prefix /api
         
-        reverse_proxy {
-            # 主后端端口（优先使用）
-            to localhost:8080
-            # 备用后端端口（零停机更新时使用）
-            to localhost:8081
-            
-            # 负载均衡策略：优先使用8080，失败时自动切换到8081
-            lb_policy first
-            
-            # 优化的健康检查配置 - 快速检测和切换
-            health_uri /api/update/version
-            health_interval 5s        # 适中的检查频率（每5秒）
-            health_timeout 3s         # 合理的超时时间（3秒）
-            health_passes 1           # 1次成功就标记健康
-            health_fails 2            # 2次失败就标记不健康
-            
+        reverse_proxy localhost:8080 {
             header_up Host {upstream_hostport}
             header_up X-Real-IP {remote_host}
         }

@@ -245,10 +245,10 @@ public class UpdateService {
     }
 
     /**
-     * 应用后端更新（零停机版本 - 优化版）
+     * 应用后端更新（简化版本）
      */
     private void applyBackendUpdate() throws Exception {
-        log.info("⚙️ 应用后端更新（零停机模式）...");
+        log.info("⚙️ 应用后端更新...");
         
         Path newJar = Paths.get(TEMP_DIR, "backend.jar");
         Path currentJar = Paths.get(BACKEND_JAR);
@@ -271,93 +271,30 @@ public class UpdateService {
             Files.copy(newJar, currentJar, StandardCopyOption.REPLACE_EXISTING);
             log.info("✅ 后端jar文件已更新");
             
-            // 3. 启动新的Java进程（使用备用端口8081）
-            log.info("🚀 启动备用Java进程在端口8081...");
-            Process backupProcess = startJavaWithPort(8081);
-            
-            // 4. 等待备用进程启动并验证
-            log.info("⏳ 等待备用进程启动...");
-            if (!waitForApplicationStartupOnPort(8081, 30)) {
-                throw new RuntimeException("备用Java进程启动失败");
-            }
-            log.info("✅ 备用Java进程启动成功");
-            
-            // 5. 验证Caddy是否已检测到备用服务
-            log.info("🔍 验证Caddy负载均衡器状态...");
-            if (!verifyCaddyCanRouteTo8081()) {
-                log.warn("⚠️ Caddy尚未检测到8081服务，等待更长时间...");
-                Thread.sleep(10000); // 等待10秒
-                if (!verifyCaddyCanRouteTo8081()) {
-                    throw new RuntimeException("Caddy无法路由到8081端口，零停机更新失败");
-                }
-            }
-            log.info("✅ Caddy已检测到备用服务，可以安全停止主服务");
-            
-            // 6. 停止旧的Java进程
+            // 3. 停止旧的Java进程
             if (oldJavaPid != null) {
-                log.info("🛑 停止旧的Java进程: {}，流量已切换到备用服务", oldJavaPid);
+                log.info("🛑 停止旧的Java进程: {}", oldJavaPid);
                 killJavaProcess(oldJavaPid);
             }
             
-            // 7. 等待确保旧进程已停止
+            // 4. 等待确保旧进程已停止
             Thread.sleep(3000);
             
-            // 8. 启动新的主Java进程在标准端口8080
-            log.info("🚀 启动新的主Java进程在端口8080...");
+            // 5. 启动新的Java进程
+            log.info("🚀 启动新的Java进程...");
             restartJavaApplication();
             
-            // 9. 等待主端口启动
-            if (!waitForApplicationStartupOnPort(8080, 30)) {
-                log.error("❌ 主端口Java进程启动失败，需要回滚更新");
-                // 停止备用进程
-                backupProcess.destroy();
-                // 抛出异常触发完整回滚
+            // 6. 等待应用启动
+            if (!waitForApplicationStartupOnPort(8080, 60)) {
+                log.error("❌ 新版本启动失败，需要回滚更新");
                 throw new RuntimeException("新版本启动失败，需要回滚到旧版本");
             }
-            log.info("✅ 主端口服务启动成功");
-            
-            // 10. 验证Caddy切换回主端口
-            log.info("🔍 验证Caddy切换回主端口...");
-            Thread.sleep(10000); // 等待Caddy检测到新的8080服务
-            
-            // 11. 停止备用进程
-            log.info("🛑 停止备用Java进程: {}", backupProcess.pid());
-            backupProcess.destroy();
-            
-            log.info("✅ 零停机热更新完成");
+            log.info("✅ 后端更新完成");
             
         } catch (Exception e) {
-            log.error("❌ 零停机更新失败，回滚到单进程更新", e);
-            // 回滚到原始方法
+            log.error("❌ 后端更新失败，开始回滚...", e);
             applyBackendUpdateFallback(oldJavaPid);
-        }
-    }
-    
-    /**
-     * 验证Caddy是否能正确路由到8081端口
-     */
-    private boolean verifyCaddyCanRouteTo8081() {
-        try {
-            // 通过Caddy的代理路径访问8081服务
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8888/api/update/version"))
-                    .header("X-Test-Verify", "8081")  // 添加测试标记
-                    .timeout(Duration.ofSeconds(3))
-                    .build();
-            
-            HttpResponse<String> response = httpClient.send(request, 
-                HttpResponse.BodyHandlers.ofString());
-            
-            if (response.statusCode() == 200) {
-                log.info("✅ Caddy能够正确路由请求到后端服务");
-                return true;
-            } else {
-                log.warn("⚠️ Caddy路由测试返回状态码: {}", response.statusCode());
-                return false;
-            }
-        } catch (Exception e) {
-            log.warn("⚠️ Caddy路由验证失败: {}", e.getMessage());
-            return false;
+            throw e;
         }
     }
     
@@ -365,7 +302,7 @@ public class UpdateService {
      * 回滚到传统更新方式 - 使用备份文件
      */
     private void applyBackendUpdateFallback(String oldJavaPid) throws Exception {
-        log.info("🔄 回滚到传统更新方式，恢复原始版本...");
+        log.info("🔄 回滚到原始版本...");
         
         try {
             // 首先尝试使用备份文件回滚
@@ -384,68 +321,8 @@ public class UpdateService {
             restartJavaApplication();
             waitForApplicationStartup();
             
-            log.info("✅ 传统更新完成（使用当前版本）");
+            log.info("✅ 回滚完成（使用当前版本）");
         }
-    }
-    
-    /**
-     * 启动Java应用在指定端口
-     */
-    private Process startJavaWithPort(int port) throws Exception {
-        ProcessBuilder pb = new ProcessBuilder(
-            "java", 
-            "-Dserver.port=" + port,
-            "-jar", BACKEND_JAR
-        );
-        
-        // 设置环境变量
-        Map<String, String> env = pb.environment();
-        env.put("SPRING_PROFILES_ACTIVE", "prod");
-        env.put("LOG_PATH", "/dockpilot/logs");
-        
-        pb.directory(new File("/app"));
-        pb.redirectOutput(new File("/dockpilot/logs/application-port-" + port + ".log"));
-        pb.redirectError(ProcessBuilder.Redirect.appendTo(new File("/dockpilot/logs/application-port-" + port + ".log")));
-        
-        Process process = pb.start();
-        log.info("Java应用已在端口{}启动，PID: {}", port, process.pid());
-        return process;
-    }
-    
-    /**
-     * 等待指定端口的应用启动
-     */
-    private boolean waitForApplicationStartupOnPort(int port, int maxSeconds) {
-        log.info("等待端口{}上的应用启动...", port);
-        
-        for (int i = 0; i < maxSeconds; i++) {
-            try {
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:" + port + "/api/update/version"))
-                        .timeout(Duration.ofSeconds(2))
-                        .build();
-                
-                HttpResponse<String> response = httpClient.send(request, 
-                    HttpResponse.BodyHandlers.ofString());
-                
-                if (response.statusCode() == 200) {
-                    log.info("✅ 端口{}上的应用启动成功", port);
-                    return true;
-                }
-            } catch (Exception e) {
-                // 继续等待
-            }
-            
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return false;
-            }
-        }
-        
-        log.error("❌ 端口{}上的应用启动超时", port);
-        return false;
     }
     
     /**
@@ -949,7 +826,7 @@ public class UpdateService {
             try {
                 // 尝试访问健康检查端点
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:8080/api/update/version"))
+                        .uri(URI.create("http://localhost:8080/update/version"))
                         .timeout(Duration.ofSeconds(2))
                         .build();
                 
@@ -968,5 +845,41 @@ public class UpdateService {
         }
         
         throw new RuntimeException("应用启动超时，可能启动失败");
+    }
+
+    /**
+     * 等待指定端口的应用启动
+     */
+    private boolean waitForApplicationStartupOnPort(int port, int maxSeconds) {
+        log.info("等待端口{}上的应用启动...", port);
+        
+        for (int i = 0; i < maxSeconds; i++) {
+            try {
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:" + port + "/update/version"))
+                        .timeout(Duration.ofSeconds(2))
+                        .build();
+                
+                HttpResponse<String> response = httpClient.send(request, 
+                    HttpResponse.BodyHandlers.ofString());
+                
+                if (response.statusCode() == 200) {
+                    log.info("✅ 端口{}上的应用启动成功", port);
+                    return true;
+                }
+            } catch (Exception e) {
+                // 继续等待
+            }
+            
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        
+        log.error("❌ 端口{}上的应用启动超时", port);
+        return false;
     }
 } 

@@ -349,12 +349,12 @@ onMounted(() => {
     }
   })
   
-  // 每30分钟自动检查一次更新
+  // 每2小时自动检查一次更新（降低频率）
   checkTimer = setInterval(() => {
     checkForUpdates().catch(() => {
       // 静默失败
     })
-  }, 30 * 60 * 1000)
+  }, 2 * 60 * 60 * 1000)
 })
 
 onUnmounted(() => {
