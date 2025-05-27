@@ -5,7 +5,7 @@
 
     <div class="login-content">
       <div class="login-logo">
-        🚀 Docker 管理系统
+        🚀 DockPilot 容器管理平台
       </div>
       <div :class="['login-box', { dark: isDark }]">
         <h2 class="login-title">登录</h2>
@@ -48,7 +48,7 @@
       </div>
     </div>
     <div class="page-footer">
-      © 2025 Docker 管理系统 by Yam
+      © 2025 DockPilot 容器管理平台 by Yam
     </div>
   </div>
 </template>
@@ -101,7 +101,7 @@ async function handleLogin() {
     })
     setToken(token)
     await userStore.fetchUserInfo()
-    message.success(`欢迎，${formValue.username}！`)
+    message.success(`欢迎回来，${formValue.username}！🎉`)
     router.push('/')
   } catch (error) {
     if (error instanceof Error) {
