@@ -1,5 +1,5 @@
 # 支持热更新的DockPilot镜像
-# 基础版本：下载已构建的代码包 + 热更新能力
+# 基础版本：镜像内置代码 + 热更新能力
 
 FROM alpine:3.21
 
@@ -44,11 +44,11 @@ RUN cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
 RUN mkdir -p /app /usr/share/html /dockpilot/data /dockpilot/logs /dockpilot/uploads \
     /app/builtin /usr/share/html-builtin
 
-# 🚀 下载已构建的前后端代码包
+# 🚀 下载已构建的前后端代码包（替代多阶段构建）
 RUN echo "📦 下载DockPilot ${VERSION} 代码包..." && \
     if [ "$VERSION" = "latest" ]; then \
         echo "获取最新版本号..."; \
-        LATEST_VERSION=$(wget -qO- https://api.github.com/repos/kidoneself/DockPilot/releases/latest | grep '"tag_name"' | cut -d'"' -f4); \
+        LATEST_VERSION=$(wget -qO- https://api.github.com/repos/kidoneself/DockPilot/releases/latest | grep '"tag_name"' | cut -d'"' -f4 2>/dev/null || echo ""); \
         if [ -n "$LATEST_VERSION" ]; then \
             VERSION=$LATEST_VERSION; \
             echo "最新版本: $VERSION"; \
@@ -70,6 +70,7 @@ RUN echo "📦 下载DockPilot ${VERSION} 代码包..." && \
 RUN echo "📁 安装内置代码..." && \
     tar -xzf /tmp/frontend.tar.gz -C /usr/share/html-builtin/ && \
     cp /tmp/backend.jar /app/builtin/backend.jar && \
+    rm -f /tmp/frontend.tar.gz /tmp/backend.jar && \
     echo "✅ 内置代码安装完成"
 
 # 复制启动脚本和配置
@@ -83,15 +84,9 @@ COPY build/init-builtin.sh /app/init-builtin.sh
 RUN chmod +x /start.sh /app/download-app.sh /app/init-builtin.sh
 
 # 🔥 初始化：复制内置版本到运行目录
-RUN echo "🔄 初始化运行环境..." && \
-    cp -r /usr/share/html-builtin/* /usr/share/html/ && \
+RUN cp -r /usr/share/html-builtin/* /usr/share/html/ && \
     cp /app/builtin/backend.jar /app/app.jar && \
-    echo "builtin-${VERSION:-latest}" > /dockpilot/data/current_version && \
-    echo "✅ 运行环境初始化完成"
-
-# 清理临时文件
-RUN rm -f /tmp/frontend.tar.gz /tmp/backend.jar && \
-    echo "🗑️ 临时文件已清理"
+    echo "builtin-version" > /dockpilot/data/current_version
 
 # 暴露端口
 EXPOSE 8888
