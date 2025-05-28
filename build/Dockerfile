@@ -112,11 +112,11 @@ COPY --from=frontend-builder /build/dist/ /usr/share/html-builtin/
 COPY --from=backend-builder /build/target/*.jar /app/builtin/backend.jar
 
 # 复制启动脚本和配置
-COPY hot-update/start-hot-update.sh /start.sh
-COPY hot-update/Caddyfile /etc/caddy/Caddyfile
-COPY hot-update/download-app.sh /app/download-app.sh
-COPY hot-update/loading.html /usr/share/html/index.html
-COPY hot-update/init-builtin.sh /app/init-builtin.sh
+COPY build/start-hot-update.sh /start.sh
+COPY build/Caddyfile /etc/caddy/Caddyfile  
+COPY build/download-app.sh /app/download-app.sh
+COPY build/loading.html /usr/share/html/index.html
+COPY build/init-builtin.sh /app/init-builtin.sh
 
 # 设置权限
 RUN chmod +x /start.sh /app/download-app.sh /app/init-builtin.sh

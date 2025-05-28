@@ -76,3 +76,39 @@ dockpilot-backend/*.jar
 dockpilot-backend/.mvn/
 dockpilot-backend/mvnw
 dockpilot-backend/mvnw.cmd
+
+# 数据库文件
+data.db
+*.db
+*.sqlite
+*.sqlite3
+
+# 用户上传文件
+uploads/
+uploads/*
+
+# AI工具生成文件
+.trae/
+.cursor/
+.ai/
+
+# 构建相关临时文件
+build/temp/
+build/backup/
+build/downloads/
+
+# 构建产物
+frontend.tar.gz
+backend.jar
+*.tar.gz
+*.war
+
+# 部署相关
+docker-compose.override.yml
+.env.production
+.env.development
+
+# 测试覆盖率
+coverage/
+.nyc_output/
+test-results/
