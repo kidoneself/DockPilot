@@ -58,21 +58,35 @@
         :model="webUIForm"
         :rules="webUIFormRules"
         label-placement="left"
-        label-width="120px"
+        label-width="80px"
+        style="min-width: 420px;"
       >
-        <NFormItem label="WebUI地址" path="webUrl">
+        <NFormItem label="Web地址" path="webUrl">
           <NInput
             v-model:value="webUIForm.webUrl"
             placeholder="例如: http://localhost:8080"
             clearable
+            style="width: 320px;"
           />
         </NFormItem>
-        <NFormItem label="图标地址（可选）" path="iconUrl">
-          <NInput
-            v-model:value="webUIForm.iconUrl"
-            placeholder="例如: https://example.com/icon.png"
-            clearable
-          />
+        <NFormItem label="图标地址" path="iconUrl">
+          <NInputGroup>
+            <NInput
+              v-model:value="webUIForm.iconUrl"
+              placeholder="例如: https://example.com/icon.png"
+              clearable
+              style="width: 240px;"
+            />
+            <NButton 
+              type="primary" 
+              ghost
+              :loading="fetchingIcon"
+              :disabled="!webUIForm.webUrl || fetchingIcon"
+              @click="handleFetchIcon"
+            >
+              获取图标
+            </NButton>
+          </NInputGroup>
         </NFormItem>
       </NForm>
       <template #action>
@@ -89,7 +103,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { NButton, NSpace, useMessage, useDialog, NModal, NInput, NFormItem, NForm } from 'naive-ui'
+import { NButton, NSpace, useMessage, useDialog, NModal, NInput, NFormItem, NForm, NInputGroup, type FormInst } from 'naive-ui'
 import {
   RefreshOutline,
   AddOutline
@@ -109,6 +123,7 @@ import { sendWebSocketMessage } from '@/api/websocket/websocketService'
 import { useRouter } from 'vue-router'
 import { useWebSocketTask } from '@/hooks/useWebSocketTask'
 import { MessageType } from '@/api/websocket/types'
+import { getFavicon } from '@/api/http/system'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -543,14 +558,15 @@ function handleSaveWebUI() {
     // 验证通过，开始保存
     savingWebUI.value = true
     
-    // 处理URL格式，确保有协议前缀
-    let webUrl = webUIForm.webUrl
-    let iconUrl = webUIForm.iconUrl
+    // 处理URL格式，确保有协议前缀（如果没有的话）
+    let webUrl = webUIForm.webUrl.trim()
+    let iconUrl = webUIForm.iconUrl.trim()
     
-    if (webUrl && !webUrl.startsWith('http')) {
+    // 只有在没有协议前缀时才添加http://
+    if (webUrl && !webUrl.startsWith('http://') && !webUrl.startsWith('https://')) {
       webUrl = `http://${webUrl}`
     }
-    if (iconUrl && !iconUrl.startsWith('http')) {
+    if (iconUrl && !iconUrl.startsWith('http://') && !iconUrl.startsWith('https://')) {
       iconUrl = `http://${iconUrl}`
     }
 
@@ -605,41 +621,43 @@ const webUIForm = reactive({
 })
 const savingWebUI = ref(false)
 const currentConfigContainer = ref<DisplayContainer | null>(null)
-const webUIFormRef = ref(null)
+const webUIFormRef = ref<FormInst | null>(null)
 
-// URL验证函数
+// 获取图标相关状态
+const fetchingIcon = ref(false)
+
+// 获取图标方法
+async function handleFetchIcon() {
+  if (!webUIForm.webUrl) return
+  fetchingIcon.value = true
+  try {
+    const url = webUIForm.webUrl.trim()
+    const iconUrl = await getFavicon(url)
+    if (iconUrl) {
+      webUIForm.iconUrl = iconUrl
+      message.success('图标获取成功')
+    } else {
+      message.error('未能获取到图标')
+    }
+  } catch (e: any) {
+    message.error('获取图标失败: ' + (e?.message || e))
+  } finally {
+    fetchingIcon.value = false
+  }
+}
+
+// URL验证函数 - 简化版，只做基本检查
 function validateUrl(url: string): boolean {
   if (!url) return true // 空值在required规则中处理
   
-  // 移除协议前缀进行验证
-  const cleanUrl = url.replace(/^https?:\/\//, '')
+  const trimmedUrl = url.trim()
   
-  // 检查是否为IP地址 (IPv4)
-  const ipRegex = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?(\/.*)?$/
-  if (ipRegex.test(cleanUrl)) {
-    // 验证IP地址的每个部分是否在0-255范围内
-    const ipParts = cleanUrl.split('.').map(part => part.split(':')[0].split('/')[0])
-    if (ipParts.length === 4 && ipParts.every(part => {
-      const num = parseInt(part)
-      return num >= 0 && num <= 255
-    })) {
-      return true
-    }
-  }
+  // 基本检查：不能只是空格，不能包含明显的非法字符
+  if (trimmedUrl.length === 0) return false
+  if (trimmedUrl.includes(' ')) return false // URL不应该包含空格
   
-  // 检查是否为域名格式
-  const domainRegex = new RegExp(
-    '^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?' +
-    '(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9]))?' +
-    '*(:[0-9]{1,5})?(/.*)?$'
-  )
-  if (domainRegex.test(cleanUrl)) {
-    // 确保有域名部分（不只是端口和路径）
-    const hasValidDomain = cleanUrl.includes('.') || cleanUrl === 'localhost'
-    return hasValidDomain
-  }
-  
-  return false
+  // 其他情况都认为是有效的，让用户自己负责
+  return true
 }
 
 const webUIFormRules = {
@@ -653,7 +671,7 @@ const webUIFormRules = {
       validator: (rule: any, value: string) => {
         if (!value) return true
         if (!validateUrl(value)) {
-          return new Error('请输入有效的URL地址\n支持格式: localhost:8080、192.168.1.1:3000、example.com/app')
+          return new Error('URL不能包含空格或为空')
         }
         return true
       },
@@ -665,7 +683,7 @@ const webUIFormRules = {
       validator: (rule: any, value: string) => {
         if (!value) return true // 图标地址是可选的
         if (!validateUrl(value)) {
-          return new Error('请输入有效的URL地址')
+          return new Error('URL不能包含空格或为空')
         }
         return true
       },
