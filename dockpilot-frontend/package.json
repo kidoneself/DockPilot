@@ -1,7 +1,7 @@
 {
   "name": "dockpilot-frontend",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.0.0",
   "description": "DockPilot Docker管理平台前端界面",
   "type": "module",
   "scripts": {
