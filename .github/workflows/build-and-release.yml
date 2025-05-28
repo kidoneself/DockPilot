@@ -219,7 +219,7 @@ jobs:
           
           #### 方式一：直接部署热更新镜像
           \`\`\`bash
-          # 推荐方式（latest即热更新版）
+          # 拉取并部署最新版本
           docker run -d --privileged \\
             --name dockpilot \\
             -p 8888:8888 \\
@@ -229,17 +229,6 @@ jobs:
             -e DOCKPILOT_VERSION=$VERSION \\
             --restart unless-stopped \\
             kidself/dockpilot:latest
-          
-          # 或明确指定热更新版
-          docker run -d --privileged \\
-            --name dockpilot \\
-            -p 8888:8888 \\
-            -v /var/run/docker.sock:/var/run/docker.sock \\
-            -v /:/mnt/host \\
-            -v /home/dockpilot:/dockpilot \\
-            -e DOCKPILOT_VERSION=$VERSION \\
-            --restart unless-stopped \\
-            kidself/dockpilot:hot
           \`\`\`
           
           #### 方式二：在现有容器中手动更新
@@ -349,9 +338,6 @@ jobs:
           push: true
           tags: |
             kidself/dockpilot:latest
-            kidself/dockpilot:hot
-            kidself/dockpilot:${{ steps.version.outputs.VERSION }}
-            kidself/dockpilot:${{ steps.version.outputs.VERSION }}-hot
           build-args: |
             VERSION=${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
@@ -362,7 +348,7 @@ jobs:
           echo "🐳 DockPilot镜像构建完成！"
           echo "📋 镜像信息:"
           echo "  仓库: kidself/dockpilot"
-          echo "  标签: latest, hot, ${{ steps.version.outputs.VERSION }}, ${{ steps.version.outputs.VERSION }}-hot"
+          echo "  标签: latest"
           echo "  平台: linux/amd64, linux/arm64"
           echo "  特性: 内置代码 + 热更新能力"
           echo ""
@@ -375,15 +361,6 @@ jobs:
           echo "    -v /home/dockpilot:/dockpilot \\"
           echo "    --restart unless-stopped \\"
           echo "    kidself/dockpilot:latest"
-          echo ""
-          echo "  # 或明确指定热更新版"
-          echo "  docker run -d --privileged --name dockpilot \\"
-          echo "    -p 8888:8888 \\"
-          echo "    -v /var/run/docker.sock:/var/run/docker.sock \\"
-          echo "    -v /:/mnt/host \\"
-          echo "    -v /home/dockpilot:/dockpilot \\"
-          echo "    --restart unless-stopped \\"
-          echo "    kidself/dockpilot:hot"
           echo ""
           echo "🛡️ 新特性:"
           echo "  • 镜像内置当前最新代码，启动即可用"
