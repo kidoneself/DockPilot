@@ -76,6 +76,9 @@ public class UpdateService {
     public UpdateInfoDTO checkForUpdates() throws Exception {
         log.info("🔍 开始检查新版本...");
         
+        // 确保HTTP客户端已初始化
+        ensureHttpClientInitialized();
+        
         // 1. 尝试使用缓存
         UpdateInfoDTO cachedResult = getCachedUpdateInfo();
         if (cachedResult != null) {
@@ -143,6 +146,9 @@ public class UpdateService {
             throw new RuntimeException("更新正在进行中，请稍后再试");
         }
 
+        // 确保HTTP客户端已初始化
+        ensureHttpClientInitialized();
+
         // 异步执行更新
         currentUpdateTask = CompletableFuture.runAsync(() -> {
             try {
@@ -169,6 +175,10 @@ public class UpdateService {
         updateProgress.put("status", "starting");
         updateProgress.put("progress", 0);
         updateProgress.put("message", "初始化更新...");
+        
+        // 获取当前Java进程PID，用于后续对比和错误恢复
+        String originalJavaPid = getJavaProcessPid();
+        log.info("当前Java进程PID: {}", originalJavaPid);
 
         try {
             // 1. 准备工作
@@ -218,20 +228,33 @@ public class UpdateService {
             log.info("✅ 热更新完成: {}", targetVersion);
 
         } catch (Exception e) {
-            log.error("❌ 热更新失败，开始回滚...", e);
+            log.error("❌ 热更新失败：{}", e.getMessage(), e);
             updateProgress.put("status", "rolling-back");
             updateProgress.put("message", "更新失败，正在回滚...");
+            updateProgress.put("error", e.getMessage());
             
             try {
+                // 检查是否需要杀死新启动的进程
+                try {
+                    String currentPid = getJavaProcessPid();
+                    if (currentPid != null && !currentPid.equals(originalJavaPid)) {
+                        log.info("发现新启动的Java进程 (PID: {})，尝试停止它", currentPid);
+                        killJavaProcess(currentPid);
+                    }
+                } catch (Exception checkError) {
+                    log.warn("检查新进程时出错: {}", checkError.getMessage());
+                }
+                
+                log.info("开始回滚更新...");
                 rollbackUpdate();
+                log.info("✅ 已回滚到之前版本");
                 updateProgress.put("message", "已回滚到之前版本");
             } catch (Exception rollbackError) {
-                log.error("回滚失败", rollbackError);
+                log.error("❌ 回滚失败: {}", rollbackError.getMessage(), rollbackError);
                 updateProgress.put("message", "回滚失败: " + rollbackError.getMessage());
             }
             
             updateProgress.put("status", "failed");
-            updateProgress.put("error", e.getMessage());
             throw e;
         }
     }
@@ -312,24 +335,23 @@ public class UpdateService {
             Files.copy(newJar, currentJar, StandardCopyOption.REPLACE_EXISTING);
             log.info("✅ 后端jar文件已更新");
             
-            // 3. 停止旧的Java进程
+            // 3. 先启动新的Java进程
+            log.info("🚀 启动新的Java进程...");
+            restartJavaApplication();
+            
+            // 4. 等待新进程启动
+            log.info("⏳ 等待新应用启动...");
+            if (!waitForApplicationStartupOnPort(8080, 60)) {
+                log.error("❌ 新版本启动失败，需要回滚更新");
+                throw new RuntimeException("新版本启动失败，需要回滚到旧版本");
+            }
+            
+            // 5. 新进程启动成功后，再停止旧的Java进程
             if (oldJavaPid != null) {
                 log.info("🛑 停止旧的Java进程: {}", oldJavaPid);
                 killJavaProcess(oldJavaPid);
             }
             
-            // 4. 等待确保旧进程已停止
-            Thread.sleep(3000);
-            
-            // 5. 启动新的Java进程
-            log.info("🚀 启动新的Java进程...");
-            restartJavaApplication();
-            
-            // 6. 等待应用启动
-            if (!waitForApplicationStartupOnPort(8080, 60)) {
-                log.error("❌ 新版本启动失败，需要回滚更新");
-                throw new RuntimeException("新版本启动失败，需要回滚到旧版本");
-            }
             log.info("✅ 后端更新完成");
             
         } catch (Exception e) {
@@ -619,7 +641,7 @@ public class UpdateService {
         }
         
         // 方法5: 返回默认版本
-        String defaultVersion = "v1.0.7";
+        String defaultVersion = "v1.0.0";
         log.warn("⚠️ 无法获取版本信息，使用默认版本: {}", defaultVersion);
         
         // 尝试创建版本文件
@@ -1018,21 +1040,24 @@ public class UpdateService {
     private void restartJavaApplication() throws Exception {
         log.info("重新启动Java应用...");
         
+        // 使用nohup启动Java进程，并将输出重定向到日志文件
         ProcessBuilder pb = new ProcessBuilder(
-            "java", "-jar", BACKEND_JAR
+            "/bin/bash", "-c", 
+            "cd /app && nohup java -jar " + BACKEND_JAR + 
+            " --spring.profiles.active=prod --log.path=/dockpilot/logs" +
+            " > /dockpilot/logs/application-restart.log 2>&1 &"
         );
         
-        // 设置环境变量
-        Map<String, String> env = pb.environment();
-        env.put("SPRING_PROFILES_ACTIVE", "prod");
-        env.put("LOG_PATH", "/dockpilot/logs");
-        
-        pb.directory(new File("/app"));
-        pb.redirectOutput(new File("/dockpilot/logs/application-restart.log"));
-        pb.redirectError(ProcessBuilder.Redirect.appendTo(new File("/dockpilot/logs/application-restart.log")));
-        
+        // 启动进程
         Process process = pb.start();
-        log.info("Java应用已启动，PID: {}", process.pid());
+        int exitCode = process.waitFor();
+        
+        if (exitCode == 0) {
+            log.info("✅ 新的Java应用已在后台启动");
+        } else {
+            log.error("❌ 启动Java应用失败，退出码: {}", exitCode);
+            throw new RuntimeException("启动Java应用失败，退出码: " + exitCode);
+        }
     }
 
     /**
@@ -1073,33 +1098,52 @@ public class UpdateService {
     private boolean waitForApplicationStartupOnPort(int port, int maxSeconds) {
         log.info("等待端口{}上的应用启动...", port);
         
+        // 确保HTTP客户端已初始化
+        ensureHttpClientInitialized();
+        
         for (int i = 0; i < maxSeconds; i++) {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:" + port + "/update/version"))
-                        .timeout(Duration.ofSeconds(2))
+                        .uri(URI.create("http://localhost:" + port + "/api/update/version"))
+                        .timeout(Duration.ofSeconds(5))
                         .build();
                 
-                HttpResponse<String> response = httpClient.send(request, 
-                    HttpResponse.BodyHandlers.ofString());
+                log.debug("尝试第{}次检查新应用是否启动 (端口: {})", i+1, port);
                 
-                if (response.statusCode() == 200) {
-                    log.info("✅ 端口{}上的应用启动成功", port);
-                    return true;
+                try {
+                    HttpResponse<String> response = httpClient.send(request, 
+                        HttpResponse.BodyHandlers.ofString());
+                    
+                    if (response.statusCode() == 200) {
+                        log.info("✅ 端口{}上的应用启动成功，收到200响应", port);
+                        return true;
+                    } else {
+                        log.debug("收到非200响应：{}", response.statusCode());
+                    }
+                } catch (ConnectException e) {
+                    log.debug("连接被拒绝，新应用可能尚未启动完成");
+                } catch (Exception e) {
+                    log.debug("检查失败: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+                }
+                
+                // 打印倒计时信息
+                if (i % 5 == 0) {
+                    log.info("⏳ 继续等待新应用启动，已等待{}秒，最多等待{}秒", i, maxSeconds);
+                }
+                
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return false;
                 }
             } catch (Exception e) {
+                log.warn("检查应用启动状态异常: {}", e.getMessage());
                 // 继续等待
-            }
-            
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return false;
             }
         }
         
-        log.error("❌ 端口{}上的应用启动超时", port);
+        log.error("❌ 端口{}上的应用启动超时 ({}秒)", port, maxSeconds);
         return false;
     }
 
@@ -1248,13 +1292,7 @@ public class UpdateService {
     @PostConstruct
     public void initializeService() {
         // 初始化HTTP客户端，支持重定向
-        if (httpClient == null) {
-            httpClient = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(15))
-                    .followRedirects(HttpClient.Redirect.NORMAL) // 支持HTTP重定向
-                    .build();
-            log.info("✅ HTTP客户端已初始化（支持重定向）");
-        }
+        initHttpClient();
         
         // 延迟30秒后执行首次检查，避免启动时网络未就绪
         CompletableFuture.runAsync(() -> {
@@ -1268,7 +1306,28 @@ public class UpdateService {
         });
     }
 
+    /**
+     * 初始化HTTP客户端
+     */
+    private synchronized void initHttpClient() {
+        if (httpClient == null) {
+            log.info("初始化HTTP客户端...");
+            httpClient = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(15))
+                    .followRedirects(HttpClient.Redirect.NORMAL) // 支持HTTP重定向
+                    .build();
+            log.info("✅ HTTP客户端已初始化（支持重定向）");
+        }
+    }
 
+    /**
+     * 确保热更新前HTTP客户端已初始化
+     */
+    private void ensureHttpClientInitialized() {
+        if (httpClient == null) {
+            initHttpClient();
+        }
+    }
 
     /**
      * 创建fallback更新信息
