@@ -58,6 +58,7 @@ RUN echo "📦 下载DockPilot ${VERSION} 代码包..." && \
         fi; \
     fi && \
     echo "下载版本: $VERSION" && \
+    echo "$VERSION" > /tmp/actual_version && \
     wget --tries=3 --retry-connrefused --timeout=60 \
         "https://github.com/kidoneself/DockPilot/releases/download/${VERSION}/frontend.tar.gz" \
         -O /tmp/frontend.tar.gz && \
@@ -83,10 +84,14 @@ COPY build/init-builtin.sh /app/init-builtin.sh
 # 设置权限
 RUN chmod +x /start.sh /app/download-app.sh /app/init-builtin.sh
 
-# 🔥 初始化：复制内置版本到运行目录
-RUN cp -r /usr/share/html-builtin/* /usr/share/html/ && \
+# 🔥 初始化：复制内置版本到运行目录，使用实际版本号
+RUN mkdir -p /dockpilot/data && \
+    cp -r /usr/share/html-builtin/* /usr/share/html/ && \
     cp /app/builtin/backend.jar /app/app.jar && \
-    echo "builtin-version" > /dockpilot/data/current_version
+    ACTUAL_VERSION=$(cat /tmp/actual_version 2>/dev/null || echo "builtin-version") && \
+    echo "$ACTUAL_VERSION" > /dockpilot/data/current_version && \
+    echo "✅ 版本已设置为: $ACTUAL_VERSION" && \
+    rm -f /tmp/actual_version
 
 # 暴露端口
 EXPOSE 8888
