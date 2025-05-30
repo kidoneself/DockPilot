@@ -21,19 +21,6 @@ CREATE TABLE IF NOT EXISTS system_settings (
     setting_value TEXT
 );
 
--- 应用模板表
-CREATE TABLE IF NOT EXISTS application_templates (
-    id TEXT PRIMARY KEY,               -- 主键ID，应用模板的唯一标识
-    name TEXT NOT NULL,                -- 应用名称，用于显示
-    category TEXT,                     -- 应用分类，用于分类展示
-    version TEXT,                      -- 应用版本号
-    description TEXT,                  -- 应用描述
-    icon_url TEXT,                     -- 应用图标URL
-    template TEXT NOT NULL,            -- 应用模板数据，使用JSON格式存储完整的模板配置
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- 创建时间
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- 更新时间
-    sort_weight INTEGER DEFAULT 0     -- 排序权重
-);
 
 -- 日志表
 CREATE TABLE IF NOT EXISTS logs (
@@ -123,6 +110,28 @@ CREATE TABLE IF NOT EXISTS image_status (
     progress TEXT,                     -- 拉取进度
     UNIQUE (name, tag)
 );
+
+-- ======================================
+-- 应用中心数据库表
+-- ======================================
+
+-- 应用表
+CREATE TABLE IF NOT EXISTS applications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,                    -- 应用名称
+    description TEXT,                      -- 应用描述
+    category TEXT DEFAULT '容器应用',        -- 应用分类
+    icon_url TEXT,                         -- 应用图标URL
+    yaml_content TEXT NOT NULL,            -- YAML配置内容 (完整的应用配置)
+    file_hash TEXT UNIQUE,                 -- 配置文件哈希值 (用于去重检查)
+    env_vars TEXT,                         -- 用户安装时填写的变量
+    created_at TEXT DEFAULT (datetime('now')),  -- 创建时间
+    updated_at TEXT DEFAULT (datetime('now'))   -- 更新时间
+);
+
+-- 创建应用表索引 (只保留有效字段的索引)
+CREATE INDEX IF NOT EXISTS idx_applications_category ON applications(category);
+CREATE INDEX IF NOT EXISTS idx_applications_hash ON applications(file_hash);
 
 -- ======================================
 -- 插入默认分类数据

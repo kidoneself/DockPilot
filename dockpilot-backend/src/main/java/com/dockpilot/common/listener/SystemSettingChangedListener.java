@@ -41,6 +41,23 @@ public class SystemSettingChangedListener {
             }
         }
         
+        if ("mirror_urls".equals(key)) {
+            try {
+                if (newValue != null && !newValue.isBlank()) {
+                    appConfig.setMirrorUrls(newValue.trim());
+                    LogUtil.logSysInfo("✅已设置镜像加速地址: " + newValue.trim().replace("\n", ", "));
+                } else {
+                    // 配置值为空，清除镜像加速
+                    appConfig.setMirrorUrls(null);
+                    LogUtil.logSysInfo("✅已清除镜像加速地址");
+                }
+            } catch (Exception e) {
+                LogUtil.logSysError("处理镜像加速配置变更失败: " + e.getMessage());
+                // 异常时清除镜像加速配置
+                appConfig.setMirrorUrls(null);
+            }
+        }
+        
         // 🎯 处理镜像检查间隔配置变更
         if ("imageCheckInterval".equals(key)) {
             try {

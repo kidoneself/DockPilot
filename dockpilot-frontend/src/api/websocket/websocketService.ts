@@ -5,15 +5,24 @@ import type { DockerWebSocketMessage, WebSocketCallbacks, WebSocketRequestOption
 class TaskManager {
   private taskHandlers = new Map<string, WebSocketCallbacks>()
   private taskTimeouts = new Map<string, number>()
+  private globalHandler: WebSocketCallbacks | null = null
+
+  // 设置全局消息处理器（用于处理未注册的任务）
+  setGlobalHandler(handler: WebSocketCallbacks) {
+    this.globalHandler = handler
+    console.log('📝 设置全局消息处理器')
+  }
 
   // 注册任务处理器
   registerTask(taskId: string, callbacks: WebSocketCallbacks, timeout: number = 30000) {
+    console.log(`📝 注册任务处理器: ${taskId}`)
     this.taskHandlers.set(taskId, callbacks)
     
     // 设置超时处理
     const timeoutId = window.setTimeout(() => {
       const handler = this.taskHandlers.get(taskId)
       if (handler) {
+        console.log(`⏰ 任务超时: ${taskId}`)
         handler.onError?.('操作超时', taskId)
         this.removeTask(taskId)
       }
@@ -24,28 +33,95 @@ class TaskManager {
 
   // 处理消息
   handleMessage(message: DockerWebSocketMessage) {
-    const handler = this.taskHandlers.get(message.taskId)
-    if (!handler) return
+    console.log('🔍 TaskManager 收到消息:', message.type, 'taskId:', message.taskId, 'progress:', message.progress)
+    
+    let handler = this.taskHandlers.get(message.taskId)
+    
+    if (!handler) {
+      console.warn('⚠️ 未找到对应的任务处理器:', message.taskId)
+      console.log('📋 当前注册的任务:', Array.from(this.taskHandlers.keys()))
+      
+      // 🔧 关键修复：如果没有找到特定任务的处理器，尝试使用全局处理器
+      if (this.globalHandler) {
+        console.log('🌐 使用全局处理器处理消息:', message.type)
+        handler = this.globalHandler
+      } else {
+        console.warn('❌ 没有全局处理器，跳过消息')
+        return
+      }
+    } else {
+      console.log('✅ 找到任务处理器，开始处理消息:', message.type)
+    }
 
     switch (message.type) {
       case 'PROGRESS':
-        if (typeof message.progress === 'number') {
-          handler.onProgress?.(message.progress, message.taskId)
+        // 🔧 修复：处理新的进度消息格式
+        let progress = null
+        let imageName = null
+        
+        if (message.data && typeof message.data === 'object') {
+          // 新格式：进度和镜像名称都在 data 中
+          if ('progress' in message.data && typeof message.data.progress === 'number') {
+            progress = message.data.progress
+            imageName = message.data.imageName
+            console.log(`📈 处理进度消息 (新格式): ${progress}% (taskId: ${message.taskId})`)
+            console.log(`📊 消息包含镜像名称: ${imageName}`)
+          }
+        } else if (typeof message.progress === 'number') {
+          // 旧格式：进度直接在 message.progress 中
+          progress = message.progress
+          console.log(`📈 处理进度消息 (旧格式): ${progress}% (taskId: ${message.taskId})`)
+        }
+        
+        if (progress !== null) {
+          if (imageName) {
+            handler.onProgress?.(progress, message.taskId, imageName)
+          } else {
+            handler.onProgress?.(progress, message.taskId)
+          }
+        } else {
+          console.warn('⚠️ 进度消息格式错误:', message)
         }
         break
       case 'LOG':
         if (message.data) {
-          handler.onLog?.(message.data, message.taskId)
+          console.log(`📝 处理日志消息: ${message.data} (taskId: ${message.taskId})`)
+          
+          // 🔧 修复：处理日志消息的镜像名称
+          let logMessage = message.data
+          let imageName = null
+          
+          if (typeof message.data === 'object' && 'message' in message.data) {
+            logMessage = message.data.message
+            imageName = message.data.imageName
+            console.log(`📊 日志消息包含镜像名称: ${imageName}`)
+          }
+          
+          if (imageName) {
+            handler.onLog?.(logMessage, message.taskId, imageName)
+          } else {
+            handler.onLog?.(logMessage, message.taskId)
+          }
         }
         break
       case 'COMPLETE':
+        console.log(`✅ 处理完成消息 (taskId: ${message.taskId})`)
         handler.onComplete?.(message, message.taskId)
-        this.removeTask(message.taskId)
+        // 只有注册的任务才移除，全局处理器不移除
+        if (this.taskHandlers.has(message.taskId)) {
+          this.removeTask(message.taskId)
+        }
         break
       case 'ERROR':
+        console.log(`❌ 处理错误消息: ${message.errorMessage} (taskId: ${message.taskId})`)
         handler.onError?.(message.errorMessage || '操作失败', message.taskId)
-        this.removeTask(message.taskId)
+        // 只有注册的任务才移除，全局处理器不移除
+        if (this.taskHandlers.has(message.taskId)) {
+          this.removeTask(message.taskId)
+        }
         break
+      default:
+        console.log(`🔍 未处理的消息类型: ${message.type} (taskId: ${message.taskId})`)
     }
   }
 
@@ -136,4 +212,7 @@ export async function sendWebSocketMessage(options: WebSocketRequestOptions): Pr
     })
     throw error
   }
-} 
+}
+
+// 导出全局任务管理器，供其他模块使用
+export { taskManager } 

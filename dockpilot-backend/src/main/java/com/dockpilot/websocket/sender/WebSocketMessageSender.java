@@ -1,8 +1,10 @@
 package com.dockpilot.websocket.sender;
 
 import com.dockpilot.model.MessageType;
+import com.dockpilot.websocket.manager.WebSocketSessionManager;
 import com.dockpilot.websocket.model.DockerWebSocketMessage;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -18,6 +20,73 @@ import java.util.Map;
 @Component
 public class WebSocketMessageSender {
 
+    @Autowired
+    private WebSocketSessionManager sessionManager;
+
+    /**
+     * 检查WebSocket会话是否可用
+     *
+     * @param session WebSocket会话
+     * @return 是否可用
+     */
+    private boolean isSessionAvailable(WebSocketSession session) {
+        return session != null && session.isOpen();
+    }
+
+    /**
+     * 获取可用的会话（优先使用指定会话，如果不可用则尝试获取其他可用会话）
+     *
+     * @param session 指定的会话
+     * @param taskId  任务ID
+     * @return 可用的会话，如果没有则返回 null
+     */
+    private WebSocketSession getAvailableSession(WebSocketSession session, String taskId) {
+        // 如果指定会话可用，直接使用
+        if (isSessionAvailable(session)) {
+            log.debug("使用原始会话发送消息: taskId={}, sessionId={}", taskId, session.getId());
+            return session;
+        }
+        
+        log.warn("原始会话不可用: taskId={}, sessionId={}", taskId, session != null ? session.getId() : "null");
+        
+        // 指定会话不可用，尝试从会话管理器获取
+        WebSocketSession availableSession = sessionManager.getSessionForTask(taskId);
+        if (availableSession != null) {
+            log.info("✅ 任务 {} 的会话已迁移到新连接: {} → {}", 
+                taskId, 
+                session != null ? session.getId() : "null", 
+                availableSession.getId());
+            return availableSession;
+        }
+        
+        log.error("❌ 没有可用的 WebSocket 会话发送消息: taskId={}", taskId);
+        return null;
+    }
+
+    /**
+     * 安全发送消息
+     *
+     * @param session WebSocket会话
+     * @param message 消息内容
+     * @param taskId  任务ID（用于日志）
+     */
+    private void safeSendMessage(WebSocketSession session, TextMessage message, String taskId) {
+        WebSocketSession availableSession = getAvailableSession(session, taskId);
+        
+        if (availableSession == null) {
+            log.warn("WebSocket会话不可用，跳过消息发送: taskId={}", taskId);
+            return;
+        }
+        
+        try {
+            availableSession.sendMessage(message);
+        } catch (IOException e) {
+            log.error("发送WebSocket消息失败: taskId={}", taskId, e);
+        } catch (IllegalStateException e) {
+            log.warn("WebSocket会话状态异常，跳过消息发送: taskId={}, error={}", taskId, e.getMessage());
+        }
+    }
+
     /**
      * 发送普通消息
      *
@@ -29,8 +98,8 @@ public class WebSocketMessageSender {
     public void sendMessage(WebSocketSession session, MessageType type, String taskId, Object data) {
         try {
             DockerWebSocketMessage message = new DockerWebSocketMessage(type.name(), taskId, data);
-            session.sendMessage(new TextMessage(message.toJson()));
-        } catch (IOException e) {
+            safeSendMessage(session, new TextMessage(message.toJson()), taskId);
+        } catch (Exception e) {
             log.error("发送消息失败: type={}, taskId={}", type, taskId, e);
         }
     }
@@ -44,27 +113,78 @@ public class WebSocketMessageSender {
      */
     public void sendProgress(WebSocketSession session, String taskId, int progress) {
         try {
-            DockerWebSocketMessage fail = DockerWebSocketMessage.progress(taskId, progress);
-            session.sendMessage(new TextMessage(fail.toJson()));
+            DockerWebSocketMessage progressMessage = DockerWebSocketMessage.progress(taskId, progress);
+            safeSendMessage(session, new TextMessage(progressMessage.toJson()), taskId);
         } catch (Exception e) {
-            log.error("发送进度消息失败: taskId={}", taskId, e);
+            log.error("发送进度消息失败: taskId={}, progress={}%", taskId, progress, e);
         }
     }
 
+    /**
+     * 发送带镜像名称的进度消息
+     *
+     * @param session   WebSocket会话
+     * @param taskId    任务ID
+     * @param progress  进度（0-100）
+     * @param imageName 镜像名称
+     */
+    public void sendProgressWithImageName(WebSocketSession session, String taskId, int progress, String imageName) {
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("progress", progress);
+            data.put("imageName", imageName);
+            
+            DockerWebSocketMessage progressMessage = new DockerWebSocketMessage();
+            progressMessage.setType(MessageType.PROGRESS.name());
+            progressMessage.setTaskId(taskId);
+            progressMessage.setData(data);
+            progressMessage.setTimestamp(System.currentTimeMillis());
+            
+            safeSendMessage(session, new TextMessage(progressMessage.toJson()), taskId);
+        } catch (Exception e) {
+            log.error("发送进度消息失败: taskId={}, progress={}%, imageName={}", taskId, progress, imageName, e);
+        }
+    }
 
     /**
      * 发送日志消息
      *
      * @param session    WebSocket会话
      * @param taskId     任务ID
-     * @param logMessage 进度（0-100）
+     * @param logMessage 日志消息
      */
     public void sendLog(WebSocketSession session, String taskId, String logMessage) {
         try {
-            DockerWebSocketMessage log = DockerWebSocketMessage.log(taskId, logMessage);
-            session.sendMessage(new TextMessage(log.toJson()));
+            DockerWebSocketMessage logMsg = DockerWebSocketMessage.log(taskId, logMessage);
+            safeSendMessage(session, new TextMessage(logMsg.toJson()), taskId);
         } catch (Exception e) {
-            log.error("发送进度消息失败: taskId={}", taskId, e);
+            log.error("发送日志消息失败: taskId={}", taskId, e);
+        }
+    }
+
+    /**
+     * 发送带镜像名称的日志消息
+     *
+     * @param session    WebSocket会话
+     * @param taskId     任务ID
+     * @param logMessage 日志消息
+     * @param imageName  镜像名称
+     */
+    public void sendLogWithImageName(WebSocketSession session, String taskId, String logMessage, String imageName) {
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("message", logMessage);
+            data.put("imageName", imageName);
+            
+            DockerWebSocketMessage logMsg = new DockerWebSocketMessage();
+            logMsg.setType(MessageType.LOG.name());
+            logMsg.setTaskId(taskId);
+            logMsg.setData(data);
+            logMsg.setTimestamp(System.currentTimeMillis());
+            
+            safeSendMessage(session, new TextMessage(logMsg.toJson()), taskId);
+        } catch (Exception e) {
+            log.error("发送日志消息失败: taskId={}, imageName={}", taskId, imageName, e);
         }
     }
 
@@ -77,10 +197,10 @@ public class WebSocketMessageSender {
      */
     public void sendError(WebSocketSession session, String taskId, String errorMessage) {
         try {
-            DockerWebSocketMessage fail = DockerWebSocketMessage.fail(taskId, errorMessage);
-            session.sendMessage(new TextMessage(fail.toJson()));
+            DockerWebSocketMessage errorMsg = DockerWebSocketMessage.fail(taskId, errorMessage);
+            safeSendMessage(session, new TextMessage(errorMsg.toJson()), taskId);
         } catch (Exception e) {
-            log.error("发送错误消息失败: taskId={}", taskId, e);
+            log.error("发送错误消息失败: taskId={}, error={}", taskId, errorMessage, e);
         }
     }
 

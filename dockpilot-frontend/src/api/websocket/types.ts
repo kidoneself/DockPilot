@@ -49,8 +49,8 @@ export interface DockerWebSocketMessage {
 }
 
 export interface WebSocketCallbacks {
-  onProgress?: (progress: number, taskId: string) => void;
-  onLog?: (log: string, taskId: string) => void;
+  onProgress?: (progress: number, taskId: string, imageName?: string) => void;
+  onLog?: (log: string, taskId: string, imageName?: string) => void;
   onComplete?: (data: DockerWebSocketMessage, taskId: string) => void;
   onError?: (error: string, taskId: string) => void;
 }

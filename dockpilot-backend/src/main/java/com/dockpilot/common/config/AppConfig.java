@@ -7,4 +7,5 @@ import org.springframework.stereotype.Component;
 @Component
 public class AppConfig {
     private String proxyUrl;
+    private String mirrorUrls;
 }

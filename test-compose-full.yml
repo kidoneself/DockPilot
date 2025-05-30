@@ -1,0 +1,126 @@
+x-meta:
+  name: Docker容器项目
+  description: Docker容器管理项目
+  version: 1.0.0
+  author: System
+  category: container
+  env:
+    MOVIEPILOT_V2_PORT_3000: '4444'
+    EMBY_PORT_8096: '38096'
+    CLOUD_MEDIA_SYNC_PORT_9527: '9527'
+    CLOUD_MEDIA_SYNC_PORT_9096: '9096'
+    BASE_1: /Users/lizhiqiang/testDocker/new
+    BASE_2: /Users/lizhiqiang/testDocker/new/docker/115/naspt-115-cms
+    BASE_3: /Users/lizhiqiang/testDocker/new/docker
+
+services:
+
+  moviepilot-v2-23:
+    container_name: moviepilot-v2-23
+    image: ccr.ccs.tencentyun.com/naspt/moviepilot-v2:latest
+    environment:
+      - PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - LANG=C.UTF-8
+      - GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305
+      - PYTHON_VERSION=3.12.8
+      - PYTHON_SHA256=c909157bb25ec114e5869124cc2a9c4a4d4c1e957ca4ff553f1edc692101154e
+      - TZ=Asia/Shanghai
+      - HOME=/moviepilot
+      - CONFIG_DIR=/config
+      - TERM=xterm
+      - DISPLAY=:987
+      - PUID=0
+      - PGID=0
+      - UMASK=000
+      - PORT=3001
+      - NGINX_PORT=3000
+      - MOVIEPILOT_AUTO_UPDATE=release
+    ports:
+      - ${MOVIEPILOT_V2_PORT_3000}:3000
+    volumes:
+      - ${BASE_3}/config:/config
+    networks:
+      - bridge
+    restart: always
+    x-meta:
+      name: moviepilot-v2-23
+      description: 容器服务
+      configUrl: ''
+
+  naspt-115-emby:
+    container_name: naspt-115-emby
+    image: linuxserver/emby:latest
+    environment:
+      - PATH=/lsiopy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - LANGUAGE=en_US.UTF-8
+      - S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0
+      - PUID=0
+      - LSIO_FIRST_PARTY=true
+      - TERM=xterm
+      - S6_VERBOSITY=1
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+      - LANG=en_US.UTF-8
+      - UMASK=022
+      - VIRTUAL_ENV=/lsiopy
+      - S6_STAGE2_HOOK=/docker-mods
+      - PGID=0
+      - HOME=/root
+    ports:
+      - ${EMBY_PORT_8096}:8096
+    volumes:
+      - ${BASE_3}/115/naspt-115-emby/config:/config
+      - ${BASE_1}/media:/media
+    networks:
+      - bridge
+    restart: always
+    x-meta:
+      name: naspt-115-emby
+      description: 容器服务
+      configUrl: ''
+
+  cloud-media-sync:
+    container_name: cloud-media-sync
+    image: imaliang/cloud-media-sync:latest
+    environment:
+      - EMBY_HOST_PORT=http://172.17.0.1:38096
+      - PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - PYTHONPATH=/cms/cms-api
+      - PYTHON_SHA256=24887b92e2afd4a2ac602419ad4b596372f67ac9b077190f459aba390faf5550
+      - EMBY_API_KEY=d5d013c65e86428ea537006b3926737a
+      - PUID=0
+      - TZ=Asia/Shanghai
+      - TERM=xterm
+      - GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305
+      - LANG=C.UTF-8
+      - DONATE_CODE=CMS_HQFO2BSD_EE104D0293B84F668F7CC0B518F3AAD2
+      - UMASK=022
+      - ADMIN_PASSWORD=admin
+      - EMBY_PROXY_PORT=9096
+      - IMAGE_CACHE_POLICY=3
+      - PGID=0
+      - CMS_API_TOKEN=cloud_media_sync
+      - PYTHON_VERSION=3.12.7
+      - RUN_ENV=online
+      - ADMIN_USERNAME=admin
+      - HOME=/cms
+    ports:
+      - ${CLOUD_MEDIA_SYNC_PORT_9527}:9527
+      - ${CLOUD_MEDIA_SYNC_PORT_9096}:9096
+    volumes:
+      - ${BASE_2}/cache:/var/cache/nginx/emby
+      - ${BASE_2}/config:/config
+      - ${BASE_2}/logs:/logs
+      - ${BASE_1}/media:/media
+    networks:
+      - bridge
+    restart: always
+    x-meta:
+      name: cloud-media-sync
+      description: 容器服务
+      configUrl: ''
+
+networks:
+
+  default:
+    external: true
+    name: bridge

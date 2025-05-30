@@ -1,6 +1,7 @@
 <template>
   <div class="path-selector">
     <NPopover
+      v-model:show="showPopover"
       trigger="click"
       placement="bottom-start"
       :show-arrow="false"
@@ -149,11 +150,30 @@ const selectedKey = ref<string | null>(null)
 const searchKeyword = ref('')
 const loading = ref(false)
 const allFolders = ref<FileNode[]>([])
+const showPopover = ref(false)
 
 // 监听外部value变化
 watch(() => props.modelValue, (newVal) => {
   selectedKey.value = newVal || null
 }, { immediate: true })
+
+// 监听弹窗打开状态
+watch(showPopover, (newVal) => {
+  if (newVal) {
+    // 弹窗打开时，重置选择状态为当前输入值
+    selectedKey.value = props.modelValue || null
+    
+    // 如果当前值是有效路径，尝试导航到该路径或其父目录
+    if (props.modelValue && props.modelValue.startsWith('/')) {
+      const targetPath = props.modelValue
+      // 如果是绝对路径，尝试导航到该路径的父目录
+      const parentPath = targetPath.split('/').slice(0, -1).join('/') || '/'
+      if (parentPath !== currentPath.value) {
+        loadFolders(parentPath)
+      }
+    }
+  }
+})
 
 // 搜索过滤
 const filteredFolders = computed(() => {
@@ -220,7 +240,7 @@ const handleClear = () => {
 
 // 取消选择
 const handleCancel = () => {
-  // 关闭弹窗的逻辑由NPopover自动处理
+  showPopover.value = false
 }
 
 // 确认选择
@@ -228,7 +248,7 @@ const handleConfirm = () => {
   if (selectedKey.value) {
     emit('update:modelValue', selectedKey.value)
   }
-  // 关闭弹窗的逻辑由NPopover自动处理
+  showPopover.value = false
 }
 
 // 初始化加载

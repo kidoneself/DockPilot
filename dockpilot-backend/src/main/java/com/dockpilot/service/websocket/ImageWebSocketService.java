@@ -82,12 +82,18 @@ public class ImageWebSocketService implements BaseService {
                     MessageCallback callback = new MessageCallback() {
                         @Override
                         public void onProgress(int progress) {
-                            messageSender.sendProgress(session, taskId, progress);
+                            // 🔧 修复：在进度消息中包含镜像名称
+                            Map<String, Object> data = (Map<String, Object>) message.getData();
+                            String imageName = (String) data.get("imageName");
+                            messageSender.sendProgressWithImageName(session, taskId, progress, imageName);
                         }
 
                         @Override
                         public void onLog(String log) {
-                            messageSender.sendLog(session, taskId, log);
+                            // 🔧 修复：在日志消息中包含镜像名称
+                            Map<String, Object> data = (Map<String, Object>) message.getData();
+                            String imageName = (String) data.get("imageName");
+                            messageSender.sendLogWithImageName(session, taskId, log, imageName);
                         }
 
                         @Override

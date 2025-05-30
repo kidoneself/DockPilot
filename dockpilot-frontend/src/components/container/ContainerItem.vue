@@ -6,8 +6,16 @@
     :style="{ borderLeft: `6px solid ${statusBarColor}` }"
   >
     <div class="container-row">
-      <!-- 中间：容器信息和图标 -->
-      <div class="container-main">
+      <!-- 多选模式复选框 -->
+      <div v-if="multiSelectMode" class="container-select-section">
+        <NCheckbox 
+          :checked="selected"
+          @update:checked="(checked) => emit('select', container.id, checked)"
+        />
+      </div>
+
+      <!-- 第一区域：容器基础信息 -->
+      <div class="container-basic-section">
         <!-- 图标 -->
         <div class="container-icon">
           <NAvatar
@@ -21,33 +29,45 @@
             <ServerOutline />
           </NIcon>
         </div>
-        <div class="container-info-content">
-          <!-- 第一行：名称 -->
-          <div class="container-name-row">
+        <div class="container-basic-info">
+          <!-- 第一行：状态和名称 -->
+          <div class="container-status-name-row">
+            <NTag :type="getStatusType(container.status)" size="small">
+              {{ container.status }}
+            </NTag>
             <n-ellipsis 
               :tooltip="true" 
               class="container-name-text"
             >
               {{ container.name }}
             </n-ellipsis>
-          </div>
-          <!-- 第二行：状态和错误信息 -->
-          <div class="container-status-row">
-            <NTag :type="getStatusType(container.status)" size="small">
-              {{ container.status }}
-            </NTag>
             <span v-if="container.lastError" class="error-text">
               {{ container.lastError }}
             </span>
           </div>
-          <!-- 第三行：资源信息 -->
-          <div class="container-meta-row">
-            <span class="resource-label">CPU：</span>
-            <div class="resource-item">
+          <!-- 第二行：镜像信息 -->
+          <div class="container-image-row">
+            <n-ellipsis 
+              :tooltip="true" 
+              class="container-image-text"
+            >
+              {{ container.image }}
+            </n-ellipsis>
+          </div>
+        </div>
+      </div>
+
+      <!-- 第二区域：CPU和内存 -->
+      <div class="container-cpu-memory-section">
+        <div class="cpu-memory-grid">
+          <!-- CPU使用率 -->
+          <div class="metric-item">
+            <div class="metric-label">CPU</div>
+            <div class="metric-progress">
               <NProgress
                 :percentage="container.cpu"
                 :color="cpuColor"
-                :height="16"
+                :height="12"
                 type="line"
                 :indicator-placement="'inside'"
                 processing
@@ -55,30 +75,51 @@
                 {{ container.cpu }}%
               </NProgress>
             </div>
-            <span class="resource-label">内存：</span>
-            <div class="resource-item">
+          </div>
+          <!-- 内存使用率 -->
+          <div class="metric-item">
+            <div class="metric-label">内存</div>
+            <div class="metric-progress">
               <NProgress
                 :percentage="memoryPercentage"
                 :color="memoryColor"
-                :height="16"
+                :height="12"
                 type="line"
                 :indicator-placement="'inside'"
                 processing
               >
-                {{ memoryPercentage.toFixed(2) }}%
+                {{ memoryPercentage.toFixed(1) }}%
               </NProgress>
             </div>
-            <span class="resource-label up">↑</span>
-            <span class="resource-value up">{{ container.upload }}</span>
-            <span class="resource-label down">↓</span>
-            <span class="resource-value down">{{ container.download }}</span>
           </div>
         </div>
       </div>
 
-      <!-- 右侧：操作按钮组 -->
-      <div class="container-actions">
-        <NSpace>
+      <!-- 第三区域：网络上传下载 -->
+      <div class="container-network-section">
+        <div class="network-grid">
+          <!-- 网络上传 -->
+          <div class="network-item">
+            <div class="network-label network-up">
+              <NIcon class="network-icon"><ArrowUpOutline /></NIcon>
+              上传
+            </div>
+            <div class="network-value network-up">{{ container.upload }}</div>
+          </div>
+          <!-- 网络下载 -->
+          <div class="network-item">
+            <div class="network-label network-down">
+              <NIcon class="network-icon"><ArrowDownOutline /></NIcon>
+              下载
+            </div>
+            <div class="network-value network-down">{{ container.download }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 第四区域：操作按钮组 -->
+      <div v-if="!multiSelectMode" class="container-actions-section">
+        <NSpace size="small">
           <!-- WebUI链接按钮 -->
           <NButton
             v-if="container.webUrl"
@@ -100,6 +141,7 @@
               operating && 
               currentAction === (container.status === 'running' ? 'stop' : 'start')
             "
+            size="small"
             @click="handleAction(container.status === 'running' ? 'stop' : 'start')"
           >
             <template #icon>
@@ -119,6 +161,7 @@
             @select="handleMoreAction"
           >
             <NButton 
+              size="small"
               :loading="operating && currentAction !== 'start' && currentAction !== 'stop'"
             >
               <template #icon>
@@ -146,9 +189,11 @@ import {
   CreateOutline,
   EllipsisHorizontalOutline,
   GlobeOutline,
-  LinkOutline
+  LinkOutline,
+  ArrowUpOutline,
+  ArrowDownOutline
 } from '@vicons/ionicons5'
-import { NIcon, NProgress, NButton, NSpace, NAvatar, NTag, NDropdown } from 'naive-ui'
+import { NIcon, NProgress, NButton, NSpace, NAvatar, NTag, NDropdown, NCheckbox } from 'naive-ui'
 
 // 定义用于前端展示的容器接口，与 ContainerList.vue 中的 DisplayContainer 一致
 interface DisplayContainer {
@@ -193,11 +238,14 @@ const props = defineProps<{
   container: DisplayContainer // 使用 DisplayContainer 类型
   operating?: boolean
   currentAction?: string
+  multiSelectMode?: boolean // 多选模式
+  selected?: boolean // 是否被选中
 }>()
 
 const emit = defineEmits<{
   (e: 'action', action: string, container: DisplayContainer): void // 使用 DisplayContainer 类型
   (e: 'edit', containerId: string): void
+  (e: 'select', containerId: string, selected: boolean): void // 选择事件
 }>()
 
 // 图标错误处理
@@ -350,335 +398,266 @@ const getStatusType = (status: string) => {
 
 .container-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
 }
 
-.container-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: flex-start; /* Align icon and info to the top */
-  gap: 18px; /* Gap between icon and info content */
-}
-
-.container-icon {
-  /* Style remains similar, but now inside .container-main */
+/* 多选区域 */
+.container-select-section {
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
 
-.container-info-content {
+/* 第一区域：容器基础信息 - 40% */
+.container-basic-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 2;
+  min-width: 0;
+  padding: 2px 6px;
+}
+
+.container-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.container-basic-info {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
 }
 
-.container-name-row {
-  margin-bottom: 0;
-  line-height: 1.2;
+.container-status-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.1;
 }
 
 .container-name-text {
   font-weight: bold;
-  font-size: 16px;
-  max-width: 400px;
-}
-
-.container-status-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.container-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  color: #888;
   font-size: 14px;
+  color: var(--n-text-color-base);
+  flex: 1;
+  min-width: 0;
 }
 
-.container-actions {
-  margin-left: 18px;
-  display: flex;
-  align-items: center;
+.container-image-row {
+  margin-top: 1px;
 }
 
-.resource-label {
-  margin-left: 8px;
+.container-image-text {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  line-height: 1.3;
 }
-
-.resource-label.up {
-  color: #18a058;
-}
-
-.resource-label.down {
-  color: #d03050;
-}
-
-.resource-value {
-  color: var(--n-text-color-2);
-  font-size: 15px;
-  margin-left: 4px;
-}
-
-.resource-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 100px;
-}
-
-.resource-value.up { color: #18a058; }
-.resource-value.down { color: #d03050; }
 
 .error-text {
   color: #d03050;
-  font-size: 13px;
-  flex: 1;
+  font-size: 11px;
+  flex-shrink: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 120px;
 }
 
-/* 响应式布局 */
-/* 大平板 */
+/* 第二区域：CPU和内存 - 20% */
+.container-cpu-memory-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4px 6px;
+  background: rgba(var(--n-primary-color-rgb), 0.04);
+  border-radius: 6px;
+  border: 1px solid rgba(var(--n-primary-color-rgb), 0.08);
+}
+
+.cpu-memory-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metric-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--n-text-color-2);
+  min-width: 35px;
+  text-align: left;
+}
+
+.metric-progress {
+  flex: 1;
+}
+
+.metric-value {
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+/* 第三区域：网络上传下载 - 20% */
+.container-network-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4px 8px;
+  background: rgba(var(--n-success-color-rgb), 0.04);
+  border-radius: 6px;
+  border: 1px solid rgba(var(--n-success-color-rgb), 0.08);
+}
+
+.network-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.network-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.network-label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  min-width: 40px;
+}
+
+.network-label.network-up {
+  color: var(--n-warning-color);
+}
+
+.network-label.network-down {
+  color: var(--n-success-color);
+}
+
+.network-icon {
+  font-size: 10px;
+}
+
+.network-value {
+  font-size: 11px;
+  font-weight: 600;
+  text-align: right;
+  min-width: 36px;
+}
+
+.network-value.network-up {
+  color: var(--n-warning-color);
+}
+
+.network-value.network-down {
+  color: var(--n-success-color);
+}
+
+/* 第四区域：操作按钮组 - 20% */
+.container-actions-section {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 4px;
+  gap: 8px;
+}
+
+/* 响应式适配 */
 @media (max-width: 1200px) {
-  .container-name-text {
-    max-width: 350px;
-  }
-  
-  .container-meta-row {
-    flex-wrap: wrap;
+  .container-row {
     gap: 8px;
-    font-size: 14px;
-  }
-  .resource-item {
-    min-width: 80px;
-  }
-}
-
-/* 中等平板 */
-@media (max-width: 1024px) {
-  .container-name-text {
-    max-width: 300px;
+    padding: 6px 10px;
   }
   
-  .container-row {
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 12px;
-  }
-
-  .container-main {
-    gap: 12px;
-  }
-
-  .container-name-row {
-    min-width: 120px;
-  }
-  .container-status-row {
-    min-width: 120px;
-  }
-  .container-meta-row {
-    flex-wrap: wrap;
-    gap: 10px;
-    font-size: 14px;
-  }
-  .resource-label, .resource-value {
-    font-size: 14px;
-  }
-  .resource-item {
-    min-width: 70px;
-  }
-  .n-progress {
-    width: 60px !important;
-  }
-}
-
-/* 小平板 */
-@media (max-width: 900px) {
-  .container-name-text {
-    max-width: 250px;
+  .container-basic-section {
+    flex: 3;
   }
   
-  .container-actions {
-    margin-left: 12px;
-  }
-  
-  /* 按钮组优化 */
-  .container-actions :deep(.n-space) {
-    gap: 8px !important;
-  }
-  
-  .container-actions :deep(.n-button) {
-    font-size: 13px;
-    padding: 0 12px;
-  }
-}
-
-/* 手机横屏 */
-@media (max-width: 768px) {
-  .container-name-text {
-    max-width: 200px;
-  }
-  
-  .container-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 8px;
-  }
-
-  .container-main {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 12px;
-    width: 100%;
-  }
-  
-  .container-icon {
-    flex-shrink: 0;
-  }
-
-  .container-info-content {
+  .container-cpu-memory-section,
+  .container-network-section {
     flex: 1;
-    min-width: 0;
   }
   
-  .container-name-row {
-    min-width: 0;
-    width: 100%;
+  .container-actions-section {
+    flex: 1;
   }
-  
-  .container-status-row {
-    min-width: 0;
-    width: 100%;
-  }
-  
-  .container-meta-row {
-    flex-direction: row;
+}
+
+@media (max-width: 900px) {
+  .container-row {
     flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    font-size: 13px;
-  }
-
-  .resource-item {
-    min-width: 60px;
-    gap: 2px;
-  }
-
-  .resource-label, .resource-value {
-    font-size: 13px;
-    margin-left: 0;
-  }
-  
-  .container-actions {
-    margin-left: 0;
-    align-self: flex-end;
-    margin-top: 8px;
-    width: 100%;
-    justify-content: flex-end;
-  }
-  
-  .n-progress {
-    width: 50px !important;
-    height: 14px !important;
-  }
-}
-
-/* 手机竖屏 */
-@media (max-width: 480px) {
-  .container-name-text {
-    max-width: 150px;
-    font-size: 15px;
-  }
-  
-  .container-row {
-    padding: 6px;
-    gap: 8px;
-  }
-
-  .container-main {
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  .container-icon {
-    align-self: flex-start;
-  }
-
-  .container-info-content {
-    width: 100%;
-  }
-  
-  .container-meta-row {
-    flex-direction: column;
-    align-items: flex-start;
     gap: 6px;
-    font-size: 12px;
-  }
-
-  .container-meta-row > span,
-  .container-meta-row > div {
-    display: flex;
-    align-items: center;
-    margin-bottom: 2px;
-  }
-
-  .resource-item {
-    min-width: auto;
-    width: 100%;
-    gap: 4px;
-  }
-
-  .resource-label, .resource-value {
-    font-size: 12px;
   }
   
-  .container-actions {
-    width: 100%;
+  .container-basic-section {
+    flex: 1;
+    min-width: 300px;
+  }
+  
+  .container-cpu-memory-section,
+  .container-network-section {
+    flex: 0 1 120px;
+  }
+  
+  .container-actions-section {
+    flex: 0 1 200px;
     justify-content: center;
-    margin-top: 10px;
-  }
-  
-  .container-actions :deep(.n-button) {
-    font-size: 12px;
-    min-width: 70px;
-  }
-  
-  .n-progress {
-    width: 100% !important;
-    max-width: 120px;
   }
 }
 
-/* 超小屏幕 */
-@media (max-width: 360px) {
-  .container-name-text {
-    max-width: 120px;
-    font-size: 14px;
-  }
-  
+@media (max-width: 600px) {
   .container-row {
-    padding: 4px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
   }
   
-  .container-actions :deep(.n-button) {
-    min-width: 60px;
-    padding: 0 6px;
+  .container-basic-section,
+  .container-cpu-memory-section,
+  .container-network-section,
+  .container-actions-section {
+    flex: none;
+    width: 100%;
   }
   
-  /* 更多操作按钮文字简化 */
-  .container-actions :deep(.n-button:last-child .n-button__content) {
-    font-size: 11px;
+  .container-actions-section {
+    justify-content: center;
+  }
+  
+  .cpu-memory-grid,
+  .network-grid {
+    flex-direction: row;
+    justify-content: space-around;
+  }
+  
+  .metric-item,
+  .network-item {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
   }
 }
 </style>

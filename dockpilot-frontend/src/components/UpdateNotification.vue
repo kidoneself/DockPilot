@@ -190,7 +190,7 @@ const checkForUpdatesFromCache = async () => {
       console.warn('⚠️ 后端返回的版本信息无效:', result.currentVersion, '保持前端默认版本:', currentVersion.value)
       // 确保不会被覆盖为unknown
       if (!currentVersion.value || currentVersion.value === 'unknown') {
-        currentVersion.value = 'v1.0.7'
+        currentVersion.value = 'v1.0.0'
       }
     }
     
@@ -234,7 +234,7 @@ const checkForUpdates = async () => {
       console.warn('⚠️ 后端返回的版本信息无效:', result.currentVersion, '保持前端默认版本:', currentVersion.value)
       // 确保不会被覆盖为unknown
       if (!currentVersion.value || currentVersion.value === 'unknown') {
-        currentVersion.value = 'v1.0.7'
+        currentVersion.value = 'v1.0.0'
       }
     }
     
@@ -385,7 +385,7 @@ const formatReleaseNotes = (notes: string) => {
 // 生命周期
 onMounted(async () => {
   // 设置默认版本 - 确保总是有一个合理的版本显示
-  const defaultVersion = 'v1.0.7'
+  const defaultVersion = 'v1.0.0'
   currentVersion.value = process.env.VUE_APP_VERSION || defaultVersion
   
   console.log('🔍 初始化版本信息:', {

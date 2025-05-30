@@ -2,6 +2,7 @@ package com.dockpilot.websocket.handler;
 
 import com.alibaba.fastjson.JSON;
 import com.dockpilot.model.MessageType;
+import com.dockpilot.websocket.manager.WebSocketSessionManager;
 import com.dockpilot.websocket.model.DockerWebSocketMessage;
 import com.dockpilot.websocket.router.MessageRouter;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,7 +18,6 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Docker WebSocket处理器
@@ -31,10 +31,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Tag(name = "Docker WebSocket", description = "Docker容器管理系统的WebSocket API")
 public class DockerWebSocketHandler extends TextWebSocketHandler {
 
-    private static final Map<String, WebSocketSession> SESSIONS = new ConcurrentHashMap<>();
-
     @Autowired
     private MessageRouter messageRouter;
+
+    @Autowired
+    private WebSocketSessionManager sessionManager;
 
     @Operation(
             summary = "WebSocket连接建立",
@@ -44,9 +45,8 @@ public class DockerWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(
             @Parameter(description = "WebSocket会话") WebSocketSession session
     ) {
-        String sessionId = session.getId();
-        SESSIONS.put(sessionId, session);
-        log.info("WebSocket连接已建立: {}", sessionId);
+        sessionManager.addSession(session);
+        log.info("WebSocket连接已建立: {}", session.getId());
     }
 
     @Operation(
@@ -60,6 +60,12 @@ public class DockerWebSocketHandler extends TextWebSocketHandler {
     ) {
         try {
             DockerWebSocketMessage wsMessage = JSON.parseObject(message.getPayload(), DockerWebSocketMessage.class);
+            
+            // 注册任务到会话的映射
+            if (wsMessage.getTaskId() != null) {
+                sessionManager.registerTask(wsMessage.getTaskId(), session.getId());
+            }
+            
             messageRouter.route(session, wsMessage);
         } catch (Exception e) {
             log.error("处理消息时发生错误", e);
@@ -92,8 +98,7 @@ public class DockerWebSocketHandler extends TextWebSocketHandler {
             @Parameter(description = "WebSocket会话") WebSocketSession session,
             @Parameter(description = "关闭状态") CloseStatus status
     ) {
-        String sessionId = session.getId();
-        SESSIONS.remove(sessionId);
-        log.info("WebSocket连接已关闭: {}", sessionId);
+        sessionManager.removeSession(session.getId());
+        log.info("WebSocket连接已关闭: {}", session.getId());
     }
 } 

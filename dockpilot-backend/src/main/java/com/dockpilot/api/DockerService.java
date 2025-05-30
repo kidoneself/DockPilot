@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -37,9 +38,9 @@ public class DockerService {
 
     @Resource
     private AppConfig appConfig;
-
-    @Resource
-    private DockerComposeWrapper dockerComposeWrapper;
+//
+//    @Resource
+//    private DockerComposeWrapper dockerComposeWrapper;
 
     /**
      * 获取所有容器列表
@@ -571,7 +572,7 @@ public class DockerService {
 
 
     /**
-     * 使用skopeo从远程仓库拉取镜像到宿主机Docker
+     * 使用skopeo从远程仓库拉取镜像到宿主机Docker - 智能拉取策略
      *
      * @param image    镜像名称
      * @param tag      镜像标签
@@ -579,191 +580,282 @@ public class DockerService {
      */
     public CompletableFuture<Void> pullImageWithSkopeo(String image, String tag, MessageCallback callback) {
         return CompletableFuture.runAsync(() -> {
-
-            LogUtil.logSysInfo("开始使用 skopeo 拉取镜像: " + image + ":" + tag);
+            String fullImageName = tag != null && !tag.isEmpty() ? image + ":" + tag : image;
+            LogUtil.logSysInfo("开始智能拉取镜像: " + fullImageName);
+            
+            // 1. 尝试镜像加速地址
+            if (tryPullWithMirrors(image, tag, callback)) {
+                LogUtil.logSysInfo("通过镜像加速成功拉取: " + fullImageName);
+                return;
+            }
+            
+            // 2. 尝试代理
+            if (tryPullWithProxy(image, tag, callback)) {
+                LogUtil.logSysInfo("通过代理成功拉取: " + fullImageName);
+                return;
+            }
+            
+            // 3. 直连（保底）
+            if (tryPullDirect(image, tag, callback)) {
+                LogUtil.logSysInfo("通过直连成功拉取: " + fullImageName);
+                return;
+            }
+            
+            // 所有方式都失败
+            String errorMessage = "所有拉取方式都失败，请检查网络连接和镜像名称";
+            LogUtil.logSysError(errorMessage);
+            if (callback != null) {
+                callback.onError(errorMessage);
+            }
+            throw new RuntimeException(errorMessage);
+        });
+    }
+    
+    /**
+     * 尝试使用镜像加速地址拉取
+     */
+    private boolean tryPullWithMirrors(String image, String tag, MessageCallback callback) {
+        String mirrorUrls = appConfig.getMirrorUrls();
+        if (mirrorUrls == null || mirrorUrls.isBlank()) {
+            LogUtil.logSysInfo("未配置镜像加速地址，跳过");
+            return false;
+        }
+        
+        // 🎯 智能处理镜像名称
+        String processedImage = processImageName(image);
+        LogUtil.logSysInfo("镜像名称处理: " + image + " → " + processedImage);
+        
+        // 解析镜像加速地址列表
+        String[] mirrors = mirrorUrls.split("\n");
+        for (String mirror : mirrors) {
+            mirror = mirror.trim();
+            if (mirror.isEmpty()) continue;
+            
+            LogUtil.logSysInfo("尝试镜像加速地址: " + mirror);
+            if (callback != null) {
+                callback.onLog("尝试镜像加速地址: " + mirror);
+            }
+            
             try {
-                String fullImageName = tag != null && !tag.isEmpty() ? image + ":" + tag : image;
-                List<String> command = new ArrayList<>();
-                command.add("skopeo");
-                command.add("copy");
-
-                // mac arm64 fix
-                String osName = System.getProperty("os.name").toLowerCase();
-                String osArch = System.getProperty("os.arch").toLowerCase();
-                if (osName.contains("mac") && (osArch.contains("aarch64") || osArch.contains("arm64"))) {
-                    command.add("--override-arch");
-                    command.add("arm64");
-                    command.add("--override-os");
-                    command.add("linux");
-                }
-
-                // 添加安全策略参数
-                command.add("--insecure-policy");
-                // 移除旧版本skopeo不支持的TLS参数
-                // command.add("--src-tls-verify=false");  // 旧版本skopeo不支持
-                // command.add("--dest-tls-verify=false"); // 旧版本skopeo不支持
-                command.add("docker://" + fullImageName);
-                command.add("docker-daemon:" + fullImageName);
-
-                // 设置代理
-                String proxyUrl = appConfig.getProxyUrl();
-                ProcessBuilder pb = new ProcessBuilder(command);
-                if (proxyUrl != null && !proxyUrl.isBlank()) {
-                    pb.environment().put("HTTP_PROXY", proxyUrl);
-                    pb.environment().put("HTTPS_PROXY", proxyUrl);
-                }
-
-                // 不合并错误流，分别处理标准输出和错误输出
-                // pb.redirectErrorStream(true); // 移除这行
-
-                LogUtil.logSysInfo("执行命令: " + String.join(" ", command));
-                final Process process = pb.start();
-
-                // 用于收集标准输出和错误输出
-                StringBuilder outputBuffer = new StringBuilder();
-                StringBuilder errorBuffer = new StringBuilder();
-
-                // 创建线程读取错误输出
-                Thread errorReaderThread = new Thread(() -> {
-                    try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-                        String line;
-                        while ((line = errorReader.readLine()) != null) {
-                            errorBuffer.append(line).append("\n");
-                        }
-                    } catch (Exception e) {
-                        LogUtil.logSysError("读取错误输出失败: " + e.getMessage());
+                String sourceUrl = "docker://" + mirror + "/" + processedImage + ":" + tag;
+                LogUtil.logSysInfo("构造源地址: " + sourceUrl);
+                
+                if (executePullCommand(sourceUrl, image, tag, null, callback, 10)) { // 10秒超时
+                    LogUtil.logSysInfo("镜像加速地址 " + mirror + " 拉取成功");
+                    if (callback != null) {
+                        callback.onLog("通过 " + mirror + " 拉取成功");
                     }
-                });
-                errorReaderThread.start();
+                    return true;
+                }
+            } catch (Exception e) {
+                LogUtil.logSysInfo("镜像加速地址 " + mirror + " 失败: " + e.getMessage());
+                if (callback != null) {
+                    callback.onLog("加速地址 " + mirror + " 失败，尝试下一个");
+                }
+            }
+        }
+        
+        LogUtil.logSysInfo("所有镜像加速地址都失败");
+        return false;
+    }
+    
+    /**
+     * 智能处理镜像名称
+     * Docker Hub 官方镜像需要添加 library/ 前缀
+     * 
+     * @param image 原始镜像名称
+     * @return 处理后的镜像名称
+     */
+    private String processImageName(String image) {
+        // 如果镜像名称不包含 "/"，说明是官方镜像，需要加上 "library/" 前缀
+        if (!image.contains("/")) {
+            return "library/" + image;
+        }
+        // 如果已经包含 "/"，说明已经是完整的命名空间，直接返回
+        return image;
+    }
+    
+    /**
+     * 尝试使用代理拉取
+     */
+    private boolean tryPullWithProxy(String image, String tag, MessageCallback callback) {
+        String proxyUrl = appConfig.getProxyUrl();
+        if (proxyUrl == null || proxyUrl.isBlank()) {
+            LogUtil.logSysInfo("未配置代理，跳过");
+            return false;
+        }
+        
+        LogUtil.logSysInfo("尝试代理拉取");
+        if (callback != null) {
+            callback.onLog("尝试代理拉取...");
+        }
+        
+        try {
+            // 🎯 智能处理镜像名称
+            String processedImage = processImageName(image);
+            LogUtil.logSysInfo("代理拉取镜像名称处理: " + image + " → " + processedImage);
+            
+            String sourceUrl = "docker://" + processedImage + ":" + tag;
+            if (executePullCommand(sourceUrl, image, tag, proxyUrl, callback, 30)) { // 30秒超时
+                LogUtil.logSysInfo("代理拉取成功");
+                if (callback != null) {
+                    callback.onLog("通过代理拉取成功");
+                }
+                return true;
+            }
+        } catch (Exception e) {
+            LogUtil.logSysInfo("代理拉取失败: " + e.getMessage());
+            if (callback != null) {
+                callback.onLog("代理拉取失败，尝试直连");
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 尝试直连拉取
+     */
+    private boolean tryPullDirect(String image, String tag, MessageCallback callback) {
+        LogUtil.logSysInfo("尝试直连拉取");
+        if (callback != null) {
+            callback.onLog("使用官方源拉取...");
+        }
+        
+        try {
+            // 🎯 智能处理镜像名称
+            String processedImage = processImageName(image);
+            LogUtil.logSysInfo("直连拉取镜像名称处理: " + image + " → " + processedImage);
+            
+            String sourceUrl = "docker://" + processedImage + ":" + tag;
+            if (executePullCommand(sourceUrl, image, tag, null, callback, 60)) { // 60秒超时
+                LogUtil.logSysInfo("直连拉取成功");
+                if (callback != null) {
+                    callback.onLog("通过官方源拉取成功");
+                }
+                return true;
+            }
+        } catch (Exception e) {
+            LogUtil.logSysError("直连拉取失败: " + e.getMessage());
+            if (callback != null) {
+                callback.onLog("直连拉取失败: " + e.getMessage());
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 执行具体的拉取命令
+     */
+    private boolean executePullCommand(String sourceUrl, String image, String tag, String proxyUrl, 
+                                     MessageCallback callback, int timeoutSeconds) {
+        try {
+            String fullImageName = tag != null && !tag.isEmpty() ? image + ":" + tag : image;
+            List<String> command = new ArrayList<>();
+            command.add("skopeo");
+            command.add("copy");
 
-                // 读取标准输出并解析进度
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            // mac arm64 fix
+            String osName = System.getProperty("os.name").toLowerCase();
+            String osArch = System.getProperty("os.arch").toLowerCase();
+            if (osName.contains("mac") && (osArch.contains("aarch64") || osArch.contains("arm64"))) {
+                command.add("--override-arch");
+                command.add("arm64");
+                command.add("--override-os");
+                command.add("linux");
+            }
+
+            // 添加安全策略参数
+            command.add("--insecure-policy");
+            command.add(sourceUrl);
+            command.add("docker-daemon:" + fullImageName);
+
+            // 设置代理
+            ProcessBuilder pb = new ProcessBuilder(command);
+            if (proxyUrl != null && !proxyUrl.isBlank()) {
+                pb.environment().put("HTTP_PROXY", proxyUrl);
+                pb.environment().put("HTTPS_PROXY", proxyUrl);
+            }
+
+            LogUtil.logSysInfo("执行命令: " + String.join(" ", command) + 
+                             (proxyUrl != null ? " (使用代理: " + proxyUrl + ")" : ""));
+            final Process process = pb.start();
+
+            // 用于收集标准输出和错误输出
+            StringBuilder outputBuffer = new StringBuilder();
+            StringBuilder errorBuffer = new StringBuilder();
+
+            // 创建线程读取错误输出
+            Thread errorReaderThread = new Thread(() -> {
+                try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
                     String line;
-                    int progress = 0;
-                    while ((line = reader.readLine()) != null) {
-                        outputBuffer.append(line).append("\n");
-
-                        // 解析进度并回调
-                        if (line.contains("Getting image source signatures")) {
-                            progress = 10;
-                        } else if (line.contains("Copying blob")) {
-                            progress = Math.min(progress + 2, 80); // 每次 +2，但最多到 80
-                        } else if (line.contains("Copying config")) {
-                            progress = 80;
-                        } else if (line.contains("Writing manifest")) {
-                            progress = 100;
-                        } else if (line.contains("timeout")) {
-                            line = "网络连接超时，请检查网络连接或配置代理";
-                        }
-
-                        if (callback != null) {
-                            callback.onProgress(progress); // 进度回调
-                            callback.onLog(line); // 日志回调
-                        }
+                    while ((line = errorReader.readLine()) != null) {
+                        errorBuffer.append(line).append("\n");
                     }
+                } catch (Exception e) {
+                    LogUtil.logSysError("读取错误输出失败: " + e.getMessage());
                 }
+            });
+            errorReaderThread.start();
 
-                // 等待错误输出读取完成
-                errorReaderThread.join(5000); // 最多等待5秒
+            // 读取标准输出并解析进度
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                int progress = 0;
+                while ((line = reader.readLine()) != null) {
+                    outputBuffer.append(line).append("\n");
 
-                int exitCode = process.waitFor();
-                if (exitCode != 0) {
-                    // 构建详细的错误消息
-                    String errorOutput = errorBuffer.toString().trim();
-                    String standardOutput = outputBuffer.toString().trim();
-
-                    StringBuilder detailedError = new StringBuilder();
-                    detailedError.append("skopeo 命令执行失败");
-
-                    // 首先尝试从错误输出中解析具体错误类型
-                    String specificErrorType = parseSkopeoErrorType(errorOutput, standardOutput);
-
-                    // 解释常见的退出码，如果有具体错误类型则使用具体类型
-                    switch (exitCode) {
-                        case 1:
-                            if (specificErrorType != null) {
-                                detailedError.append("(").append(specificErrorType).append(")");
-                            } else {
-                                detailedError.append("(一般错误)");
-                            }
-                            break;
-                        case 2:
-                            detailedError.append("(参数错误)");
-                            break;
-                        case 125:
-                            detailedError.append("(skopeo命令本身运行错误)");
-                            break;
-                        case 126:
-                            detailedError.append("(skopeo命令无法执行)");
-                            break;
-                        case 127:
-                            detailedError.append("(skopeo命令未找到)");
-                            break;
-                        case 130:
-                            detailedError.append("(操作被中断)");
-                            break;
-                        default:
-                            detailedError.append("(退出码: ").append(exitCode).append(")");
-                            break;
+                    // 解析进度并回调
+                    if (line.contains("Getting image source signatures")) {
+                        progress = 10;
+                    } else if (line.contains("Copying blob")) {
+                        progress = Math.min(progress + 2, 80); // 每次 +2，但最多到 80
+                    } else if (line.contains("Copying config")) {
+                        progress = 80;
+                    } else if (line.contains("Writing manifest")) {
+                        progress = 100;
+                    } else if (line.contains("timeout")) {
+                        line = "网络连接超时，正在尝试其他方式";
                     }
-
-                    // 添加详细错误信息
-                    if (!errorOutput.isEmpty()) {
-                        detailedError.append("\n错误详情: ").append(errorOutput);
-                    } else if (!standardOutput.isEmpty()) {
-                        // 如果没有错误输出，但有标准输出，也包含进来
-                        detailedError.append("\n输出信息: ").append(standardOutput);
-                    }
-
-                    // 根据错误内容提供建议
-                    String errorStr = detailedError.toString().toLowerCase();
-                    if (errorStr.contains("timeout") || errorStr.contains("time out")) {
-                        detailedError.append("\n建议: 网络连接超时，请检查网络连接或配置代理");
-                    } else if (errorStr.contains("unauthorized") || errorStr.contains("401")) {
-                        detailedError.append("\n建议: 镜像仓库认证失败，请检查镜像名称是否正确或配置认证信息");
-                    } else if (errorStr.contains("not found") || errorStr.contains("404")) {
-                        detailedError.append("\n建议: 镜像未找到，请检查镜像名称和标签是否正确");
-                    } else if (errorStr.contains("connection refused") || errorStr.contains("network")) {
-                        detailedError.append("\n建议: 网络连接被拒绝，请检查网络连接或配置代理");
-                    } else if (errorStr.contains("permission denied") || errorStr.contains("403")) {
-                        detailedError.append("\n建议: 权限不足，请检查是否有拉取该镜像的权限");
-                    } else if (exitCode == 127) {
-                        detailedError.append("\n建议: skopeo命令未安装，请先安装skopeo工具");
-                    }
-
-                    String finalError = detailedError.toString();
-                    LogUtil.logSysError(finalError);
 
                     if (callback != null) {
-                        callback.onError(finalError); // 错误回调
+                        callback.onProgress(progress); // 进度回调
+                        callback.onLog(line); // 日志回调
                     }
-                    throw new RuntimeException(finalError);
                 }
-
-                if (callback != null) {
-                    callback.onComplete(); // 完成回调
-                }
-
-                LogUtil.logSysInfo("镜像拉取完成: " + fullImageName);
-            } catch (InterruptedException e) {
-                String errorMessage = "镜像拉取被中断: " + e.getMessage();
-                LogUtil.logSysError(errorMessage);
-
-                if (callback != null) {
-                    callback.onError(errorMessage);
-                }
-                Thread.currentThread().interrupt(); // 重置中断状态
-                throw new RuntimeException(errorMessage);
-            } catch (Exception e) {
-                String errorMessage = "使用 skopeo 拉取镜像失败: " + e.getMessage();
-                LogUtil.logSysError(errorMessage);
-
-                if (callback != null) {
-                    callback.onError(errorMessage); // 错误回调
-                }
-                throw new RuntimeException(errorMessage);
             }
-        });
+
+            // 等待错误输出读取完成
+            errorReaderThread.join(5000); // 最多等待5秒
+
+            // 等待进程完成，使用指定的超时时间
+            boolean completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                LogUtil.logSysInfo("拉取超时 (" + timeoutSeconds + "秒)，终止进程");
+                return false;
+            }
+
+            int exitCode = process.exitValue();
+            if (exitCode != 0) {
+                String errorOutput = errorBuffer.toString().trim();
+                LogUtil.logSysInfo("拉取失败，退出码: " + exitCode + ", 错误: " + errorOutput);
+                return false;
+            }
+
+            if (callback != null) {
+                callback.onComplete(); // 完成回调
+            }
+
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // 重置中断状态
+            return false;
+        } catch (Exception e) {
+            LogUtil.logSysError("执行拉取命令失败: " + e.getMessage());
+            return false;
+        }
     }
 
 
@@ -815,46 +907,46 @@ public class DockerService {
         return DockerInspectJsonGenerator.generateJsonFromContainerInfo(containerInfo);
     }
 
-    /**
-     * 使用 Compose 部署容器
-     *
-     * @param projectName    项目名称
-     * @param composeContent Compose 配置内容
-     * @return 部署结果
-     */
-    public String deployWithCompose(String projectName, String composeContent) {
-        return dockerComposeWrapper.deployCompose(projectName, composeContent);
-    }
-
-    /**
-     * 使用 Compose 更新容器
-     *
-     * @param projectName    项目名称
-     * @param composeContent 新的 Compose 配置内容
-     * @return 更新结果
-     */
-    public String updateWithCompose(String projectName, String composeContent) {
-        return dockerComposeWrapper.updateCompose(projectName, composeContent);
-    }
-
-    /**
-     * 使用 Compose 删除容器
-     *
-     * @param projectName 项目名称
-     */
-    public void removeWithCompose(String projectName) {
-        dockerComposeWrapper.removeCompose(projectName);
-    }
-
-    /**
-     * 获取 Compose 项目状态
-     *
-     * @param projectName 项目名称
-     * @return 项目状态信息
-     */
-    public Map<String, Object> getComposeStatus(String projectName) {
-        return dockerComposeWrapper.getComposeStatus(projectName);
-    }
+//    /**
+//     * 使用 Compose 部署容器
+//     *
+//     * @param projectName    项目名称
+//     * @param composeContent Compose 配置内容
+//     * @return 部署结果
+//     */
+//    public String deployWithCompose(String projectName, String composeContent) {
+//        return dockerComposeWrapper.deployCompose(projectName, composeContent);
+//    }
+//
+//    /**
+//     * 使用 Compose 更新容器
+//     *
+//     * @param projectName    项目名称
+//     * @param composeContent 新的 Compose 配置内容
+//     * @return 更新结果
+//     */
+//    public String updateWithCompose(String projectName, String composeContent) {
+//        return dockerComposeWrapper.updateCompose(projectName, composeContent);
+//    }
+//
+//    /**
+//     * 使用 Compose 删除容器
+//     *
+//     * @param projectName 项目名称
+//     */
+//    public void removeWithCompose(String projectName) {
+//        dockerComposeWrapper.removeCompose(projectName);
+//    }
+//
+//    /**
+//     * 获取 Compose 项目状态
+//     *
+//     * @param projectName 项目名称
+//     * @return 项目状态信息
+//     */
+//    public Map<String, Object> getComposeStatus(String projectName) {
+//        return dockerComposeWrapper.getComposeStatus(projectName);
+//    }
 
     /**
      * 解析skopeo错误输出，提取具体的错误类型
@@ -971,6 +1063,67 @@ public class DockerService {
         }
 
         return null;
+    }
+
+    /**
+     * 检查镜像是否存在
+     * @param imageName 镜像名称（包含标签）
+     * @return 镜像是否存在
+     */
+    public boolean isImageExists(String imageName) {
+        try {
+            List<Image> images = dockerClientWrapper.listImages();
+            return images.stream()
+                    .filter(image -> image.getRepoTags() != null)
+                    .anyMatch(image -> {
+                        for (String repoTag : image.getRepoTags()) {
+                            if (imageName.equals(repoTag)) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    });
+        } catch (Exception e) {
+            LogUtil.logSysError("检查镜像是否存在失败: " + imageName + ", 错误: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * 获取镜像大小
+     * @param imageName 镜像名称（包含标签）
+     * @return 镜像大小字符串
+     */
+    public String getImageSize(String imageName) {
+        try {
+            List<Image> images = dockerClientWrapper.listImages();
+            for (Image image : images) {
+                if (image.getRepoTags() != null) {
+                    for (String repoTag : image.getRepoTags()) {
+                        if (imageName.equals(repoTag)) {
+                            long sizeBytes = image.getSize();
+                            return formatBytes(sizeBytes);
+                        }
+                    }
+                }
+            }
+            return "unknown";
+        } catch (Exception e) {
+            LogUtil.logSysError("获取镜像大小失败: " + imageName + ", 错误: " + e.getMessage());
+            return "unknown";
+        }
+    }
+    
+    /**
+     * 格式化字节数为可读大小
+     * @param bytes 字节数
+     * @return 格式化后的大小
+     */
+    private String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        int exp = (int) (Math.log(bytes) / Math.log(1024));
+        String pre = "KMGTPE".charAt(exp - 1) + "";
+        return String.format("%.1f %sB", bytes / Math.pow(1024, exp), pre);
     }
 
 }

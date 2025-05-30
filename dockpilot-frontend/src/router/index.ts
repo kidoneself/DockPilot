@@ -104,6 +104,15 @@ const routes: RouteRecordRaw[] = [
           title: '应用中心',
           icon: 'AppsOutline'
         }
+      },
+      {
+        path: 'appcenter/install',
+        name: 'AppInstall',
+        component: () => import('../views/appcenter/AppInstall.vue'),
+        meta: {
+          title: '安装应用',
+          hidden: true
+        }
       }
     ]
   }

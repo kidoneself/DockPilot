@@ -56,6 +56,9 @@ jwt:
 file:
   upload:
     path: ${FILE_UPLOAD_PATH:uploads/}
+  # 🆕 模板存储配置
+  templates:
+    path: ${TEMPLATE_STORAGE_PATH:uploads/templates/}
 
 ---
 spring:
@@ -79,6 +82,8 @@ spring:
 file:
   upload:
     path: uploads/
+  templates:
+    path: uploads/templates/
 
 ---
 spring:
@@ -102,6 +107,8 @@ spring:
 file:
   upload:
     path: /dockpilot/uploads/
+  templates:
+    path: /dockpilot/uploads/templates/
 
 ## 文件下载配置
 #file:
