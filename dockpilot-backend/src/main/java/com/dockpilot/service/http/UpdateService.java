@@ -1104,7 +1104,7 @@ public class UpdateService {
         for (int i = 0; i < maxSeconds; i++) {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:" + port + "/api/update/version"))
+                        .uri(URI.create("http://localhost:" + port + "/update/version"))
                         .timeout(Duration.ofSeconds(5))
                         .build();
                 
