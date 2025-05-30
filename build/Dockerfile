@@ -84,12 +84,14 @@ COPY build/init-builtin.sh /app/init-builtin.sh
 # 设置权限
 RUN chmod +x /start.sh /app/download-app.sh /app/init-builtin.sh
 
-# �� 初始化：复制内置版本到运行目录，使用构建参数版本号
+# 🔥 初始化：复制内置版本到运行目录，使用实际下载的版本号
 RUN mkdir -p /dockpilot/data && \
     cp -r /usr/share/html-builtin/* /usr/share/html/ && \
     cp /app/builtin/backend.jar /app/app.jar && \
-    echo "${VERSION}" > /dockpilot/data/current_version && \
-    echo "✅ 版本已强制设置为: ${VERSION}" && \
+    ACTUAL_VERSION=$(cat /tmp/actual_version 2>/dev/null || echo "builtin-version") && \
+    echo "🔍 调试信息: 构建参数VERSION=${VERSION}, 实际下载版本=$ACTUAL_VERSION" && \
+    echo "$ACTUAL_VERSION" > /dockpilot/data/current_version && \
+    echo "✅ 版本已设置为: $ACTUAL_VERSION" && \
     rm -f /tmp/actual_version
 
 # 暴露端口
