@@ -1,117 +1,101 @@
 x-meta:
-  name: 家庭影院
-  description: 家庭影院，moviepilot-v2,embyserver,transmission,qbittorrent
+  name: Docker容器项目
+  description: Docker容器管理项目
   version: 1.0.0
   author: System
   category: container
   env:
     MOVIEPILOT_V2_PORT_3000:
-      value: '3000'
-      description: ''
-    MOVIEPILOT_V2_PORT_3001:
-      value: '3001'
-      description: ''
-    CHINESESUBFINDER_PORT_19035:
-      value: '19035'
-      description: ''
-    QBITTORRENT_PORT_9000:
-      value: '9000'
-      description: ''
-    EMBYSERVER_PORT_8096:
-      value: '8096'
-      description: ''
-    TRANSMISSION_PORT_9091:
-      value: '9091'
+      value: '4444'
       description: ''
     BASE_1:
-      value: /home/media
-      description: '媒体目录'
+      value: /mnt/host/volume1/docker/chinese-sub-finder
+      description: ''
     BASE_2:
-      value: /home/docker
-      description: 'docker目录'
+      value: /mnt/host/volume1/docker
+      description: ''
+    BASE_3:
+      value: /Users/lizhiqiang/testDocker/new
+      description: ''
+    BASE_4:
+      value: /mnt/host/volume1
+      description: ''
 
 services:
 
-  naspt-mpv2:
-    container_name: naspt-mpv2
-    image: jxxghp/moviepilot-v2:latest
+  moviepilot-v2-23:
+    container_name: moviepilot-v2-23
+    image: ccr.ccs.tencentyun.com/naspt/moviepilot-v2:latest
     environment:
-      - LEAVES_UID=10971
-      - LEAVES_PASSKEY=e0405a9d0de9e3b112ef78ac3d9c7975
-      - TZ=Asia/Shanghai
-      - SUPERUSER=admin
-      - API_TOKEN=nasptnasptnasptnasptnaspt
-      - AUTO_UPDATE_RESOURCE=false
-      - MOVIEPILOT_AUTO_UPDATE=false
-      - AUTH_SITE=icc2022,leaves
-      - ICC2022_UID=24730
-      - ICC2022_PASSKEY=49c421073514d4d981a0cbc4174f4b23
-      - PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      - LANG=C.UTF-8
-      - GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305
+      - DISPLAY=:987
+      - NGINX_PORT=3000
+      - PORT=3001
+      - MOVIEPILOT_AUTO_UPDATE=release
       - PYTHON_VERSION=3.12.8
-      - PYTHON_SHA256=c909157bb25ec114e5869124cc2a9c4a4d4c1e957ca4ff553f1edc692101154e
+      - PGID=0
+      - LANG=C.UTF-8
+      - PUID=0
+      - PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305
       - HOME=/moviepilot
       - CONFIG_DIR=/config
       - TERM=xterm
-      - DISPLAY=:987
-      - PUID=0
-      - PGID=0
+      - TZ=Asia/Shanghai
+      - PYTHON_SHA256=c909157bb25ec114e5869124cc2a9c4a4d4c1e957ca4ff553f1edc692101154e
       - UMASK=000
-      - PORT=3001
-      - NGINX_PORT=3000
     ports:
       - ${MOVIEPILOT_V2_PORT_3000}:3000
-      - ${MOVIEPILOT_V2_PORT_3001}:3001
     volumes:
-      - ${BASE_2}/naspt-mpv2/config:/config
-      - ${BASE_1}:/media
-      - ${BASE_2}/naspt-qb/config/qBittorrent/BT_backup:/qbtr
-      - ${BASE_2}/naspt-mpv2/core:/moviepilot/.cache/ms-playwright
+      - ${BASE_3}/docker/config:/config
     networks:
-      - bridge
+      - docker_default
     restart: always
     x-meta:
-      name: naspt-mpv2
+      name: moviepilot-v2-23
       description: 容器服务
       configUrl: ''
 
-  naspt-csf:
-    container_name: naspt-csf
-    image: allanpk716/chinesesubfinder:latest
+  transmission:
+    container_name: transmission
+    image: linuxserver/transmission:4.0.5
     environment:
-      - PGID=0
-      - UMASK=022
-      - PUID=0
-      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       - TZ=Asia/Shanghai
-      - PERMS=true
-      - 'PS1=\u@\h:\w $ '
-    ports:
-      - ${CHINESESUBFINDER_PORT_19035}:19035
+      - USER=admin
+      - PASS=a123456!@
+      - TRANSMISSION_WEB_HOME=/config/2/src
+      - PUID=0
+      - PGID=0
+      - UMASK=18
+      - PATH=/lsiopy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - 'PS1=$(whoami)@$(hostname):$(pwd)\$ '
+      - HOME=/root
+      - TERM=xterm
+      - S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0
+      - S6_VERBOSITY=1
+      - S6_STAGE2_HOOK=/docker-mods
+      - VIRTUAL_ENV=/lsiopy
+      - LSIO_FIRST_PARTY=true
     volumes:
-      - ${BASE_1}:/media
-      - ${BASE_2}/naspt-csf/config:/config
-      - ${BASE_2}/naspt-csf/cache:/app/cache
-    networks:
-      - bridge
+      - ${BASE_2}/transmission/config:/config
+      - ${BASE_4}/media:/media
+    network_mode: host
     restart: always
     x-meta:
-      name: naspt-csf
+      name: transmission
       description: 容器服务
       configUrl: ''
 
-  naspt-qb:
-    container_name: naspt-qb
+  qbittorrent:
+    container_name: qbittorrent
     image: linuxserver/qbittorrent:4.6.4
     environment:
+      - TZ=Asia/Shanghai
+      - WEBUI_PORT=8080
       - SavePatch=/media/downloads
       - TempPatch=/media/downloads
-      - WEBUI_PORT=9000
       - PUID=0
       - PGID=0
-      - UMASK=022
-      - TZ=Asia/Shanghai
+      - UMASK=18
       - PATH=/lsiopy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       - 'PS1=$(whoami)@$(hostname):$(pwd)\$ '
       - HOME=/config
@@ -123,86 +107,66 @@ services:
       - LSIO_FIRST_PARTY=true
       - XDG_CONFIG_HOME=/config
       - XDG_DATA_HOME=/config
-    ports:
-      - ${QBITTORRENT_PORT_9000}:9000
     volumes:
-      - ${BASE_2}/naspt-qb/config:/config
-      - ${BASE_1}:/media
-    networks:
-      - bridge
+      - ${BASE_4}/media:/media
+      - ${BASE_2}/qBittorrent/config:/config
+    network_mode: host
     restart: always
     x-meta:
-      name: naspt-qb
+      name: qbittorrent
       description: 容器服务
       configUrl: ''
 
-  naspt-emby:
-    container_name: naspt-emby
-    image: amilys/embyserver:beta
+  chinese-sub-finder:
+    container_name: chinese-sub-finder
+    image: allanpk716/chinesesubfinder:latest
     environment:
-      - GID=0
-      - UMASK=022
-      - UID=0
-      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      - LANG=en_US.UTF-8
-      - HOME=/tmp
-      - AMDGPU_IDS=/share/libdrm/amdgpu.ids
-      - FONTCONFIG_PATH=/etc/fonts
-      - LD_LIBRARY_PATH=/lib:/system
-      - LIBVA_DRIVERS_PATH=/lib/dri
-      - OCL_ICD_VENDORS=/etc/OpenCL/vendors
-      - PCI_IDS_PATH=/share/hwdata/pci.ids
-      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-      - GIDLIST=0
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
-      - IGNORE_VAAPI_ENABLED_FLAG=false
-      - XDG_CACHE_HOME=/config/cache
-    ports:
-      - ${EMBYSERVER_PORT_8096}:8096
-    volumes:
-      - ${BASE_1}:/media
-      - ${BASE_2}/naspt-emby/config:/config
-    networks:
-      - bridge
-    restart: always
-    devices:
-      - /dev/dri:/dev/dri
-    x-meta:
-      name: naspt-emby
-      description: 容器服务
-      configUrl: ''
-
-  naspt-tr:
-    container_name: naspt-tr
-    image: linuxserver/transmission:4.0.5
-    environment:
-      - PASS=a123456!@
-      - TRANSMISSION_WEB_HOME=/config/2/src
       - PUID=0
       - PGID=0
-      - UMASK=022
+      - UMASK=18
       - TZ=Asia/Shanghai
-      - USER=admin
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - PERMS=true
+      - 'PS1=\u@\h:\w $ '
+    volumes:
+      - ${BASE_1}/config:/config
+      - ${BASE_4}/media:/media
+      - ${BASE_1}/cache:/app/cache
+    network_mode: host
+    restart: always
+    x-meta:
+      name: chinese-sub-finder
+      description: 容器服务
+      configUrl: ''
+
+  emby-offical:
+    container_name: emby-offical
+    image: linuxserver/emby:latest
+    environment:
+      - PUID=0
+      - PGID=0
+      - UMASK=18
+      - TZ=Asia/Shanghai
       - PATH=/lsiopy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      - 'PS1=$(whoami)@$(hostname):$(pwd)\$ '
       - HOME=/root
+      - LANGUAGE=en_US.UTF-8
+      - LANG=en_US.UTF-8
       - TERM=xterm
       - S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0
       - S6_VERBOSITY=1
       - S6_STAGE2_HOOK=/docker-mods
       - VIRTUAL_ENV=/lsiopy
       - LSIO_FIRST_PARTY=true
-    ports:
-      - ${TRANSMISSION_PORT_9091}:9091
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
     volumes:
-      - ${BASE_2}/naspt-tr/config:/config
-      - ${BASE_1}:/media
-    networks:
-      - bridge
+      - ${BASE_2}/emby:/config
+      - ${BASE_4}/media:/media
+    network_mode: host
     restart: always
+    devices:
+      - /dev/dri:/dev/dri
     x-meta:
-      name: naspt-tr
+      name: emby-offical
       description: 容器服务
       configUrl: ''
 

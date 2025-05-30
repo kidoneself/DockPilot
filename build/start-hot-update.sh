@@ -203,7 +203,7 @@ start_java() {
     while [ $attempt -le $max_attempts ]; do
         if kill -0 "$JAVA_PID" 2>/dev/null; then
             # 尝试访问健康检查端点
-            if curl -s http://localhost:8080/api/update/version >/dev/null 2>&1; then
+            if curl -s http://localhost:8080/update/version >/dev/null 2>&1; then
                 log_info "✅ Java应用启动成功 (PID: $JAVA_PID)"
                 
                 # 显示完整的启动信息
