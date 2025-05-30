@@ -291,20 +291,30 @@ main() {
         echo "🚀 开始初始化 DockPilot..." > /usr/share/html/init.log
         echo "📡 正在检查版本信息..." >> /usr/share/html/init.log
         
-        # 创建日志输出函数
-        log_to_web() {
-            while IFS= read -r line; do
-                echo "$line" >> /usr/share/html/init.log
-                echo "$line"  # 同时输出到控制台
-            done
-        }
-        
         # 执行应用代码下载并捕获输出
-        if check_and_download_app 2>&1 | log_to_web; then
+        if check_and_download_app 2>&1 | while IFS= read -r line; do
+            echo "$line" >> /usr/share/html/init.log
+            echo "$line"  # 同时输出到控制台
+            
+            # 如果是下载进度，也在Web日志中友好显示
+            if [[ "$line" =~ \[DOWNLOAD\].*[0-9]+% ]]; then
+                # 提取进度信息并格式化
+                echo "📊 $(echo "$line" | sed 's/\[DOWNLOAD\]/下载进度/')" >> /usr/share/html/init.log
+            fi
+        done; then
             echo "✅ 应用代码准备完成，启动后端服务..." >> /usr/share/html/init.log
             log_info "✅ 应用代码准备完成，启动后端服务..."
             
-            if start_java 2>&1 | log_to_web; then
+            if start_java 2>&1 | while IFS= read -r line; do
+                echo "$line" >> /usr/share/html/init.log
+                echo "$line"  # 同时输出到控制台
+                
+                # 如果是下载进度，也在Web日志中友好显示
+                if [[ "$line" =~ \[DOWNLOAD\].*[0-9]+% ]]; then
+                    # 提取进度信息并格式化
+                    echo "📊 $(echo "$line" | sed 's/\[DOWNLOAD\]/下载进度/')" >> /usr/share/html/init.log
+                fi
+            done; then
                 echo "🎉 初始化完成！DockPilot 已启动" >> /usr/share/html/init.log
             else
                 echo "⚠️ 后端启动失败，但Web服务可用" >> /usr/share/html/init.log

@@ -101,7 +101,15 @@ download_frontend() {
     log_info "📦 下载前端代码包..."
     log_info "URL: $frontend_url"
     
-    if wget --timeout=60 --tries=3 -q "$frontend_url" -O "$frontend_file"; then
+    # 使用wget显示进度条
+    if wget --timeout=60 --tries=3 --progress=bar:force "$frontend_url" -O "$frontend_file" 2>&1 | \
+       while IFS= read -r line; do
+           if [[ "$line" =~ [0-9]+% ]]; then
+               echo -e "${BLUE}[DOWNLOAD]${NC} 前端包: $line"
+           else
+               echo -e "${BLUE}[DOWNLOAD]${NC} $line"
+           fi
+       done; then
         log_info "✅ 前端代码包下载成功"
         
         # 验证文件
@@ -115,6 +123,10 @@ download_frontend() {
             log_error "前端代码包格式无效"
             return 1
         fi
+        
+        # 显示文件大小
+        local file_size=$(du -h "$frontend_file" | cut -f1)
+        log_info "📊 前端包大小: $file_size"
         
         return 0
     else
@@ -131,7 +143,15 @@ download_backend() {
     log_info "📦 下载后端代码包..."
     log_info "URL: $backend_url"
     
-    if wget --timeout=120 --tries=3 -q "$backend_url" -O "$backend_file"; then
+    # 使用wget显示进度条
+    if wget --timeout=120 --tries=3 --progress=bar:force "$backend_url" -O "$backend_file" 2>&1 | \
+       while IFS= read -r line; do
+           if [[ "$line" =~ [0-9]+% ]]; then
+               echo -e "${BLUE}[DOWNLOAD]${NC} 后端包: $line"
+           else
+               echo -e "${BLUE}[DOWNLOAD]${NC} $line"
+           fi
+       done; then
         log_info "✅ 后端代码包下载成功"
         
         # 验证文件
@@ -145,6 +165,10 @@ download_backend() {
             log_error "后端代码包不是有效的jar文件"
             return 1
         fi
+        
+        # 显示文件大小
+        local file_size=$(du -h "$backend_file" | cut -f1)
+        log_info "📊 后端包大小: $file_size"
         
         return 0
     else
