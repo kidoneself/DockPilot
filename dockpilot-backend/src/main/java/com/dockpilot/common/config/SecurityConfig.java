@@ -41,6 +41,7 @@ public class SecurityConfig {
                 .authorizeRequests()
                 // 允许匿名访问的接口
                 .antMatchers("/users/login").permitAll()  // 登录接口
+                .antMatchers("/update/health").permitAll()  // 健康检查接口
                 .antMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()  // Swagger文档
                 .antMatchers("/ws/**").permitAll()  // WebSocket端点
                 // 其他所有请求需要认证

@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.HashMap;
 
 /**
  * 系统热更新控制器
@@ -26,6 +27,16 @@ public class UpdateController {
 
     @Autowired
     private UpdateService updateService;
+
+    @Operation(summary = "健康检查", description = "检查服务是否正常运行（无需认证）")
+    @GetMapping("/health")
+    public ApiResponse<Map<String, String>> healthCheck() {
+        Map<String, String> health = new HashMap<>();
+        health.put("status", "ok");
+        health.put("service", "dockpilot-backend");
+        health.put("timestamp", java.time.LocalDateTime.now().toString());
+        return ApiResponse.success(health);
+    }
 
     @Operation(summary = "检查新版本", description = "检查GitHub Releases是否有新版本可用")
     @GetMapping("/check")

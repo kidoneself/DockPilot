@@ -39,7 +39,7 @@
       <div class="tips-section">
         <p class="startup-tip">
           <n-icon :component="InformationCircle" />
-          初次启动可能需要1-2分钟，请稍候...
+          服务启动中，通常需要30-60秒...
         </p>
       </div>
     </div>
@@ -67,7 +67,8 @@ const checkBackendHealth = async (): Promise<boolean> => {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000)
     
-    const response = await fetch('/api/update/version', {
+    // 使用专门的健康检查端点，不需要认证
+    const response = await fetch('/api/update/health', {
       method: 'GET',
       signal: controller.signal,
       headers: {
@@ -85,19 +86,19 @@ const checkBackendHealth = async (): Promise<boolean> => {
 // 更新进度和状态
 const updateProgress = () => {
   const elapsed = Date.now() - startTime.value
-  const estimatedTotal = 90000 // 预估90秒启动时间
+  const estimatedTotal = 60000 // 预估60秒启动时间
   
   if (!backendReady.value) {
     // 基于时间的进度估算
     const timeProgress = Math.min((elapsed / estimatedTotal) * 80, 80)
     progress.value = Math.floor(timeProgress)
     
-    if (elapsed < 30000) {
+    if (elapsed < 20000) {
       statusMessage.value = '正在启动后端服务...'
-    } else if (elapsed < 60000) {
-      statusMessage.value = '正在初始化数据库连接...'
+    } else if (elapsed < 40000) {
+      statusMessage.value = '正在初始化服务...'
     } else {
-      statusMessage.value = '正在加载应用组件...'
+      statusMessage.value = '即将完成启动...'
     }
   } else {
     progress.value = 100
@@ -133,23 +134,64 @@ const startHealthCheck = () => {
   // 立即执行一次检查
   performHealthCheck()
   
-  // 每2秒检查一次
-  checkInterval.value = setInterval(performHealthCheck, 2000)
+  // 每5秒检查一次（相比之前的2秒稍微宽松一些）
+  checkInterval.value = setInterval(performHealthCheck, 5000)
   
-  // 最多检查2分钟，避免无限等待
+  // 最多检查1分钟，然后强制进入系统
   setTimeout(() => {
     if (!isBackendReady.value) {
-      console.warn('⚠️ 启动超时，强制进入系统')
+      console.warn('⚠️ 启动检查超时，强制进入系统')
       isBackendReady.value = true
     }
-  }, 120000)
+  }, 60000)
 }
 
 // 生命周期
 onMounted(() => {
-  console.log('🚀 启动检查器已挂载，开始健康检查...')
-  startHealthCheck()
+  console.log('🚀 启动检查器已挂载')
+  
+  // 检查用户是否已经登录
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+  const hasAuthCookie = document.cookie.includes('Authorization')
+  
+  if (token || hasAuthCookie) {
+    // 用户已登录，直接显示主应用
+    console.log('✅ 用户已登录，跳过启动检查')
+    isBackendReady.value = true
+    return
+  }
+  
+  // 用户未登录，可能是首次启动，进行健康检查
+  console.log('🔍 用户未登录，开始健康检查...')
+  
+  // 使用一个不需要认证的简单检查
+  checkBackendAvailability()
 })
+
+// 检查后端是否可用（不需要认证）
+const checkBackendAvailability = async () => {
+  try {
+    // 使用健康检查端点
+    const response = await fetch('/api/update/health', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    })
+    
+    if (response.ok) {
+      console.log('✅ 后端服务已可用')
+      isBackendReady.value = true
+    } else {
+      console.log('⚠️ 后端服务暂不可用，开始定时检查...')
+      startHealthCheck()
+    }
+    
+  } catch (error) {
+    console.log('⚠️ 后端服务暂不可用，开始定时检查...')
+    startHealthCheck()
+  }
+}
 
 onUnmounted(() => {
   if (checkInterval.value) {
