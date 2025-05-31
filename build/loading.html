@@ -3,96 +3,350 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DockPilot 正在初始化</title>
+    <title>DockPilot - 正在启动</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            min-height: 100vh;
+            height: 100vh;
             display: flex;
-            flex-direction: column;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
+            color: #333;
         }
+
         .container {
             text-align: center;
-            max-width: 500px;
-            padding: 40px 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 90%;
         }
+
         .logo {
-            font-size: 48px;
-            font-weight: bold;
-            margin-bottom: 20px;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: url('data:image/svg+xml;base64,PHN2ZyB0PSIxNzQ2NjMwMDg2NTU3IiBjbGFzcz0iaWNvbiIgdmlld0JveD0iMCAwIDEwMjQgMTAyNCIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHA=') no-repeat center;
+            background-size: contain;
+            animation: pulse 2s infinite;
         }
-        .loading {
-            margin: 30px 0;
+
+        .title {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #333;
         }
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(255,255,255,0.3);
-            border-top: 4px solid white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
+
+        .subtitle {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 30px;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+
+        .progress-container {
+            margin-bottom: 30px;
         }
-        .message {
-            font-size: 18px;
-            margin-top: 20px;
-            opacity: 0.9;
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e1e5e9;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 12px;
         }
-        .tips {
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4a9eff, #0078ff);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
             font-size: 14px;
-            margin-top: 30px;
-            opacity: 0.7;
-            line-height: 1.5;
+        }
+
+        .progress-message {
+            color: #666;
+        }
+
+        .progress-percent {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .status-list {
+            margin-bottom: 24px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 16px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+
+        .status-item.completed {
+            background: #e8f5e8;
+            color: #2c5530;
+        }
+
+        .status-icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #ddd;
+            position: relative;
+        }
+
+        .status-item.completed .status-icon {
+            background: #4caf50;
+        }
+
+        .status-item.completed .status-icon::after {
+            content: '✓';
+            position: absolute;
+            color: white;
+            font-size: 12px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .status-text {
+            flex: 1;
+            text-align: left;
+        }
+
+        .status-result {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .tips {
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .tip-icon {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            background: #4a9eff;
+            border-radius: 50%;
+            margin-right: 8px;
+            position: relative;
+            top: 2px;
+        }
+
+        .tip-icon::after {
+            content: 'i';
+            position: absolute;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-spinner {
+            animation: spin 1s linear infinite;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                margin: 20px;
+                padding: 32px 24px;
+            }
+            
+            .logo {
+                width: 64px;
+                height: 64px;
+            }
+            
+            .title {
+                font-size: 28px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="logo">🐳 DockPilot</div>
-        <div class="loading">
-            <div class="spinner"></div>
+        <div class="logo"></div>
+        <h1 class="title">DockPilot</h1>
+        <p class="subtitle">正在启动中...</p>
+        
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar"></div>
+            </div>
+            <div class="progress-text">
+                <span class="progress-message" id="statusMessage">正在检查服务状态...</span>
+                <span class="progress-percent" id="progressPercent">0%</span>
+            </div>
         </div>
-        <div class="message">正在初始化系统...</div>
+        
+        <div class="status-list">
+            <div class="status-item completed" id="frontendStatus">
+                <div class="status-icon"></div>
+                <span class="status-text">前端服务</span>
+                <span class="status-result">✓ 就绪</span>
+            </div>
+            <div class="status-item" id="backendStatus">
+                <div class="status-icon loading-spinner"></div>
+                <span class="status-text">后端服务</span>
+                <span class="status-result">启动中...</span>
+            </div>
+        </div>
+        
         <div class="tips">
-            首次启动需要下载最新代码<br>
-            如遇网络问题，系统将使用内置版本启动
+            <span class="tip-icon"></span>
+            初次启动可能需要1-2分钟，请稍候...
         </div>
     </div>
-    
+
     <script>
-        // 简单的进度提示
-        const messages = [
-            '正在初始化系统...',
-            '正在检查版本信息...',
-            '正在下载最新代码...',
-            '正在启动服务...'
-        ];
+        class StartupChecker {
+            constructor() {
+                this.startTime = Date.now();
+                this.progress = 0;
+                this.isBackendReady = false;
+                this.checkInterval = null;
+                
+                this.progressBar = document.getElementById('progressBar');
+                this.statusMessage = document.getElementById('statusMessage');
+                this.progressPercent = document.getElementById('progressPercent');
+                this.backendStatus = document.getElementById('backendStatus');
+                
+                this.startHealthCheck();
+            }
+            
+            async checkBackendHealth() {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    
+                    const response = await fetch('/api/update/version', {
+                        method: 'GET',
+                        signal: controller.signal,
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    return response.ok;
+                } catch (error) {
+                    return false;
+                }
+            }
+            
+            updateProgress() {
+                const elapsed = Date.now() - this.startTime;
+                const estimatedTotal = 90000; // 90秒预估时间
+                
+                if (!this.isBackendReady) {
+                    const timeProgress = Math.min((elapsed / estimatedTotal) * 80, 80);
+                    this.progress = Math.floor(timeProgress);
+                    
+                    if (elapsed < 30000) {
+                        this.statusMessage.textContent = '正在启动后端服务...';
+                    } else if (elapsed < 60000) {
+                        this.statusMessage.textContent = '正在初始化数据库连接...';
+                    } else {
+                        this.statusMessage.textContent = '正在加载应用组件...';
+                    }
+                } else {
+                    this.progress = 100;
+                    this.statusMessage.textContent = '启动完成，即将进入系统';
+                }
+                
+                this.progressBar.style.width = this.progress + '%';
+                this.progressPercent.textContent = this.progress + '%';
+            }
+            
+            async performHealthCheck() {
+                try {
+                    const healthy = await this.checkBackendHealth();
+                    
+                    if (healthy && !this.isBackendReady) {
+                        console.log('✅ 后端服务已就绪');
+                        this.isBackendReady = true;
+                        this.progress = 100;
+                        this.statusMessage.textContent = '启动完成，即将进入系统';
+                        
+                        // 更新后端状态显示
+                        this.backendStatus.classList.add('completed');
+                        this.backendStatus.querySelector('.status-icon').classList.remove('loading-spinner');
+                        this.backendStatus.querySelector('.status-result').textContent = '✓ 就绪';
+                        
+                        // 延迟后重定向到主应用
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
+                    }
+                } catch (error) {
+                    console.warn('健康检查失败:', error);
+                }
+                
+                this.updateProgress();
+            }
+            
+            startHealthCheck() {
+                // 立即执行一次检查
+                this.performHealthCheck();
+                
+                // 每2秒检查一次
+                this.checkInterval = setInterval(() => {
+                    this.performHealthCheck();
+                }, 2000);
+                
+                // 最多等待2分钟
+                setTimeout(() => {
+                    if (!this.isBackendReady) {
+                        console.warn('⚠️ 启动超时，强制进入系统');
+                        window.location.reload();
+                    }
+                }, 120000);
+            }
+        }
         
-        let index = 0;
-        const messageEl = document.querySelector('.message');
-        
-        setInterval(() => {
-            index = (index + 1) % messages.length;
-            messageEl.textContent = messages[index];
-        }, 3000);
-        
-        // 5分钟后如果还没加载完成，提示可能的问题
-        setTimeout(() => {
-            messageEl.textContent = '启动时间较长，请检查网络连接...';
-        }, 300000);
+        // 页面加载后开始健康检查
+        document.addEventListener('DOMContentLoaded', () => {
+            new StartupChecker();
+        });
     </script>
 </body>
 </html> 
