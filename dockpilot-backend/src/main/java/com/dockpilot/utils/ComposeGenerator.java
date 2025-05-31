@@ -16,6 +16,12 @@ import java.util.stream.Collectors;
  * Docker Compose 生成器
  * 用于将 Docker 容器配置转换为 Docker Compose 格式
  * 支持多容器配置、端口映射、网络设置、环境变量等功能
+ * 
+ * 🌐 网络处理策略（已优化）：
+ * - Host 模式：保留 network_mode: host 配置
+ * - 桥接模式：使用 Docker Compose 默认网络（不设置 networks 配置）
+ * - 其他网络：统一处理为桥接模式，避免自定义网络不存在导致的启动失败
+ * - 移除了复杂的外部网络定义，确保导出的 compose 文件能够正常导入和启动
  */
 @Component
 public class ComposeGenerator {
@@ -36,7 +42,8 @@ public class ComposeGenerator {
         // 初始化 Compose 配置结构
         Map<String, Object> compose = new LinkedHashMap<>();
         Map<String, Object> services = new LinkedHashMap<>();
-        Map<String, Object> networks = new LinkedHashMap<>();
+        // 🚫 移除networks配置 - 不需要定义外部桥接网络
+        // Map<String, Object> networks = new LinkedHashMap<>();
 
         // 收集所有容器的端口映射和路径
         Map<String, String> portMappings = new LinkedHashMap<>();
@@ -181,10 +188,11 @@ public class ComposeGenerator {
         compose.put("x-meta", projectMeta);
         compose.put("services", services);
 
+        // 🚫 移除networks配置 - 使用Docker Compose默认网络
         // 只有当有网络配置时才添加 networks 部分
-        if (!networks.isEmpty()) {
-            compose.put("networks", networks);
-        }
+        // if (!networks.isEmpty()) {
+        //     compose.put("networks", networks);
+        // }
 
         // 配置 YAML 输出选项
         DumperOptions options = new DumperOptions();
@@ -247,11 +255,12 @@ public class ComposeGenerator {
     public String generateComposeContent(List<InspectContainerResponse> containers, Set<String> excludeFields) {
         Map<String, Object> compose = new LinkedHashMap<>();
         Map<String, Object> services = new LinkedHashMap<>();
-        Map<String, Object> networks = new LinkedHashMap<>();
-        Map<String, Object> defaultNetwork = new LinkedHashMap<>();
-        defaultNetwork.put("external", true);
-        defaultNetwork.put("name", "bridge");
-        networks.put("default", defaultNetwork);
+        // 🚫 移除networks配置 - 不需要定义外部桥接网络
+        // Map<String, Object> networks = new LinkedHashMap<>();
+        // Map<String, Object> defaultNetwork = new LinkedHashMap<>();
+        // defaultNetwork.put("external", true);
+        // defaultNetwork.put("name", "bridge");
+        // networks.put("default", defaultNetwork);
 
         // 收集所有容器的端口映射和路径
         Map<String, String> portMappings = new LinkedHashMap<>();
@@ -395,10 +404,11 @@ public class ComposeGenerator {
         compose.put("x-meta", projectMeta);
         compose.put("services", services);
 
+        // 🚫 移除networks配置 - 使用Docker Compose默认网络
         // 只有当有网络配置时才添加 networks 部分
-        if (!networks.isEmpty()) {
-            compose.put("networks", networks);
-        }
+        // if (!networks.isEmpty()) {
+        //     compose.put("networks", networks);
+        // }
 
         // 配置 YAML 输出选项
         DumperOptions options = new DumperOptions();
@@ -645,24 +655,26 @@ public class ComposeGenerator {
             if (!volumes.isEmpty()) service.put("volumes", volumes);
         }
 
-        // networks
+        // networks - 🎯 简化网络处理逻辑
         if (shouldIncludeField("networks", excludeFields) && container.getNetworkSettings() != null) {
             Map<String, ContainerNetwork> networksMap = container.getNetworkSettings().getNetworks();
             if (networksMap != null && !networksMap.isEmpty()) {
-                List<String> networks = new ArrayList<>();
+                // 🔍 检查是否有host网络模式
+                boolean hasHostNetwork = false;
                 for (Map.Entry<String, ContainerNetwork> entry : networksMap.entrySet()) {
                     String networkName = entry.getKey();
-                    // 如果是 host 网络，使用 network_mode: host
                     if ("host".equals(networkName)) {
-                        service.put("network_mode", "host");
-                    } else {
-                        // 对于其他网络（包括桥接网络），添加到 networks 列表
-                        networks.add(networkName);
+                        hasHostNetwork = true;
+                        break;
                     }
                 }
-                if (!networks.isEmpty()) {
-                    service.put("networks", networks);
+                
+                // ✅ 只有host网络才设置network_mode，其他网络都使用默认桥接
+                if (hasHostNetwork) {
+                    service.put("network_mode", "host");
                 }
+                // 🚫 不再设置networks配置，让Docker Compose使用默认桥接网络
+                // 这样可以避免自定义网络不存在的问题，确保导入后能正常启动
             }
         }
 
@@ -915,79 +927,4 @@ public class ComposeGenerator {
         }
     }
 
-    /**
-     * 测试方法：展示新路径分组算法的效果
-     */
-    public void demonstratePathGrouping() {
-        // 用户提供的路径示例
-        Set<String> testPaths = new HashSet<>();
-        testPaths.add("/var/lib/docker/volumes/buildx_buildkit_mybuilder0_state/_data");
-        testPaths.add("/Users/lizhiqiang/testDocker/new/docker/config");
-        testPaths.add("/Users/lizhiqiang/testDocker/new/docker/115/naspt-115-emby/config");
-        testPaths.add("/Users/lizhiqiang/testDocker/new/media");
-        testPaths.add("/Users/lizhiqiang/testDocker/new/docker/115/naspt-115-cms/logs");
-        testPaths.add("/Users/lizhiqiang/testDocker/new/docker/115/naspt-115-cms/cache");
-        testPaths.add("/Users/lizhiqiang/testDocker/new/docker/115/naspt-115-cms/config");
-        
-        System.out.println("=== 🚀 智能路径分组算法演示 ===");
-        System.out.println("📂 输入路径：");
-        testPaths.forEach(path -> System.out.println("  - " + path));
-        
-        System.out.println("\n🔍 算法分析中...");
-        Map<String, List<String>> result = analyzePathGroups(testPaths);
-        
-        System.out.println("\n✅ 分组结果：");
-        int baseCount = 1;
-        for (Map.Entry<String, List<String>> entry : result.entrySet()) {
-            String basePath = entry.getKey();
-            List<String> paths = entry.getValue();
-            String envName = "BASE_" + baseCount++;
-            
-            System.out.println("\n🏷️  " + envName + " = \"" + basePath + "\"");
-            System.out.println("   📁 覆盖 " + paths.size() + " 个路径：");
-            for (String path : paths) {
-                String relative = path.substring(basePath.length());
-                if (relative.startsWith("/")) {
-                    relative = relative.substring(1);
-                }
-                String envRef = relative.isEmpty() ? "${" + envName + "}" : "${" + envName + "}/" + relative;
-                System.out.println("     " + path + " → " + envRef);
-            }
-        }
-        
-        System.out.println("\n🎯 最终YAML效果：");
-        System.out.println("x-meta:");
-        System.out.println("  env:");
-        baseCount = 1;
-        for (Map.Entry<String, List<String>> entry : result.entrySet()) {
-            String basePath = entry.getKey();
-            String envName = "BASE_" + baseCount++;
-            System.out.println("    " + envName + ": \"" + basePath + "\"");
-        }
-        
-        System.out.println("\nservices:");
-        System.out.println("  example:");
-        System.out.println("    volumes:");
-        baseCount = 1;
-        for (Map.Entry<String, List<String>> entry : result.entrySet()) {
-            String basePath = entry.getKey();
-            List<String> paths = entry.getValue();
-            String envName = "BASE_" + baseCount++;
-            
-            for (String path : paths) {
-                String relative = path.substring(basePath.length());
-                if (relative.startsWith("/")) {
-                    relative = relative.substring(1);
-                }
-                String envRef = relative.isEmpty() ? "${" + envName + "}" : "${" + envName + "}/" + relative;
-                System.out.println("      - \"" + envRef + ":/container/path\"");
-            }
-        }
-        
-        System.out.println("\n💡 优化效果：");
-        System.out.println("   ✅ 消除了路径重复");
-        System.out.println("   ✅ 智能识别公共前缀"); 
-        System.out.println("   ✅ 递归分析子重复模式");
-        System.out.println("   ✅ BASE变量数量最优化");
-    }
-} 
+}
