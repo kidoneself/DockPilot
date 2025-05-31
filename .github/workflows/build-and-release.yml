@@ -202,6 +202,17 @@ jobs:
           cat > release-notes.md << EOF
           ## 🚀 DockPilot $VERSION 热更新版本
           
+          > **⚠️ 重要提示：请下载下方的构建文件，不要下载"Source code"源代码包！**
+          
+          ### 📥 **正确的下载文件**
+          
+          ✅ **frontend.tar.gz** - 前端构建包（用于热更新）  
+          ✅ **backend.jar** - 后端应用包（用于热更新）
+          
+          ❌ **不要下载**：Source code (zip) 和 Source code (tar.gz) - 这些是源代码，不是构建后的文件
+          
+          ---
+          
           这是一个支持容器内热更新的版本，包含以下内容：
           
           ### 📦 包含文件
