@@ -1,10 +1,10 @@
 # 支持热更新的DockPilot镜像
-# 基础版本：镜像内置代码 + 热更新能力
+# 基础版本：本地构建代码 + 热更新能力
 
 FROM alpine:3.21
 
 # 声明构建参数
-ARG VERSION=latest
+ARG VERSION=v1.0.0
 
 # 安装基础工具和运行环境
 RUN apk add --no-cache \
@@ -44,28 +44,10 @@ RUN cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
 RUN mkdir -p /app /usr/share/html /dockpilot/data /dockpilot/logs /dockpilot/uploads \
     /app/builtin /usr/share/html-builtin
 
-# 🚀 下载已构建的前后端代码包（替代多阶段构建）
-RUN echo "📦 下载DockPilot ${VERSION} 代码包..." && \
-    if [ "$VERSION" = "latest" ]; then \
-        echo "获取最新版本号..."; \
-        LATEST_VERSION=$(wget -qO- https://api.github.com/repos/kidoneself/DockPilot/releases/latest | grep '"tag_name"' | cut -d'"' -f4 2>/dev/null || echo ""); \
-        if [ -n "$LATEST_VERSION" ]; then \
-            VERSION=$LATEST_VERSION; \
-            echo "最新版本: $VERSION"; \
-        else \
-            echo "⚠️ 无法获取最新版本，使用 v1.3.0"; \
-            VERSION="v1.3.0"; \
-        fi; \
-    fi && \
-    echo "下载版本: $VERSION" && \
-    echo "$VERSION" > /tmp/actual_version && \
-    wget --tries=3 --retry-connrefused --timeout=60 \
-        "https://github.com/kidoneself/DockPilot/releases/download/${VERSION}/frontend.tar.gz" \
-        -O /tmp/frontend.tar.gz && \
-    wget --tries=3 --retry-connrefused --timeout=60 \
-        "https://github.com/kidoneself/DockPilot/releases/download/${VERSION}/backend.jar" \
-        -O /tmp/backend.jar && \
-    echo "✅ 代码包下载完成"
+# 🔄 改为复制本地构建的代码文件（而不是下载）
+# 这些文件由GitHub Actions在构建镜像前准备好
+COPY frontend.tar.gz /tmp/frontend.tar.gz
+COPY backend.jar /tmp/backend.jar
 
 # 🎯 安装内置版本的前后端代码
 RUN echo "📁 安装内置代码..." && \
@@ -84,15 +66,12 @@ COPY build/init-builtin.sh /app/init-builtin.sh
 # 设置权限
 RUN chmod +x /start.sh /app/download-app.sh /app/init-builtin.sh
 
-# 🔥 初始化：复制内置版本到运行目录，使用实际下载的版本号
+# 🔥 初始化：复制内置版本到运行目录
 RUN mkdir -p /dockpilot/data && \
     cp -r /usr/share/html-builtin/* /usr/share/html/ && \
     cp /app/builtin/backend.jar /app/app.jar && \
-    ACTUAL_VERSION=$(cat /tmp/actual_version 2>/dev/null || echo "builtin-version") && \
-    echo "🔍 调试信息: 构建参数VERSION=${VERSION}, 实际下载版本=$ACTUAL_VERSION" && \
-    echo "$ACTUAL_VERSION" > /dockpilot/data/current_version && \
-    echo "✅ 版本已设置为: $ACTUAL_VERSION" && \
-    rm -f /tmp/actual_version
+    echo "$VERSION" > /dockpilot/data/current_version && \
+    echo "✅ 版本已设置为: $VERSION"
 
 # 暴露端口
 EXPOSE 8888
@@ -104,7 +83,7 @@ VOLUME ["/var/run/docker.sock", "/mnt/host", "/dockpilot"]
 WORKDIR /app
 
 # 设置环境变量
-ENV DOCKPILOT_VERSION=${VERSION:-latest}
+ENV DOCKPILOT_VERSION=${VERSION}
 ENV DOWNLOAD_URL_BASE=https://github.com/kidoneself/DockPilot/releases/download
 ENV BUILTIN_FALLBACK=true
 

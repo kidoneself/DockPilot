@@ -295,11 +295,13 @@ jobs:
     # 1. 手动触发（在Actions页面手动运行）
     # 2. commit信息包含[docker]标签（强制构建镜像）
     # 3. 基础环境需要更新时（如Java版本、Caddy配置等）
+    # 4. 🆕 没有任何Release时（重置后首次构建）
     #
     # 🎯 正常代码更新只需发布frontend.tar.gz和backend.jar！
     if: |
       github.event_name == 'workflow_dispatch' || 
-      contains(github.event.head_commit.message, '[docker]')
+      contains(github.event.head_commit.message, '[docker]') ||
+      needs.create-release.result == 'success'
     
     # 💡 这样的好处：
     # - ⚡ 发布速度快（2-3分钟 vs 8-10分钟）
@@ -309,6 +311,32 @@ jobs:
     steps:
       - name: 🛎️ Checkout代码
         uses: actions/checkout@v4
+
+      - name: 📥 下载前端构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+
+      - name: 📥 下载后端构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+
+      - name: 🔍 准备Docker构建文件
+        run: |
+          echo "🔍 准备Docker构建文件..."
+          
+          # 检查构建文件
+          if [ ! -f "frontend.tar.gz" ] || [ ! -f "backend.jar" ]; then
+            echo "❌ 构建文件不存在，无法构建镜像"
+            exit 1
+          fi
+          
+          # 显示文件信息
+          echo "📁 构建文件信息:"
+          ls -lh frontend.tar.gz backend.jar
+          
+          echo "✅ Docker构建文件准备完成"
 
       - name: 🐳 设置Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -338,6 +366,7 @@ jobs:
           push: true
           tags: |
             kidself/dockpilot:latest
+            kidself/dockpilot:${{ steps.version.outputs.VERSION }}
           build-args: |
             VERSION=${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
@@ -348,7 +377,7 @@ jobs:
           echo "🐳 DockPilot镜像构建完成！"
           echo "📋 镜像信息:"
           echo "  仓库: kidself/dockpilot"
-          echo "  标签: latest"
+          echo "  标签: latest, ${{ steps.version.outputs.VERSION }}"
           echo "  平台: linux/amd64, linux/arm64"
           echo "  特性: 内置代码 + 热更新能力"
           echo ""
