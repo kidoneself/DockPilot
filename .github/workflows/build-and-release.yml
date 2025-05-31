@@ -366,7 +366,6 @@ jobs:
           push: true
           tags: |
             kidself/dockpilot:latest
-            kidself/dockpilot:${{ steps.version.outputs.VERSION }}
           build-args: |
             VERSION=${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
@@ -377,7 +376,7 @@ jobs:
           echo "🐳 DockPilot镜像构建完成！"
           echo "📋 镜像信息:"
           echo "  仓库: kidself/dockpilot"
-          echo "  标签: latest, ${{ steps.version.outputs.VERSION }}"
+          echo "  标签: latest"
           echo "  平台: linux/amd64, linux/arm64"
           echo "  特性: 内置代码 + 热更新能力"
           echo ""
