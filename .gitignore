@@ -112,3 +112,4 @@ docker-compose.override.yml
 coverage/
 .nyc_output/
 test-results/
+out/
