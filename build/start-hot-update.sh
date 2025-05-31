@@ -28,6 +28,24 @@ log_debug() {
     echo -e "${BLUE}[DEBUG]${NC} $1"
 }
 
+# 版本号比较函数（支持语义化版本号）
+# 返回0表示第一个版本大于第二个版本，返回1表示小于等于
+version_compare() {
+    local version1="$1"
+    local version2="$2"
+    
+    # 移除v前缀
+    version1=${version1#v}
+    version2=${version2#v}
+    
+    # 使用sort -V进行版本比较
+    if [ "$(printf '%s\n' "$version1" "$version2" | sort -V | head -n1)" != "$version1" ]; then
+        return 0  # version1 > version2
+    else
+        return 1  # version1 <= version2
+    fi
+}
+
 # 优雅停止处理函数
 cleanup() {
     log_info "收到停止信号，正在优雅关闭..."
@@ -69,13 +87,16 @@ chmod 777 /mnt/host/dockpilot/data /mnt/host/dockpilot/logs /mnt/host/dockpilot/
 check_and_download_app() {
     local current_version=""
     local target_version="${DOCKPILOT_VERSION:-latest}"
+    local builtin_version="${DOCKPILOT_VERSION:-v1.0.0}"
     
-    # 检查当前版本
+    # 🔥 新增：智能版本管理逻辑
+    # 检查持久化版本
     if [ -f "/dockpilot/data/current_version" ]; then
         current_version=$(cat /dockpilot/data/current_version)
-        log_info "当前版本: $current_version"
+        log_info "持久化版本: $current_version"
     else
-        log_info "首次启动，未找到版本信息"
+        log_info "首次启动，未找到持久化版本信息"
+        current_version="v0.0.0"  # 设置一个很低的版本号
     fi
     
     # 🔥 新增：检查内置版本是否可用
@@ -85,7 +106,25 @@ check_and_download_app() {
         log_info "🛡️ 内置版本可用作为备选方案"
     fi
     
-    # 检查是否需要下载
+    # 🎯 版本比较：如果内置版本更新，使用内置版本
+    log_info "内置版本: $builtin_version"
+    if version_compare "$builtin_version" "$current_version"; then
+        log_info "🚀 发现内置版本($builtin_version)比持久化版本($current_version)更新，使用内置版本"
+        
+        # 使用内置版本
+        if [ "$builtin_available" = "true" ] && /app/init-builtin.sh restore; then
+            current_version="$builtin_version"
+            echo "$builtin_version" > /dockpilot/data/current_version
+            log_info "✅ 已更新到内置版本: $builtin_version"
+            return 0  # 版本已更新，无需下载
+        else
+            log_warn "⚠️ 内置版本使用失败，继续使用当前版本"
+        fi
+    else
+        log_info "当前版本已是最新或更新: $current_version"
+    fi
+    
+    # 检查是否需要下载更新版本
     if [ ! -f "/app/app.jar" ] || [ "$current_version" != "$target_version" ]; then
         log_info "🔄 需要下载应用代码..."
         log_info "目标版本: $target_version"
@@ -98,7 +137,7 @@ check_and_download_app() {
             if [ -z "$target_version" ] || [ "$target_version" = "null" ]; then
                 log_warn "无法获取最新版本信息"
                 
-                # 🔥 新增：如果有内置版本，优先使用内置版本
+                # 🔥 如果有内置版本，优先使用内置版本
                 if [ "$builtin_available" = "true" ]; then
                     log_info "🛡️ 使用内置版本作为fallback"
                     if /app/init-builtin.sh restore; then
