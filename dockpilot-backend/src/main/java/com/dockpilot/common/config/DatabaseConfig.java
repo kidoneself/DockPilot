@@ -38,10 +38,13 @@ public class DatabaseConfig {
         populator.addScript(new ClassPathResource("db/schema.sql"));
         populator.execute(dataSource);
 
-        // // 动态添加字段（兼容新旧环境）
-        // // 新环境：字段已存在，检查会跳过
-        // // 旧环境：自动添加缺失字段
-        // JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        // 动态添加字段（兼容新旧环境）
+        // 新环境：字段已存在，检查会跳过
+        // 旧环境：自动添加缺失字段
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+
+        // 添加收藏字段
+        addColumnIfNotExists(jdbcTemplate, "web_servers", "is_favorite", "INTEGER DEFAULT 0");
 
         // addColumnIfNotExists(jdbcTemplate, "image_status", "image_id", "TEXT");
         // addColumnIfNotExists(jdbcTemplate, "image_status", "pulling", "INTEGER DEFAULT 0");

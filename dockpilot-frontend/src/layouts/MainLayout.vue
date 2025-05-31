@@ -8,10 +8,17 @@
     >
       <div class="header-left">
         <div class="logo-container" @click="goToHome">
+          <!-- 新logo -->
           <img 
-            src="@/assets/icons/logo.svg" 
-            class="logo-full" 
-            alt="DockPilot"
+            src="/logo.svg" 
+            class="logo-new" 
+            alt="DockPilot New"
+          />
+          <!-- 原logo -->
+          <img 
+            :src="logo" 
+            class="logo-old" 
+            alt="DockPilot Classic"
           />
         </div>
       </div>
@@ -279,12 +286,38 @@ const goToHome = () => {
   transition: all 0.3s ease;
   border-radius: 8px;
   padding: 4px 8px;
+  gap: 2px;
 }
 
 .logo-container:hover {
   background-color: rgba(59, 130, 246, 0.1);
 }
 
+.logo-new {
+  height: 28px;
+  width: auto;
+  transition: all 0.3s ease;
+}
+
+.logo-old {
+  height: 24px;
+  width: auto;
+  transition: all 0.3s ease;
+  /* 确保 logo 颜色跟随主题 */
+  filter: var(--logo-filter, none);
+}
+
+.logo-container:hover .logo-new,
+.logo-container:hover .logo-old {
+  transform: scale(1.05);
+}
+
+/* 深色主题下的 logo 样式 */
+:root[data-theme="dark"] .logo-old {
+  --logo-filter: brightness(0) invert(1);
+}
+
+/* 保留原有样式以防万一 */
 .logo-full {
   height: 32px;
   width: auto;
@@ -295,11 +328,6 @@ const goToHome = () => {
 
 .logo-full:hover {
   transform: scale(1.05);
-}
-
-/* 深色主题下的 logo 样式 */
-:root[data-theme="dark"] .logo-full {
-  --logo-filter: brightness(0) invert(1);
 }
 
 /* 删除不需要的样式 */

@@ -58,7 +58,7 @@
                 {{ newApp.textContent || (newApp.title || 'A').charAt(0).toUpperCase() }}
               </span>
               <!-- 图片图标 -->
-              <img 
+              <!-- <img 
                 v-else-if="newApp.iconType === 'image' && newApp.iconUrl && !previewImageError" 
                 :src="newApp.iconUrl" 
                 alt=""
@@ -78,7 +78,7 @@
                 title="请输入图片地址"
               >
                 <n-icon :size="24" :component="ImageOutline" />
-              </div>
+              </div> -->
               <!-- 在线图标 -->
               <img 
                 v-else-if="newApp.iconType === 'online' && newApp.iconUrl && !previewImageError" 
@@ -170,7 +170,7 @@
         <n-form-item label="图标风格">
           <n-radio-group v-model:value="newApp.iconType">
             <n-radio value="text">文字</n-radio>
-            <n-radio value="image">图片</n-radio>
+            <!-- <n-radio value="image">图片</n-radio> -->
             <n-radio value="online">在线图标</n-radio>
           </n-radio-group>
         </n-form-item>
@@ -188,7 +188,7 @@
         </n-form-item>
 
         <!-- 图片图标 - 输入地址或上传 -->
-        <n-form-item v-if="newApp.iconType === 'image'" label="图像地址">
+        <!-- <n-form-item v-if="newApp.iconType === 'image'" label="图像地址">
           <div class="icon-input-container">
             <n-input 
               v-model:value="newApp.iconUrl" 
@@ -196,7 +196,7 @@
             />
             <n-button>本地上传</n-button>
           </div>
-        </n-form-item>
+        </n-form-item> -->
 
         <!-- 在线图标 - 输入网站地址或图标地址 -->
         <n-form-item v-if="newApp.iconType === 'online'" label="网站地址">

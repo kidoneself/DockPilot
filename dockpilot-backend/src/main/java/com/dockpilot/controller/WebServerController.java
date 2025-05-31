@@ -115,4 +115,19 @@ public class WebServerController {
         CategoryVO category = webServerService.getCategoryById(id);
         return category != null ? ApiResponse.success(category) : ApiResponse.error("分类不存在");
     }
+
+    @Operation(summary = "切换收藏状态")
+    @PutMapping("/{id}/favorite")
+    public ApiResponse<Void> toggleFavorite(@Parameter(description = "服务ID") @PathVariable String id) {
+        webServerService.toggleFavorite(id);
+        return ApiResponse.success();
+    }
+
+    @Anonymous
+    @Operation(summary = "获取收藏列表")
+    @GetMapping("/favorites")
+    public ApiResponse<List<WebServerVO>> getFavorites() {
+        List<WebServerVO> favorites = webServerService.getFavorites();
+        return ApiResponse.success(favorites);
+    }
 } 

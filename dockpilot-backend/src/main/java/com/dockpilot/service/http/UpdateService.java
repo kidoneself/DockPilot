@@ -187,7 +187,7 @@ public class UpdateService {
                 configurableContext.close();
                 
                 log.info("✅ Spring Boot应用已关闭，等待启动脚本重启...");
-            } catch (Exception e) {
+        } catch (Exception e) {
                 log.error("应用关闭失败", e);
                 // 如果优雅关闭失败，使用System.exit作为备选
                 System.exit(1);
@@ -261,7 +261,7 @@ public class UpdateService {
             log.debug("✅ 从环境变量获取版本: {}", envVersion);
             return envVersion;
         }
-
+        
         // 默认版本
         String defaultVersion = "v1.0.0";
         log.warn("⚠️ 无法获取版本信息，使用默认版本: {}", defaultVersion);

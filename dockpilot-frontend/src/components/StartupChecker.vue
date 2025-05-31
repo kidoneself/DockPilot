@@ -2,7 +2,7 @@
   <div v-if="!isBackendReady" class="startup-overlay">
     <div class="startup-container">
       <div class="logo-section">
-        <img :src="logo" class="startup-logo" alt="DockPilot" />
+        <img src="/logo.svg" class="startup-logo" alt="DockPilot" />
         <h1 class="startup-title">DockPilot</h1>
         <p class="startup-subtitle">正在启动中...</p>
       </div>
@@ -50,7 +50,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { NProgress, NSpace, NIcon } from 'naive-ui'
 import { CheckmarkCircle, Time, InformationCircle } from '@vicons/ionicons5'
-import logo from '@/assets/icons/logo.svg'
 
 // 响应式数据
 const isBackendReady = ref(false)

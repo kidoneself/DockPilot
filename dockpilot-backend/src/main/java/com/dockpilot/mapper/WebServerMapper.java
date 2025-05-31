@@ -66,4 +66,14 @@ public interface WebServerMapper {
      * 批量更新服务排序
      */
     int batchUpdateSort(@Param("servers") List<WebServer> servers);
+
+    /**
+     * 切换收藏状态
+     */
+    int toggleFavorite(@Param("id") String id);
+
+    /**
+     * 查询收藏列表
+     */
+    List<WebServerVO> selectFavorites();
 } 

@@ -83,4 +83,9 @@ public class WebServerDTO {
      */
     @Pattern(regexp = "^(current|new)$", message = "打开方式只能是 current 或 new")
     private String openType;
+
+    /**
+     * 是否收藏
+     */
+    private Boolean isFavorite;
 } 

@@ -76,6 +76,14 @@
                 :class="(app as any).status === 'running' ? 'running' : 'stopped'"
               ></div>
             </div>
+            <!-- 收藏按钮 -->
+            <div class="favorite-button" @click.stop="handleFavoriteClick(app)">
+              <n-icon 
+                :size="18" 
+                :component="app.isFavorite ? Heart : HeartOutline"
+                :class="{ 'favorited': app.isFavorite }"
+              />
+            </div>
             <!-- 拖拽提示图标 -->
             <div class="drag-handle">
               <n-icon :size="16" :component="ReorderThreeOutline" />
@@ -109,7 +117,7 @@
 
 <script setup lang="ts">
 import { computed, ref, markRaw, nextTick, h } from 'vue'
-import { CubeOutline, CreateOutline, TrashOutline, ReorderThreeOutline } from '@vicons/ionicons5'
+import { CubeOutline, CreateOutline, TrashOutline, ReorderThreeOutline, HeartOutline, Heart } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
 import draggable from 'vuedraggable'
 
@@ -128,6 +136,7 @@ interface App {
   icon?: any
   imageError?: boolean
   categoryId?: number
+  isFavorite?: boolean
 }
 
 interface Category {
@@ -160,6 +169,7 @@ const emit = defineEmits<{
   'delete-app': [app: App]
   'sort-changed': [categoryId: number, apps: App[]]
   'move-to-category': [app: App, fromCategoryId: number, toCategoryId: number]
+  'toggle-favorite': [app: App]
 }>()
 
 // 图片加载错误状态
@@ -333,6 +343,12 @@ const handleImageLoad = (app: App) => {
   }
   emit('image-load', app)
 }
+
+// 处理收藏按钮点击
+const handleFavoriteClick = (app: App) => {
+  console.log('收藏按钮点击:', app.name, '当前状态:', app.isFavorite)
+  emit('toggle-favorite', app)
+}
 </script>
 
 <style scoped>
@@ -436,7 +452,8 @@ const handleImageLoad = (app: App) => {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
-.app-card:hover .drag-handle {
+.app-card:hover .drag-handle,
+.app-card:hover .favorite-button {
   opacity: 1;
 }
 
@@ -568,7 +585,7 @@ const handleImageLoad = (app: App) => {
 .drag-handle {
   position: absolute;
   top: 8px;
-  right: 8px;
+  right: 36px;
   width: 24px;
   height: 24px;
   display: flex;
@@ -608,6 +625,38 @@ const handleImageLoad = (app: App) => {
 .app-card-drag {
   opacity: 0.8;
   transform: rotate(5deg);
+}
+
+/* 收藏按钮样式 */
+.favorite-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.favorite-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.favorite-button:active {
+  cursor: grabbing;
+}
+
+/* 收藏按钮选中样式 */
+.favorited {
+  color: #ef4444;
 }
 
 /* 响应式设计 */
@@ -672,9 +721,18 @@ const handleImageLoad = (app: App) => {
     font-size: 9px;
   }
   
-  /* 移动端拖拽手柄始终显示 */
+  /* 移动端拖拽手柄和收藏按钮调整 */
   .drag-handle {
     opacity: 0.6;
+    right: 32px; /* 移动端稍微调整间距 */
+    width: 20px;
+    height: 20px;
+  }
+  
+  .favorite-button {
+    opacity: 0.6;
+    width: 20px;
+    height: 20px;
   }
   
   .drag-hint {

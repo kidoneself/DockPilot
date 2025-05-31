@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS web_servers (
     card_type VARCHAR(20) DEFAULT 'normal',     -- 卡片类型（normal、text）
     icon_type VARCHAR(20) DEFAULT 'image',      -- 图标类型（image、text、icon）
     open_type VARCHAR(20) DEFAULT 'new',        -- 打开方式（current、new）
+    is_favorite INTEGER DEFAULT 0,              -- 是否收藏（0=否，1=是）
     created_at TEXT DEFAULT (datetime('now')), -- 创建时间
     updated_at TEXT DEFAULT (datetime('now')), -- 更新时间
     

@@ -122,4 +122,15 @@ public class WebServerServiceImpl implements WebServerService {
                 .findFirst()
                 .orElse(null);
     }
+
+    @Override
+    @Transactional
+    public void toggleFavorite(String id) {
+        webServerMapper.toggleFavorite(id);
+    }
+
+    @Override
+    public List<WebServerVO> getFavorites() {
+        return webServerMapper.selectFavorites();
+    }
 } 

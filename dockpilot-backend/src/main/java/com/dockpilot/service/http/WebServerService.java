@@ -93,4 +93,18 @@ public interface WebServerService {
      * @return 分类详情
      */
     CategoryVO getCategoryById(Integer id);
+
+    /**
+     * 切换收藏状态
+     *
+     * @param id 服务ID
+     */
+    void toggleFavorite(String id);
+
+    /**
+     * 获取收藏列表
+     *
+     * @return 收藏的服务列表
+     */
+    List<WebServerVO> getFavorites();
 } 

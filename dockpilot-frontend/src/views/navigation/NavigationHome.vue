@@ -14,7 +14,7 @@
         <div class="header-left">
           <div class="logo-section">
             <div class="logo-icon">
-              <n-icon size="32" :component="CubeOutline" />
+              <img src="/logo.svg" alt="DockPilot" class="logo-image" />
             </div>
             <div class="logo-text">
               <h1>Dock Pilot</h1>
@@ -68,6 +68,7 @@
         @delete-app="handleDeleteApp"
         @sort-changed="handleSortChanged"
         @move-to-category="handleMoveToCategory"
+        @toggle-favorite="handleToggleFavorite"
       />
 
     </div>
@@ -82,6 +83,9 @@
 
     <!-- 浮动操作按钮 -->
     <FloatingActionButton @action="handleFabAction" />
+
+    <!-- 侧边抽屉 -->
+    <SideDrawer />
 
     <!-- 添加应用弹窗 -->
     <AddAppModal 
@@ -98,6 +102,7 @@
       :app-data="editingApp"
       @update="updateApp"
     />
+
   </div>
 </template>
 
@@ -105,7 +110,8 @@
 import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage, useDialog } from 'naive-ui'
-import { getCategories, getWebServers, createWebServer, updateWebServer, deleteWebServer, batchUpdateWebServerSort, type CategoryVO, type WebServerVO, type CreateWebServerRequest, type UpdateWebServerRequest } from '@/api/http/webserver'
+import { getCategories, getWebServers, createWebServer, updateWebServer, deleteWebServer, batchUpdateWebServerSort, toggleFavorite, type CategoryVO, type WebServerVO, type CreateWebServerRequest, type UpdateWebServerRequest } from '@/api/http/webserver'
+import { getAllCategoriesForManage } from '@/api/http/category'
 import { getCurrentBackground } from '@/api/http/background'
 import defaultBackgroundImg from '@/assets/background.png'
 // 导入组件
@@ -115,6 +121,7 @@ import SearchBar from './components/SearchBar.vue'
 import FloatingActionButton from './components/FloatingActionButton.vue'
 import AddAppModal from './components/AddAppModal.vue'
 import AppGrid from './components/AppGrid.vue'
+import SideDrawer from './components/SideDrawer.vue'
 import {
   CubeOutline,
   WifiOutline,
@@ -151,6 +158,7 @@ const navigationBackgroundRef = ref<HTMLElement>()
 
 // 应用分类和应用数据
 const categories = ref<CategoryVO[]>([])
+const allCategories = ref<CategoryVO[]>([]) // 新增：完整分类列表，用于新增应用时选择
 const webServers = ref<WebServerVO[]>([])
 const dataLoading = ref(false)
 
@@ -182,7 +190,8 @@ const appCategories = computed(() => {
         openType: app.openType || 'new',
         bgColor: app.bgColor || 'rgba(255, 255, 255, 0.15)',
         cardType: app.cardType || 'normal',
-        categoryId: app.categoryId, // 添加 categoryId 字段
+        categoryId: app.categoryId,
+        isFavorite: app.isFavorite || false,
         icon: markRaw(CubeOutline),
         imageError: imageErrors.value[app.id.toString()] || false
       }))
@@ -196,7 +205,7 @@ const appCategories = computed(() => {
 
 // 分组选项
 const categoryOptions = computed(() => 
-  categories.value.map(category => ({
+  allCategories.value.map(category => ({
     label: category.name,
     value: category.id
   }))
@@ -300,16 +309,19 @@ const loadData = async () => {
   dataLoading.value = true
   try {
     // 并发加载分类和应用数据
-    const [categoriesRes, webServersRes] = await Promise.all([
-      getCategories(),
+    const [categoriesRes, allCategoriesRes, webServersRes] = await Promise.all([
+      getCategories(), // 只有应用的分类，用于界面显示
+      getAllCategoriesForManage(), // 所有分类，用于新增应用选项
       getWebServers()
     ])
     
     categories.value = categoriesRes
+    allCategories.value = allCategoriesRes
     webServers.value = webServersRes
     
     console.log('数据加载成功:', { 
       categories: categories.value.length, 
+      allCategories: allCategories.value.length, 
       webServers: webServers.value.length 
     })
   } catch (error) {
@@ -646,6 +658,33 @@ onUnmounted(() => {
     clearTimeout(moveTimeout)
   }
 })
+
+// 处理收藏切换
+const handleToggleFavorite = async (app: any) => {
+  try {
+    console.log('切换收藏状态:', app.name, '当前状态:', app.isFavorite)
+    
+    // 调用API切换收藏状态
+    await toggleFavorite(app.id)
+    
+    // 更新本地状态
+    const currentApp = webServers.value.find(ws => ws.id === app.id)
+    if (currentApp) {
+      currentApp.isFavorite = !app.isFavorite
+    }
+    
+    // 重新加载数据以确保同步
+    await loadData()
+    
+    const action = !app.isFavorite ? '收藏' : '取消收藏'
+    message.success(`${action}成功`)
+    
+    console.log('收藏状态切换成功:', app.name, '新状态:', !app.isFavorite)
+  } catch (error) {
+    console.error('切换收藏状态失败:', error)
+    message.error('操作失败，请稍后重试')
+  }
+}
 </script>
 
 <style scoped>
@@ -736,19 +775,22 @@ onUnmounted(() => {
 }
 
 .logo-icon {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  border-radius: 10px;
+  width: 60px;
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+}
+
+.logo-image {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
 }
 
 .logo-text h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: #f8fafc;
   line-height: 1.2;
@@ -756,7 +798,7 @@ onUnmounted(() => {
 
 .logo-text p {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: #94a3b8;
   line-height: 1.2;
 }
@@ -782,7 +824,7 @@ onUnmounted(() => {
 
 .date {
   font-size: 12px;
-  color: #64748b;
+  color: #f8fafc;
   font-weight: 500;
 }
 
@@ -1049,6 +1091,11 @@ onUnmounted(() => {
     height: 32px;
   }
   
+  .logo-image {
+    width: 26px;
+    height: 26px;
+  }
+  
   .logo-text h1 {
     font-size: 16px;
   }
@@ -1063,6 +1110,7 @@ onUnmounted(() => {
   
   .date {
     font-size: 10px;
+    color: #f8fafc;
   }
   
   .section-header h3 {

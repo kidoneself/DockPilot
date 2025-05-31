@@ -25,6 +25,7 @@ export interface WebServerVO {
   cardType?: string
   iconType?: string
   openType?: string
+  isFavorite?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -104,4 +105,14 @@ export const updateWebServerSort = (id: string, itemSort: number) => {
 // 批量更新应用排序
 export const batchUpdateWebServerSort = (servers: UpdateWebServerRequest[]) => {
   return request.put<void>('/web-servers/batch-sort', servers)
+}
+
+// 切换收藏状态
+export const toggleFavorite = (id: string) => {
+  return request.put<void>(`/web-servers/${id}/favorite`)
+}
+
+// 获取收藏列表
+export const getFavorites = () => {
+  return request.get<WebServerVO[]>('/web-servers/favorites')
 } 

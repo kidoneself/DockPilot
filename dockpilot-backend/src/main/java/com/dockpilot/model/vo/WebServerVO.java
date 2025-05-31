@@ -73,6 +73,11 @@ public class WebServerVO {
     private String openType;
 
     /**
+     * 是否收藏
+     */
+    private Boolean isFavorite;
+
+    /**
      * 创建时间
      */
     private String createdAt;

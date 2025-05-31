@@ -4,7 +4,7 @@
     <!-- 基础列 -->
     <sql id="Base_Column_List">
         id, name, icon, internal_url, external_url, description, category_id, item_sort,
-        bg_color, card_type, icon_type, open_type, created_at, updated_at
+        bg_color, card_type, icon_type, open_type, is_favorite, created_at, updated_at
     </sql>
 
     <!-- 包含分类信息的查询列 -->
@@ -12,7 +12,7 @@
         w.id, w.name, w.icon, w.internal_url as internalUrl, w.external_url as externalUrl, 
         w.description, w.category_id as categoryId, c.name as categoryName, w.item_sort as itemSort,
         w.bg_color as bgColor, w.card_type as cardType, w.icon_type as iconType, w.open_type as openType,
-        w.created_at as createdAt, w.updated_at as updatedAt
+        w.is_favorite as isFavorite, w.created_at as createdAt, w.updated_at as updatedAt
     </sql>
 
     <!-- 新增服务器 -->
@@ -73,6 +73,7 @@
         CASE WHEN c.id IS NULL THEN '未分类' ELSE c.name END as categoryName, 
         w.item_sort as itemSort,
         w.bg_color as bgColor, w.card_type as cardType, w.icon_type as iconType, w.open_type as openType,
+        CASE WHEN w.is_favorite IS NULL THEN 0 ELSE w.is_favorite END as isFavorite,
         w.created_at as createdAt, w.updated_at as updatedAt
         FROM web_servers w
         LEFT JOIN categories c ON w.category_id = c.id
@@ -130,4 +131,29 @@
             #{server.id}
         </foreach>
     </update>
+
+    <!-- 切换收藏状态 -->
+    <update id="toggleFavorite">
+        UPDATE web_servers 
+        SET is_favorite = CASE WHEN is_favorite = 1 THEN 0 ELSE 1 END,
+            updated_at = datetime('now')
+        WHERE id = #{id}
+    </update>
+
+    <!-- 查询收藏列表 -->
+    <select id="selectFavorites" resultType="com.dockpilot.model.vo.WebServerVO">
+        SELECT
+        w.id, w.name, w.icon, w.internal_url as internalUrl, w.external_url as externalUrl, 
+        w.description, 
+        CASE WHEN c.id IS NULL THEN 0 ELSE w.category_id END as categoryId, 
+        CASE WHEN c.id IS NULL THEN '未分类' ELSE c.name END as categoryName, 
+        w.item_sort as itemSort,
+        w.bg_color as bgColor, w.card_type as cardType, w.icon_type as iconType, w.open_type as openType,
+        w.is_favorite as isFavorite,
+        w.created_at as createdAt, w.updated_at as updatedAt
+        FROM web_servers w
+        LEFT JOIN categories c ON w.category_id = c.id
+        WHERE w.is_favorite = 1
+        ORDER BY w.updated_at DESC
+    </select>
 </mapper> 
