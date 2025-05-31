@@ -122,4 +122,17 @@ public class UpdateController {
             return ApiResponse.error("更新版本记录失败: " + e.getMessage());
         }
     }
+
+    @Operation(summary = "容器重启更新", description = "下载新版本文件并重启容器（推荐方式，最安全可靠）")
+    @PostMapping("/apply-restart")
+    public ApiResponse<String> applyContainerRestartUpdate(@RequestParam(required = false) String version) {
+        try {
+            log.info("🔄 开始执行容器重启更新，目标版本: {}", version != null ? version : "latest");
+            String result = updateService.applyContainerRestartUpdate(version);
+            return ApiResponse.success(result);
+        } catch (Exception e) {
+            log.error("❌ 执行容器重启更新失败", e);
+            return ApiResponse.error("执行容器重启更新失败: " + e.getMessage());
+        }
+    }
 } 

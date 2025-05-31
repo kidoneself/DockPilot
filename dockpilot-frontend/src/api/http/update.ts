@@ -68,6 +68,14 @@ export const applyHotUpdate = (version?: string) => {
 }
 
 /**
+ * 执行容器重启更新（推荐方式）
+ */
+export const applyContainerRestartUpdate = (version?: string) => {
+  const params = version ? { version } : {}
+  return request.post<string>('/update/apply-restart', null, { params })
+}
+
+/**
  * 获取更新进度
  */
 export const getUpdateProgress = () => {

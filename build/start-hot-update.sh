@@ -277,9 +277,47 @@ show_startup_info_initial() {
     log_info "=========================================="
 }
 
+# 检查重启信号文件并处理重启逻辑
+check_restart_signal() {
+    local restart_signal_file="/dockpilot/data/restart_signal"
+    
+    if [ -f "$restart_signal_file" ]; then
+        log_info "🔄 检测到重启信号文件"
+        
+        # 读取重启信息
+        local restart_info=$(cat "$restart_signal_file" 2>/dev/null || echo "{}")
+        local new_version=$(echo "$restart_info" | jq -r '.newVersion // "unknown"' 2>/dev/null || echo "unknown")
+        local reason=$(echo "$restart_info" | jq -r '.reason // "unknown"' 2>/dev/null || echo "unknown")
+        
+        log_info "📋 重启信息:"
+        log_info "  • 原因: $reason"
+        log_info "  • 目标版本: $new_version"
+        
+        # 删除重启信号文件
+        rm -f "$restart_signal_file"
+        log_info "✅ 重启信号文件已清理"
+        
+        if [ "$reason" = "hot_update" ]; then
+            log_info "🎯 检测到热更新重启，应用已经下载了新版本文件"
+            log_info "💡 容器将继续使用新的应用文件启动"
+            
+            # 如果指定了版本，更新版本记录
+            if [ "$new_version" != "unknown" ] && [ "$new_version" != "null" ]; then
+                echo "$new_version" > /dockpilot/data/current_version
+                log_info "✅ 版本记录已更新为: $new_version"
+            fi
+        fi
+    else
+        log_debug "未检测到重启信号文件，正常启动"
+    fi
+}
+
 # 主启动流程
 main() {
     log_info "开始主启动流程..."
+    
+    # 🔥 新增：检查重启信号文件
+    check_restart_signal
     
     # 1. 先启动Caddy（显示初始化页面）
     start_caddy

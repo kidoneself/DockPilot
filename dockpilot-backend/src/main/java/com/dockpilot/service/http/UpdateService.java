@@ -71,58 +71,44 @@ public class UpdateService {
     private static final String BACKUP_DIR = "/tmp/dockpilot-backup";
 
     /**
-     * 检查是否有新版本 - 带缓存和容错机制
+     * 检查是否有新版本 - 简化版
      */
     public UpdateInfoDTO checkForUpdates() throws Exception {
-        log.info("🔍 开始检查新版本...");
+        log.info("🔍 检查新版本...");
         
-        // 确保HTTP客户端已初始化
         ensureHttpClientInitialized();
         
-        // 1. 尝试使用缓存
-        UpdateInfoDTO cachedResult = getCachedUpdateInfo();
-        if (cachedResult != null) {
-            log.info("✅ 使用缓存的更新信息 (缓存时间: {})", lastCheckTime);
-            return cachedResult;
-        }
-        
-        // 2. 获取当前版本
         String currentVersion = getCurrentVersion();
+        String latestVersion = currentVersion;
+        boolean hasUpdate = false;
         
-        // 3. 获取最新版本信息（带容错）
-        JsonNode latestRelease = getLatestReleaseWithFallback();
-        
-        if (latestRelease == null) {
-            // 完全失败时，返回基于当前版本的默认信息
-            log.warn("⚠️ 无法获取最新版本信息，返回当前版本状态");
-            return createFallbackUpdateInfo(currentVersion);
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(GITHUB_API_URL))
+                    .header("Accept", "application/vnd.github.v3+json")
+                    .timeout(Duration.ofSeconds(10))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() == 200) {
+                JsonNode release = objectMapper.readTree(response.body());
+                latestVersion = release.get("tag_name").asText();
+                hasUpdate = !currentVersion.equals(latestVersion);
+            }
+        } catch (Exception e) {
+            log.warn("获取最新版本失败: {}", e.getMessage());
         }
         
-        // 4. 解析版本信息
-        String latestVersion = latestRelease.get("tag_name").asText();
-        String releaseNotes = latestRelease.has("body") ? latestRelease.get("body").asText() : "无发布说明";
-        String publishedAt = latestRelease.has("published_at") ? latestRelease.get("published_at").asText() : "";
+        log.info("✅ 版本检查完成: {} -> {} (有更新: {})", currentVersion, latestVersion, hasUpdate);
         
-        boolean hasUpdate = !currentVersion.equals(latestVersion) && 
-                           !latestVersion.equals("unknown") && 
-                           !currentVersion.equals("unknown");
-        
-        // 5. 构建结果并缓存
-        UpdateInfoDTO result = UpdateInfoDTO.builder()
+        return UpdateInfoDTO.builder()
                 .currentVersion(currentVersion)
                 .latestVersion(latestVersion)
                 .hasUpdate(hasUpdate)
-                .releaseNotes(releaseNotes)
                 .lastCheckTime(LocalDateTime.now())
                 .status(hasUpdate ? "available" : "up-to-date")
-                .progress(0)
                 .build();
-        
-        // 6. 缓存结果
-        cacheUpdateInfo(result, latestRelease);
-        
-        log.info("✅ 版本检查完成: {} -> {} (有更新: {})", currentVersion, latestVersion, hasUpdate);
-        return result;
     }
 
     /**
@@ -131,456 +117,113 @@ public class UpdateService {
     public Map<String, String> getCurrentVersionInfo() {
         Map<String, String> versionInfo = new HashMap<>();
         versionInfo.put("currentVersion", getCurrentVersion());
-        versionInfo.put("buildTime", getBuildTime());
-        versionInfo.put("updateMethod", "hot-update");
-        versionInfo.put("frontendPath", FRONTEND_PATH);
-        versionInfo.put("backendJar", BACKEND_JAR);
+        versionInfo.put("updateMethod", "container-restart");
         return versionInfo;
     }
 
     /**
-     * 执行热更新
+     * 执行热更新（简化为容器重启）
      */
     public String applyHotUpdate(String targetVersion) throws Exception {
-        if (!isUpdating.compareAndSet(false, true)) {
-            throw new RuntimeException("更新正在进行中，请稍后再试");
-        }
-
-        // 确保HTTP客户端已初始化
-        ensureHttpClientInitialized();
-
-        // 异步执行更新
-        currentUpdateTask = CompletableFuture.runAsync(() -> {
+        // 简化：直接调用容器重启更新
+        return applyContainerRestartUpdate(targetVersion);
+    }
+    
+    /**
+     * 容器重启更新（简化版）
+     */
+    public String applyContainerRestartUpdate(String targetVersion) throws Exception {
+        log.info("🔄 开始容器重启更新...");
+        
+        // 创建重启信号文件，让启动脚本知道需要下载新版本
+        createRestartSignal(targetVersion != null ? targetVersion : "latest");
+        
+        // 异步触发容器重启（延迟3秒，让响应能够发送出去）
+        CompletableFuture.runAsync(() -> {
             try {
-                executeHotUpdate(targetVersion);
+                Thread.sleep(3000);
+                log.info("🔄 触发容器重启，启动脚本将自动下载最新版本...");
+                System.exit(0);
             } catch (Exception e) {
-                log.error("❌ 热更新失败", e);
-                updateProgress.put("status", "failed");
-                updateProgress.put("error", e.getMessage());
-                updateProgress.put("progress", 0);
-            } finally {
-                isUpdating.set(false);
+                log.error("❌ 触发容器重启失败", e);
             }
         });
-
-        return "热更新已开始，请通过 /api/update/progress 查看更新进度";
-    }
-
-    /**
-     * 执行具体的热更新流程
-     */
-    private void executeHotUpdate(String targetVersion) throws Exception {
-        log.info("🚀 开始执行热更新...");
-        updateProgress.clear();
-        updateProgress.put("status", "starting");
-        updateProgress.put("progress", 0);
-        updateProgress.put("message", "初始化更新...");
         
-        // 获取当前Java进程PID，用于后续对比和错误恢复
-        String originalJavaPid = getJavaProcessPid();
-        log.info("当前Java进程PID: {}", originalJavaPid);
-
-        try {
-            // 1. 准备工作
-            updateProgress.put("message", "准备更新环境...");
-            prepareDirs();
-            updateProgress.put("progress", 10);
-
-            // 2. 获取目标版本
-            if (targetVersion == null) {
-                JsonNode latestRelease = getLatestReleaseFromGitHub();
-                targetVersion = latestRelease.get("tag_name").asText();
-            }
-            updateProgress.put("targetVersion", targetVersion);
-            updateProgress.put("message", "目标版本: " + targetVersion);
-
-            // 3. 下载更新包
-            updateProgress.put("status", "downloading");
-            updateProgress.put("message", "下载前后端更新包...");
-            downloadReleaseFiles(targetVersion);
-            updateProgress.put("progress", 40);
-
-            // 4. 备份当前版本
-            updateProgress.put("message", "备份当前版本...");
-            backupCurrentVersion();
-            updateProgress.put("progress", 50);
-
-            // 5. 应用前端更新
-            updateProgress.put("status", "applying");
-            updateProgress.put("message", "应用前端更新...");
-            applyFrontendUpdate();
-            updateProgress.put("progress", 70);
-
-            // 6. 应用后端更新
-            updateProgress.put("message", "应用后端更新，重启Java服务...");
-            applyBackendUpdate();
-            updateProgress.put("progress", 90);
-
-            // 7. 完成更新
-            updateProgress.put("message", "更新版本记录...");
-            updateVersionRecord(targetVersion);
-            cleanupTempFiles();
-            
-            updateProgress.put("status", "completed");
-            updateProgress.put("progress", 100);
-            updateProgress.put("message", "热更新完成！版本: " + targetVersion);
-            
-            log.info("✅ 热更新完成: {}", targetVersion);
-
-        } catch (Exception e) {
-            log.error("❌ 热更新失败：{}", e.getMessage(), e);
-            updateProgress.put("status", "rolling-back");
-            updateProgress.put("message", "更新失败，正在回滚...");
-            updateProgress.put("error", e.getMessage());
-            
-            try {
-                // 检查是否需要杀死新启动的进程
-                try {
-                    String currentPid = getJavaProcessPid();
-                    if (currentPid != null && !currentPid.equals(originalJavaPid)) {
-                        log.info("发现新启动的Java进程 (PID: {})，尝试停止它", currentPid);
-                        killJavaProcess(currentPid);
-                    }
-                } catch (Exception checkError) {
-                    log.warn("检查新进程时出错: {}", checkError.getMessage());
-                }
-                
-                log.info("开始回滚更新...");
-                rollbackUpdate();
-                log.info("✅ 已回滚到之前版本");
-                updateProgress.put("message", "已回滚到之前版本");
-            } catch (Exception rollbackError) {
-                log.error("❌ 回滚失败: {}", rollbackError.getMessage(), rollbackError);
-                updateProgress.put("message", "回滚失败: " + rollbackError.getMessage());
-            }
-            
-            updateProgress.put("status", "failed");
-            throw e;
-        }
-    }
-
-    /**
-     * 下载GitHub Release文件
-     */
-    private void downloadReleaseFiles(String version) throws Exception {
-        log.info("📦 下载版本文件: {}", version);
-        
-        // 下载前端包
-        String frontendUrl = String.format(
-            "https://github.com/kidoneself/DockPilot/releases/download/%s/frontend.tar.gz", 
-            version
-        );
-        downloadFile(frontendUrl, Paths.get(TEMP_DIR, "frontend.tar.gz"));
-
-        // 下载后端包
-        String backendUrl = String.format(
-            "https://github.com/kidoneself/DockPilot/releases/download/%s/backend.jar", 
-            version
-        );
-        downloadFile(backendUrl, Paths.get(TEMP_DIR, "backend.jar"));
-        
-        log.info("✅ 文件下载完成");
-    }
-
-    /**
-     * 应用前端更新
-     */
-    private void applyFrontendUpdate() throws Exception {
-        log.info("🎨 应用前端更新...");
-        
-        Path frontendTarGz = Paths.get(TEMP_DIR, "frontend.tar.gz");
-        Path frontendPath = Paths.get(FRONTEND_PATH);
-        
-        // 验证前端包
-        if (!Files.exists(frontendTarGz)) {
-            throw new RuntimeException("前端更新包不存在");
-        }
-        
-        // 清空当前前端目录
-        deleteDirectoryContents(frontendPath);
-        
-        // 解压新前端
-        extractTarGz(frontendTarGz, frontendPath);
-        
-        // 设置正确的权限
-        setDirectoryPermissions(frontendPath, "755");
-        
-        log.info("✅ 前端更新完成，Caddy将自动服务新文件");
-    }
-
-    /**
-     * 应用后端更新（简化版本）
-     */
-    private void applyBackendUpdate() throws Exception {
-        log.info("⚙️ 应用后端更新...");
-        
-        Path newJar = Paths.get(TEMP_DIR, "backend.jar");
-        Path currentJar = Paths.get(BACKEND_JAR);
-        
-        // 验证后端包
-        if (!Files.exists(newJar)) {
-            throw new RuntimeException("后端更新包不存在");
-        }
-        
-        // 获取当前Java进程PID
-        String oldJavaPid = getJavaProcessPid();
-        log.info("当前Java进程PID: {}", oldJavaPid);
-        
-        try {
-            // 1. 备份当前jar
-            Path backupJar = Paths.get(BACKUP_DIR, "current_app.jar");
-            Files.copy(currentJar, backupJar, StandardCopyOption.REPLACE_EXISTING);
-            
-            // 2. 替换jar文件
-            Files.copy(newJar, currentJar, StandardCopyOption.REPLACE_EXISTING);
-            log.info("✅ 后端jar文件已更新");
-            
-            // 3. 先启动新的Java进程
-            log.info("🚀 启动新的Java进程...");
-            restartJavaApplication();
-            
-            // 4. 等待新进程启动
-            log.info("⏳ 等待新应用启动...");
-            if (!waitForApplicationStartupOnPort(8080, 60)) {
-                log.error("❌ 新版本启动失败，需要回滚更新");
-                throw new RuntimeException("新版本启动失败，需要回滚到旧版本");
-            }
-            
-            // 5. 新进程启动成功后，再停止旧的Java进程
-            if (oldJavaPid != null) {
-                log.info("🛑 停止旧的Java进程: {}", oldJavaPid);
-                killJavaProcess(oldJavaPid);
-            }
-            
-            log.info("✅ 后端更新完成");
-            
-        } catch (Exception e) {
-            log.error("❌ 后端更新失败，开始回滚...", e);
-            applyBackendUpdateFallback(oldJavaPid);
-            throw e;
-        }
+        return "容器重启更新已开始，容器将在3秒后重启并自动下载最新版本";
     }
     
     /**
-     * 回滚到传统更新方式 - 使用备份文件
+     * 创建重启信号文件
      */
-    private void applyBackendUpdateFallback(String oldJavaPid) throws Exception {
-        log.info("🔄 回滚到原始版本...");
+    private void createRestartSignal(String newVersion) throws IOException {
+        Path signalFile = Paths.get("/dockpilot/data/restart_signal");
+        Map<String, Object> restartInfo = new HashMap<>();
+        restartInfo.put("action", "restart");
+        restartInfo.put("reason", "hot_update");
+        restartInfo.put("newVersion", newVersion);
+        restartInfo.put("timestamp", LocalDateTime.now().toString());
         
-        try {
-            // 首先尝试使用备份文件回滚
-            rollbackUpdate();
-            log.info("✅ 已回滚到原始版本");
-        } catch (Exception rollbackError) {
-            log.error("❌ 备份回滚失败，尝试重启当前版本", rollbackError);
-            
-            // 如果备份回滚失败，停止旧进程并重启当前jar
-            if (oldJavaPid != null) {
-                killJavaProcess(oldJavaPid);
-            }
-            Thread.sleep(3000);
-            
-            // 重启应用（使用当前jar，可能是新版本）
-            restartJavaApplication();
-            waitForApplicationStartup();
-            
-            log.info("✅ 回滚完成（使用当前版本）");
-        }
+        Files.createDirectories(signalFile.getParent());
+        Files.writeString(signalFile, objectMapper.writeValueAsString(restartInfo));
+        log.info("✅ 重启信号文件已创建: {}", signalFile);
     }
     
     /**
-     * 获取更新进度
+     * 获取更新进度（简化版）
      */
     public Map<String, Object> getUpdateProgress() {
-        Map<String, Object> progress = new HashMap<>(updateProgress);
-        progress.put("isUpdating", isUpdating.get());
+        Map<String, Object> progress = new HashMap<>();
+        progress.put("status", "completed");
+        progress.put("progress", 100);
+        progress.put("message", "更新已完成");
+        progress.put("isUpdating", false);
         progress.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         return progress;
     }
-
+    
     /**
-     * 取消更新
+     * 取消更新（简化版）
      */
     public String cancelUpdate() {
-        if (currentUpdateTask != null && !currentUpdateTask.isDone()) {
-            currentUpdateTask.cancel(true);
-            isUpdating.set(false);
-            updateProgress.put("status", "cancelled");
-            updateProgress.put("message", "更新已取消");
-            return "更新已取消";
-        }
         return "没有正在进行的更新操作";
     }
-
-
-
-    // ==================== 私有工具方法 ====================
-
-    /**
-     * 从GitHub API获取最新版本信息 - 带重试机制
-     */
-    private JsonNode getLatestReleaseFromGitHub() throws Exception {
-        Exception lastException = null;
-        
-        // 最多重试3次
-        for (int attempt = 1; attempt <= 3; attempt++) {
-            try {
-                log.debug("🔄 第{}次尝试获取GitHub Release信息...", attempt);
-                
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(GITHUB_API_URL))
-                        .header("Accept", "application/vnd.github.v3+json")
-                        .header("User-Agent", "DockPilot-UpdateService")
-                        .timeout(Duration.ofSeconds(15 + attempt * 5)) // 递增超时时间
-                        .build();
-
-                HttpResponse<String> response = httpClient.send(request, 
-                    HttpResponse.BodyHandlers.ofString());
-
-                if (response.statusCode() == 200) {
-                    JsonNode result = objectMapper.readTree(response.body());
-                    log.debug("✅ 成功获取GitHub Release信息 (第{}次尝试)", attempt);
-                    
-                    // 保存到备用文件
-                    saveFallbackData(result);
-                    return result;
-                } else if (response.statusCode() == 403) {
-                    // GitHub API限流
-                    log.warn("⚠️ GitHub API限流 (403)，尝试使用备用方案");
-                    throw new IOException("GitHub API限流: " + response.statusCode());
-                } else if (response.statusCode() == 404) {
-                    // 仓库不存在或私有
-                    log.error("❌ GitHub仓库不存在或无权限访问 (404)");
-                    throw new IOException("GitHub仓库访问失败: " + response.statusCode());
-                } else {
-                    throw new IOException("GitHub API请求失败: " + response.statusCode() + 
-                                        " - " + response.body());
-                }
-
-            } catch (java.net.ConnectException e) {
-                lastException = e;
-                log.warn("🌐 网络连接失败 (第{}次尝试): {}", attempt, e.getMessage());
-            } catch (java.net.http.HttpTimeoutException e) {
-                lastException = e;
-                log.warn("⏰ 请求超时 (第{}次尝试): {}", attempt, e.getMessage());
-            } catch (java.net.UnknownHostException e) {
-                lastException = e;
-                log.warn("🔍 域名解析失败 (第{}次尝试): {}", attempt, e.getMessage());
-            } catch (Exception e) {
-                lastException = e;
-                log.warn("❌ 第{}次尝试失败: {}", attempt, e.getMessage());
-            }
-            
-            // 等待后重试（递增等待时间）
-            if (attempt < 3) {
-                try {
-                    long waitTime = attempt * 2000; // 2秒、4秒
-                    log.debug("⏳ 等待{}毫秒后重试...", waitTime);
-                    Thread.sleep(waitTime);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("重试被中断", ie);
-                }
-            }
-        }
-        
-        // 所有重试都失败，尝试使用备用数据
-        log.warn("❌ 所有重试都失败，尝试使用备用数据");
-        JsonNode fallbackData = loadFallbackData();
-        if (fallbackData != null) {
-            log.info("✅ 使用备用数据");
-            return fallbackData;
-        }
-        
-        // 完全失败
-        throw new RuntimeException("获取GitHub Release信息失败，已重试3次: " + 
-                                 (lastException != null ? lastException.getMessage() : "未知错误"));
-    }
-
+    
     /**
      * 带备用方案的获取最新版本信息
      */
     private JsonNode getLatestReleaseWithFallback() {
-        // 1. 尝试从主API获取
         try {
-            return getLatestReleaseFromGitHub();
-        } catch (Exception e) {
-            log.warn("🔄 主API失败，尝试备用方案: {}", e.getMessage());
-        }
-        
-        // 2. 尝试从备用文件加载
-        try {
-            JsonNode fallbackData = loadFallbackData();
-            if (fallbackData != null) {
-                log.info("✅ 使用本地备用数据");
-                return fallbackData;
+            ensureHttpClientInitialized();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(GITHUB_API_URL))
+                    .header("Accept", "application/vnd.github.v3+json")
+                    .header("User-Agent", "DockPilot-UpdateService")
+                    .timeout(Duration.ofSeconds(15))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, 
+                HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                return objectMapper.readTree(response.body());
             }
         } catch (Exception e) {
-            log.warn("⚠️ 加载备用数据失败: {}", e.getMessage());
+            log.warn("获取GitHub Release信息失败: {}", e.getMessage());
         }
         
-        // 3. 最后的备用方案：使用内置的最小化版本信息
-        log.warn("⚠️ 所有获取方式都失败，使用最小化版本信息");
+        // 返回最小化版本数据
         return createMinimalReleaseData();
     }
-
+    
     /**
-     * 保存备用数据到文件
-     */
-    private void saveFallbackData(JsonNode data) {
-        try {
-            Path fallbackFile = Paths.get(FALLBACK_FILE);
-            Files.createDirectories(fallbackFile.getParent());
-            
-            Map<String, Object> fallbackData = new HashMap<>();
-            fallbackData.put("data", data);
-            fallbackData.put("timestamp", LocalDateTime.now().toString());
-            fallbackData.put("source", "github_api");
-            
-            Files.writeString(fallbackFile, objectMapper.writeValueAsString(fallbackData));
-            log.debug("💾 已保存备用数据到: {}", FALLBACK_FILE);
-        } catch (Exception e) {
-            log.warn("⚠️ 保存备用数据失败: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * 从文件加载备用数据
-     */
-    private JsonNode loadFallbackData() {
-        try {
-            Path fallbackFile = Paths.get(FALLBACK_FILE);
-            if (!Files.exists(fallbackFile)) {
-                return null;
-            }
-            
-            String content = Files.readString(fallbackFile);
-            JsonNode fallbackJson = objectMapper.readTree(content);
-            
-            // 检查数据是否过期（超过7天）
-            String timestampStr = fallbackJson.get("timestamp").asText();
-            LocalDateTime timestamp = LocalDateTime.parse(timestampStr);
-            if (timestamp.isBefore(LocalDateTime.now().minusDays(7))) {
-                log.warn("⚠️ 备用数据已过期 ({}天前)", java.time.Duration.between(timestamp, LocalDateTime.now()).toDays());
-                return null;
-            }
-            
-            return fallbackJson.get("data");
-        } catch (Exception e) {
-            log.warn("⚠️ 加载备用数据失败: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * 创建最小化的版本数据（最后的备用方案）
+     * 创建最小化的版本数据
      */
     private JsonNode createMinimalReleaseData() {
         try {
             String currentVersion = getCurrentVersion();
             Map<String, Object> minimalData = new HashMap<>();
             minimalData.put("tag_name", currentVersion);
-            minimalData.put("body", "无法获取最新版本信息，当前显示为本地版本");
+            minimalData.put("body", "无法获取最新版本信息");
             minimalData.put("published_at", LocalDateTime.now().toString());
             minimalData.put("name", "Local Version");
             
@@ -1032,32 +675,113 @@ public class UpdateService {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 
-
-
     /**
-     * 重启Java应用（原始方法，保持兼容性）
+     * 重启Java应用（完全修复版本 - 解决进程管理和日志问题）
      */
     private void restartJavaApplication() throws Exception {
-        log.info("重新启动Java应用...");
+        log.info("🚀 重新启动Java应用...");
         
-        // 使用nohup启动Java进程，并将输出重定向到日志文件
-        ProcessBuilder pb = new ProcessBuilder(
-            "/bin/bash", "-c", 
-            "cd /app && nohup java -jar " + BACKEND_JAR + 
-            " --spring.profiles.active=prod --log.path=/dockpilot/logs" +
-            " > /dockpilot/logs/application-restart.log 2>&1 &"
+        // 检查环境和文件
+        Path jarFile = Paths.get(BACKEND_JAR);
+        if (!Files.exists(jarFile)) {
+            throw new RuntimeException("Backend JAR文件不存在: " + BACKEND_JAR);
+        }
+        
+        log.info("📍 当前工作目录: {}", System.getProperty("user.dir"));
+        log.info("📦 JAR文件路径: {}", jarFile.toAbsolutePath());
+        log.info("📊 JAR文件大小: {} bytes", Files.size(jarFile));
+        
+        // 创建启动脚本，确保进程正确管理
+        String startScript = createStartupScript();
+        
+        try {
+            // 使用exec替换当前进程，这样新进程会继承容器的进程树
+            ProcessBuilder pb = new ProcessBuilder("/bin/bash", startScript);
+            
+            // 设置工作目录
+            pb.directory(new File("/app"));
+            
+            // 关键：继承父进程的IO，确保日志输出到容器标准输出
+            pb.inheritIO();
+            
+            // 设置环境变量
+            Map<String, String> env = pb.environment();
+            env.put("JAVA_OPTS", "-Xmx512m -Xms256m");
+            env.put("SPRING_PROFILES_ACTIVE", "prod");
+            env.put("SERVER_PORT", "8080");
+            
+            log.info("🔧 使用启动脚本: {}", startScript);
+            
+            // 启动新进程
+            Process process = pb.start();
+            
+            // 检查进程是否立即失败
+            try {
+                Thread.sleep(3000); // 等待3秒检查
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("启动检查被中断", ie);
+            }
+            
+            if (!process.isAlive()) {
+                int exitCode = process.exitValue();
+                log.error("❌ Java进程启动后立即退出，退出码: {}", exitCode);
+                throw new RuntimeException("Java应用启动失败，退出码: " + exitCode);
+            }
+            
+            log.info("✅ 新的Java应用已启动，PID: {}", process.pid());
+            log.info("📝 日志将正常输出到容器标准输出");
+            
+        } catch (Exception e) {
+            log.error("❌ 启动Java应用时发生异常", e);
+            throw new RuntimeException("启动Java应用失败: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 创建正确的启动脚本
+     */
+    private String createStartupScript() throws IOException {
+        String scriptPath = "/tmp/restart_app.sh";
+        
+        // 创建启动脚本内容
+        String scriptContent = String.format(
+            "#!/bin/bash\n" +
+            "set -e\n" +
+            "echo \"🚀 启动新的DockPilot应用...\"\n" +
+            "cd /app\n" +
+            "\n" +
+            "# 确保日志目录存在\n" +
+            "mkdir -p /dockpilot/logs\n" +
+            "\n" +
+            "# 设置Java参数\n" +
+            "export JAVA_OPTS=\"-Xmx512m -Xms256m -XX:+UseG1GC\"\n" +
+            "export SPRING_PROFILES_ACTIVE=prod\n" +
+            "\n" +
+            "# 启动应用 - 关键：不使用nohup，让进程正确继承容器环境\n" +
+            "exec java $JAVA_OPTS -jar %s \\\n" +
+            "  --spring.profiles.active=prod \\\n" +
+            "  --server.port=8080 \\\n" +
+            "  --logging.file.path=/dockpilot/logs \\\n" +
+            "  --logging.level.com.dockpilot=INFO \\\n" +
+            "  --logging.pattern.console='%%d{yyyy-MM-dd HH:mm:ss.SSS} [%%thread] %%level %%logger{50} - %%msg%%n'\n",
+            BACKEND_JAR
         );
         
-        // 启动进程
-        Process process = pb.start();
-        int exitCode = process.waitFor();
+        // 写入脚本文件
+        Files.writeString(Paths.get(scriptPath), scriptContent);
         
-        if (exitCode == 0) {
-            log.info("✅ 新的Java应用已在后台启动");
-        } else {
-            log.error("❌ 启动Java应用失败，退出码: {}", exitCode);
-            throw new RuntimeException("启动Java应用失败，退出码: " + exitCode);
+        // 设置执行权限
+        ProcessBuilder chmod = new ProcessBuilder("chmod", "+x", scriptPath);
+        try {
+            chmod.start().waitFor();
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("设置脚本权限被中断", ie);
         }
+        
+        log.info("✅ 启动脚本已创建: {}", scriptPath);
+        return scriptPath;
     }
 
     /**
@@ -1241,21 +965,7 @@ public class UpdateService {
      * 清空缓存
      */
     public void clearCache() {
-        log.info("🗑️ 清空版本检查缓存");
-        
-        // 清空内存缓存
-        cachedUpdateInfo = null;
-        lastCheckTime = null;
-        lastReleaseData = null;
-        
-        // 删除文件缓存
-        try {
-            Files.deleteIfExists(Paths.get(CACHE_FILE));
-            Files.deleteIfExists(Paths.get(FALLBACK_FILE));
-            log.info("✅ 缓存文件已删除");
-        } catch (Exception e) {
-            log.warn("⚠️ 删除缓存文件失败: {}", e.getMessage());
-        }
+        // 简化版本不需要缓存
     }
 
     /**
@@ -1343,6 +1053,5 @@ public class UpdateService {
                 .progress(0)
                 .build();
     }
-
 
 } 

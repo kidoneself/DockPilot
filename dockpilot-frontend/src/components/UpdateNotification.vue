@@ -114,7 +114,7 @@ import {
 } from '@vicons/ionicons5'
 import { 
   checkUpdate, 
-  applyHotUpdate, 
+  applyContainerRestartUpdate,
   getUpdateProgress, 
   cancelUpdate,
   type UpdateInfo,
@@ -269,23 +269,29 @@ const recheckUpdate = async () => {
 const startUpdate = async () => {
   dialog.warning({
     title: '确认更新',
-    content: '确定要开始热更新吗？更新过程中可能有短暂的服务中断。',
+    content: `确定要更新到版本 ${updateInfo.value?.latestVersion} 吗？\n\n更新过程：\n• 容器将重启并自动下载最新版本\n• 预计耗时1-2分钟\n• 更新完成后页面会自动刷新`,
     positiveText: '开始更新',
     negativeText: '取消',
     onPositiveClick: async () => {
       try {
-    startingUpdate.value = true
-    await applyHotUpdate()
-    
-    // 开始监控更新进度
-    startProgressMonitoring()
-    
-  } catch (error) {
-      console.error('启动更新失败:', error)
+        startingUpdate.value = true
+        message.info('🔄 开始更新，容器即将重启...')
+        
+        // 直接触发容器重启，让启动脚本自动下载最新版本
+        await applyContainerRestartUpdate()
+        message.success('更新已开始，容器将在3秒后重启')
+        
+        // 等待容器重启
+        setTimeout(() => {
+          window.location.reload()
+        }, 5000)
+        
+      } catch (error) {
+        console.error('启动更新失败:', error)
         message.error('启动更新失败：' + (error as any)?.message)
-  } finally {
-    startingUpdate.value = false
-  }
+      } finally {
+        startingUpdate.value = false
+      }
     }
   })
 }
@@ -313,56 +319,22 @@ const handleUpdateFailed = () => {
   }, 3000)
 }
 
-const startProgressMonitoring = () => {
-  if (progressTimer) return
-  
-  progressTimer = setInterval(async () => {
-    try {
-      const progress = await getUpdateProgress()
-      updateProgress.value = progress
-      
-      // 简化版本不显示详细日志
-      
-      // 如果更新完成或失败，停止监控并处理
-      if (progress.status === 'completed') {
-        stopProgressMonitoring()
-        handleUpdateComplete()
-      } else if (progress.status === 'failed') {
-        stopProgressMonitoring()
-        handleUpdateFailed()
-      }
-      
-    } catch (error) {
-      console.error('获取更新进度失败:', error)
-      stopProgressMonitoring()
-    }
-  }, 1000)
-}
-
-const stopProgressMonitoring = () => {
-  if (progressTimer) {
-    clearInterval(progressTimer)
-    progressTimer = null
-  }
-}
-
 // 删除日志和取消相关功能，简化版本不需要
 
 // 删除不再需要的方法
 
 const closeDialog = () => {
   showAboutDialog.value = false
-    stopProgressMonitoring()
   // 重置状态
   if (!isUpdating.value) {
     updateInfo.value = null
-  updateProgress.value = {
-    status: '',
-    progress: 0,
-    message: '',
-    isUpdating: false,
-    timestamp: ''
-  }
+    updateProgress.value = {
+      status: '',
+      progress: 0,
+      message: '',
+      isUpdating: false,
+      timestamp: ''
+    }
   }
 }
 
@@ -412,7 +384,6 @@ onUnmounted(() => {
   if (checkTimer) {
     clearInterval(checkTimer)
   }
-  stopProgressMonitoring()
 })
 </script>
 
