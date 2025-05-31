@@ -391,31 +391,82 @@ main() {
         check_and_download_app
     fi
     
-    # 1. 先启动Caddy（显示初始化页面）
-    start_caddy
-    
-    # 2. 启动Java应用
-    log_info "☕ 启动Java后端服务..."
-    if start_java; then
-        log_info "✅ 应用启动完成"
-    else
-        log_error "❌ 应用启动失败，仅提供Web服务"
-    fi
-    
-    # 3. 显示启动信息
-    show_startup_info
-    
-    # 4. 保持运行，等待信号
-    log_info "🔄 服务运行中，等待信号..."
-    
-    # 支持传入的参数（如果有的话）
-    if [ $# -gt 0 ]; then
-        log_info "执行传入的命令: $@"
-        exec "$@"
-    else
-        # 等待所有后台进程
-        wait
-    fi
+    # 启动服务循环
+    while true; do
+        # 1. 先启动Caddy（显示初始化页面）
+        if [ -z "$CADDY_PID" ] || ! kill -0 "$CADDY_PID" 2>/dev/null; then
+            start_caddy
+        fi
+        
+        # 2. 启动Java应用
+        log_info "☕ 启动Java后端服务..."
+        if start_java; then
+            log_info "✅ 应用启动完成"
+        else
+            log_error "❌ 应用启动失败，仅提供Web服务"
+        fi
+        
+        # 3. 显示启动信息
+        show_startup_info
+        
+        # 4. 监控Java进程和重启信号
+        log_info "🔄 服务运行中，监控进程和重启信号..."
+        
+        while true; do
+            # 检查Java进程是否还在运行
+            if [ ! -z "$JAVA_PID" ] && ! kill -0 "$JAVA_PID" 2>/dev/null; then
+                log_info "🔄 检测到Java进程退出，检查重启信号..."
+                
+                # 检查是否有重启信号
+                if check_restart_signal; then
+                    log_info "✅ 检测到重启信号，重新启动服务..."
+                    break  # 跳出内层循环，重新启动
+                else
+                    log_warn "⚠️ Java进程意外退出，没有重启信号，重新启动..."
+                    break  # 跳出内层循环，重新启动
+                fi
+            fi
+            
+            # 定期检查重启信号（即使Java进程正常运行）
+            if [ -f "/dockpilot/data/restart_signal" ]; then
+                log_info "🔄 检测到新的重启信号..."
+                
+                # 优雅停止Java进程
+                if [ ! -z "$JAVA_PID" ] && kill -0 "$JAVA_PID" 2>/dev/null; then
+                    log_info "🛑 优雅停止Java进程..."
+                    kill -TERM "$JAVA_PID" 2>/dev/null || true
+                    
+                    # 等待Java进程退出
+                    local wait_count=0
+                    while [ $wait_count -lt 30 ] && kill -0 "$JAVA_PID" 2>/dev/null; do
+                        sleep 1
+                        wait_count=$((wait_count + 1))
+                    done
+                    
+                    # 如果还没退出，强制杀死
+                    if kill -0 "$JAVA_PID" 2>/dev/null; then
+                        log_warn "⚠️ 强制停止Java进程..."
+                        kill -KILL "$JAVA_PID" 2>/dev/null || true
+                    fi
+                fi
+                
+                # 处理重启信号
+                if check_restart_signal; then
+                    log_info "✅ 重启信号处理完成，重新启动服务..."
+                    break  # 跳出内层循环，重新启动
+                fi
+            fi
+            
+            # 每5秒检查一次
+            sleep 5
+        done
+        
+        # 清理PID变量，准备重新启动
+        JAVA_PID=""
+        
+        log_info "🔄 准备重新启动服务..."
+        sleep 2
+    done
 }
 
 # 执行主流程

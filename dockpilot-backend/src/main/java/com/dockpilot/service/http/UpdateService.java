@@ -9,6 +9,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.info.BuildProperties;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -44,6 +46,9 @@ public class UpdateService {
 
     @Autowired(required = false)
     private BuildProperties buildProperties;
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
@@ -170,18 +175,25 @@ public class UpdateService {
         // 创建重启信号
         createRestartSignal(downloadedVersion);
 
-        // 延迟重启
+        // 优雅关闭Spring Boot应用，让启动脚本来处理重启
         CompletableFuture.runAsync(() -> {
             try {
                 Thread.sleep(2000);
-                log.info("🔄 执行重启，使用版本: {}", downloadedVersion);
-                System.exit(0);
+                log.info("🔄 执行优雅关闭，让启动脚本处理重启...");
+                
+                // 使用Spring Boot的优雅关闭机制
+                ConfigurableApplicationContext configurableContext = (ConfigurableApplicationContext) applicationContext;
+                configurableContext.close();
+                
+                log.info("✅ Spring Boot应用已关闭，等待启动脚本重启...");
             } catch (Exception e) {
-                log.error("重启失败", e);
+                log.error("应用关闭失败", e);
+                // 如果优雅关闭失败，使用System.exit作为备选
+                System.exit(1);
             }
         });
 
-        return "容器正在重启，请等待30秒后刷新页面";
+        return "应用正在重启更新，请等待30秒后刷新页面";
     }
 
     /**
