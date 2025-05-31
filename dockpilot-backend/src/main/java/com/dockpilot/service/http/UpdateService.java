@@ -87,6 +87,7 @@ public class UpdateService {
      */
     public UpdateInfoDTO checkForUpdates() throws Exception {
         log.info("🔍 检查新版本...");
+        log.info("🎯 [测试标记] 当前运行版本: v1.0.4 - 热更新功能测试版本！");
         
         ensureHttpClientInitialized();
         
@@ -932,6 +933,9 @@ public class UpdateService {
      */
     @PostConstruct
     public void initializeService() {
+        // 🔥 启动时清理旧的下载状态，避免重启后状态错乱
+        cleanupOldDownloadStatus();
+        
         // 初始化HTTP客户端，支持重定向
         initHttpClient();
         
@@ -945,6 +949,37 @@ public class UpdateService {
                 log.warn("⚠️ 启动后首次检查更新失败: {}", e.getMessage());
             }
         });
+    }
+
+    /**
+     * 清理旧的下载状态文件
+     */
+    private void cleanupOldDownloadStatus() {
+        try {
+            // 检查下载状态文件是否存在
+            if (Files.exists(Paths.get(DOWNLOAD_STATUS_FILE))) {
+                log.info("🧹 发现旧的下载状态文件，正在清理...");
+                Files.delete(Paths.get(DOWNLOAD_STATUS_FILE));
+                log.info("✅ 下载状态文件已清理，避免重启后状态错乱");
+            }
+            
+            // 同时清理下载目录中的残留文件
+            if (Files.exists(Paths.get(DOWNLOAD_DIR))) {
+                log.info("🧹 清理下载目录中的残留文件...");
+                Files.walk(Paths.get(DOWNLOAD_DIR))
+                     .sorted((a, b) -> b.compareTo(a)) // 先删除文件再删除目录
+                     .forEach(path -> {
+                         try {
+                             Files.deleteIfExists(path);
+                         } catch (IOException e) {
+                             log.warn("清理下载文件失败: {}", path);
+                         }
+                     });
+                log.info("✅ 下载目录已清理");
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ 清理旧下载状态失败，但不影响正常运行: {}", e.getMessage());
+        }
     }
 
     /**

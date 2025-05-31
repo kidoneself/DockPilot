@@ -374,6 +374,10 @@ use_downloaded_files() {
     log_info "🧹 清理下载文件..."
     rm -rf "$download_path"
     
+    # 🔥 新增：清理下载状态文件，重置前端状态
+    log_info "🔄 清理下载状态文件，重置更新状态..."
+    rm -f "/tmp/dockpilot-download-status.json"
+    
     log_info "✅ 下载文件部署成功"
     return 0
 }
