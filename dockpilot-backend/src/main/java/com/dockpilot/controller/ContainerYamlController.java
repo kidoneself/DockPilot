@@ -36,18 +36,27 @@ public class ContainerYamlController {
     @Operation(summary = "生成YAML配置", description = "根据选中的容器ID列表生成Docker Compose YAML配置")
     public ApiResponse<ContainerYamlResponse> generateYaml(@Valid @RequestBody ContainerYamlRequest request) {
         try {
-            // 生成YAML内容
-            String yamlContent = composeGenerator.generateFromContainerIds(request.getContainerIds());
+            // 确定项目名称和描述
+            String projectName = request.getProjectName();
+            if (projectName == null || projectName.trim().isEmpty()) {
+                projectName = "容器项目-" + System.currentTimeMillis();
+            }
+            
+            String projectDescription = request.getDescription();
+            if (projectDescription == null || projectDescription.trim().isEmpty()) {
+                projectDescription = "Docker容器管理项目";
+            }
+            
+            // 生成YAML内容 - 传递用户提供的项目信息
+            String yamlContent = composeGenerator.generateFromContainerIds(
+                request.getContainerIds(), 
+                projectName, 
+                projectDescription
+            );
             
             // 如果用户提供了环境变量描述配置，更新YAML内容
             if (request.getEnvDescriptions() != null && !request.getEnvDescriptions().isEmpty()) {
                 yamlContent = updateEnvDescriptions(yamlContent, request.getEnvDescriptions());
-            }
-            
-            // 确定项目名称
-            String projectName = request.getProjectName();
-            if (projectName == null || projectName.trim().isEmpty()) {
-                projectName = "容器项目-" + System.currentTimeMillis();
             }
             
             // 构建响应
@@ -146,20 +155,27 @@ public class ContainerYamlController {
             // 默认排除一些敏感字段
             excludeFields.add("environment");
             
-            // 获取容器详细信息
+            // 确定项目名称和描述
+            String projectName = request.getProjectName();
+            if (projectName == null || projectName.trim().isEmpty()) {
+                projectName = "预览项目";
+            }
+            
+            String projectDescription = request.getDescription();
+            if (projectDescription == null || projectDescription.trim().isEmpty()) {
+                projectDescription = "Docker容器预览项目";
+            }
+            
+            // 获取容器详细信息，并传递项目信息
             String yamlContent = composeGenerator.generateComposeContent(
                 dockerService.listContainers().stream()
                     .filter(container -> request.getContainerIds().contains(container.getId()))
                     .map(container -> dockerService.inspectContainerCmd(container.getId()))
                     .collect(java.util.stream.Collectors.toList()),
-                excludeFields
+                excludeFields,
+                projectName,
+                projectDescription
             );
-            
-            // 确定项目名称
-            String projectName = request.getProjectName();
-            if (projectName == null || projectName.trim().isEmpty()) {
-                projectName = "预览项目";
-            }
             
             // 构建响应
             ContainerYamlResponse response = ContainerYamlResponse.success(

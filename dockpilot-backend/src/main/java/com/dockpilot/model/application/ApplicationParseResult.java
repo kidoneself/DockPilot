@@ -3,6 +3,7 @@ package com.dockpilot.model.application;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 应用配置解析结果
@@ -53,6 +54,23 @@ public class ApplicationParseResult {
         private String configUrl;
         private List<String> ports;
         private List<String> volumes;
+        
+        // 扩展配置字段
+        private String containerName;          // container_name
+        private List<String> environment;      // environment
+        private List<String> command;          // command
+        private List<String> entrypoint;       // entrypoint
+        private String networkMode;            // network_mode
+        private List<String> networks;         // networks
+        private String restart;                // restart
+        private List<String> capAdd;           // cap_add
+        private List<String> devices;          // devices
+        private String workingDir;             // working_dir
+        private Boolean privileged;            // privileged
+        private Map<String, String> labels;   // labels
+        
+        // 保留原始服务配置，用于处理未预期的字段
+        private Map<String, Object> rawConfig;
     }
     
     /**

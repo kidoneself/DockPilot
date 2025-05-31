@@ -362,12 +362,15 @@ import {
 import {
   getInstallInfo,
   deployApplication as deployApplicationAPI,
+  installApplicationWS,
   type ApplicationInstallInfo,
   type ImageStatusInfo,
   type EnvVarInfo,
   type ServiceInfo,
   type ApplicationDeployRequest,
-  type ApplicationDeployResult
+  type ApplicationDeployResult,
+  type AppInstallParams,
+  type AppInstallCallbacks
 } from '@/api/http/applications'
 
 // 导入WebSocket镜像拉取API
@@ -413,8 +416,7 @@ const app = ref<ApplicationInstallInfo['app'] | null>(null)
 
 // 应用配置
 const appConfig = ref({
-  name: '',
-  dataDir: './data'
+  name: ''
 })
 
 // 镜像列表
@@ -438,6 +440,9 @@ const findingPort = ref<Record<string, boolean>>({})
 // 镜像拉取进度和日志状态
 const imageProgress = ref<Record<string, number>>({})
 const imageLogs = ref<Record<string, string[]>>({})
+
+// 安装完成后的访问地址
+const installResult = ref<ApplicationDeployResult | null>(null)
 
 // 展开/收起状态
 const servicesExpanded = ref(true)
@@ -466,22 +471,38 @@ const hasConfigPackages = computed(() => {
 })
 
 const accessUrls = computed(() => {
+  // 优先使用安装结果中的访问地址
+  if (installResult.value?.accessUrls) {
+    return installResult.value.accessUrls
+  }
+  
+  // 否则直接列出所有端口
   const urls: Array<{name: string, url: string, description: string}> = []
   
-  // 从环境变量推算访问地址
+  // 获取宿主机IP
+  const hostIp = window.location.hostname || 'localhost'
+  
   appEnvs.value.forEach(env => {
-    if (env.name.includes('PORT') && env.value) {
-      const serviceName = env.name.split('_')[0].toLowerCase()
+    if (env.name.toUpperCase().includes('PORT') && env.value && isValidPort(env.value)) {
+      // 服务名称：直接使用环境变量名
+      const serviceName = env.name.replace('_PORT', '').replace('PORT', '')
+      
       urls.push({
-        name: `${serviceName} 服务`,
-        url: `http://localhost:${env.value}`,
-        description: `${serviceName} 访问地址`
+        name: serviceName,
+        url: `http://${hostIp}:${env.value}`,
+        description: `端口 ${env.value}`
       })
     }
   })
   
   return urls
 })
+
+// 验证端口号是否有效
+const isValidPort = (port: string) => {
+  const portNum = parseInt(port.trim())
+  return !isNaN(portNum) && portNum > 0 && portNum <= 65535
+}
 
 // 方法
 const getImageStatusType = (status: string) => {
@@ -653,70 +674,77 @@ const loadInstallInfo = async (appId: number) => {
   }
 }
 
+// 添加日志函数
+const addLog = (level: 'info' | 'warn' | 'error', message: string) => {
+  installLogs.value.push({
+    id: Date.now() + Math.random(), // 确保唯一性
+    time: new Date().toLocaleTimeString(),
+    level,
+    message
+  })
+  
+  // 自动滚动到底部
+  nextTick(() => {
+    const container = logContainer.value
+    if (container) {
+      container.scrollTop = container.scrollHeight
+    }
+  })
+}
+
+// WebSocket安装函数
 const startInstall = async () => {
   showInstallModal.value = true
   installProgress.value = 0
   installStatus.value = 'active'
-  progressText.value = '开始安装应用...'
+  progressText.value = '准备开始安装...'
   installLogs.value = []
+  installResult.value = null
+  
+  const params: AppInstallParams = {
+    appId: app.value!.id,
+    appName: appConfig.value.name,
+    envVars: {}
+  }
+  
+  // 收集环境变量
+  appEnvs.value.forEach(env => {
+    if (env.value !== undefined && env.value !== null) {
+      params.envVars[env.name] = env.value || ''
+    }
+  })
   
   try {
-    if (!app.value) {
-      throw new Error('应用信息不存在')
-    }
-
-    // 构建部署请求
-    const deployRequest: ApplicationDeployRequest = {
-      appName: appConfig.value.name,
-      envVars: {},
-      dataDir: appConfig.value.dataDir
-    }
-    
-    // 收集环境变量 - 保持原有description，只更新value
-    appEnvs.value.forEach(env => {
-      if (env.value !== undefined && env.value !== null) {
-        deployRequest.envVars[env.name] = {
-          value: env.value || '',
-          description: env.description || '' // 保持已有的description
+    await installApplicationWS(params, {
+      onProgress: (progress: number, taskId: string) => {
+        installProgress.value = progress
+        // 进度更新时添加日志
+        if (progress === 100) {
+          addLog('info', '安装完成!')
         }
+      },
+      onLog: (log: string, taskId: string) => {
+        addLog('info', log)
+      },
+      onComplete: (result: ApplicationDeployResult) => {
+        installProgress.value = 100
+        installStatus.value = 'success'
+        progressText.value = '安装完成!'
+        addLog('info', '🎉 应用安装成功')
+        
+        // 保存安装结果
+        installResult.value = result
+      },
+      onError: (error: string, taskId: string) => {
+        installStatus.value = 'error'
+        progressText.value = '安装失败'
+        addLog('error', error)
       }
     })
-    
-    // 调用部署API
-    const result = await deployApplicationAPI(app.value.id, deployRequest)
-    
-    if (result.success) {
-      installProgress.value = 100
-      installStatus.value = 'success'
-      progressText.value = '安装完成!'
-      
-      installLogs.value.push({
-        id: Date.now(),
-        time: new Date().toLocaleTimeString(),
-        level: 'info',
-        message: result.message
-      })
-    } else {
-      installStatus.value = 'error'
-      progressText.value = '安装失败'
-      
-      installLogs.value.push({
-        id: Date.now(),
-        time: new Date().toLocaleTimeString(),
-        level: 'error',
-        message: result.message
-      })
-    }
-  } catch (error: any) {
+  } catch (error) {
     installStatus.value = 'error'
     progressText.value = '安装失败'
-    
-    installLogs.value.push({
-      id: Date.now(),
-      time: new Date().toLocaleTimeString(),
-      level: 'error',
-      message: error.message || '部署过程中发生错误'
-    })
+    addLog('error', `系统错误: ${error}`)
   }
 }
 
@@ -1006,11 +1034,6 @@ const restoreActivePullTasks = () => {
   }
   
   console.log('✅ 应用安装页面拉取任务恢复检查完成，全局处理器已设置')
-}
-
-const isValidPort = (port: string) => {
-  const parsedPort = parseInt(port)
-  return !isNaN(parsedPort) && parsedPort > 0 && parsedPort <= 65535
 }
 
 // 展开/收起切换方法

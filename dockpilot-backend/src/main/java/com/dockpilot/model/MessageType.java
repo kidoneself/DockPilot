@@ -39,34 +39,9 @@ public enum MessageType {
     LOG,
 
     /**
-     * 检查安装所需的镜像
+     * 应用安装
      */
-    INSTALL_CHECK_IMAGES,
-
-    /**
-     * 验证安装参数
-     */
-    INSTALL_VALIDATE,
-
-    /**
-     * 验证安装参数结果
-     */
-    INSTALL_VALIDATE_RESULT,
-
-    /**
-     * 开始安装
-     */
-    INSTALL_START,
-
-    /**
-     * 安装日志
-     */
-    INSTALL_LOG,
-
-    /**
-     * 安装结果
-     */
-    INSTALL_START_RESULT,
+    APP_INSTALL,
 
     /**
      * 拉取镜像

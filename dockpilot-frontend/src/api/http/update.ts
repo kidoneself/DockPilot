@@ -26,6 +26,15 @@ export interface VersionInfo {
   backendJar: string
 }
 
+// 下载状态接口
+export interface DownloadStatus {
+  status: string // 'idle' | 'downloading' | 'verifying' | 'completed' | 'failed' | 'cancelled'
+  progress: number // 0-100
+  message: string
+  version: string
+  timestamp: string
+}
+
 // 更新进度接口
 export interface UpdateProgress {
   status: string
@@ -46,6 +55,13 @@ export interface UpdateHistory {
 }
 
 /**
+ * 健康检查
+ */
+export const healthCheck = () => {
+  return request.get<{ status: string; service: string; timestamp: string }>('/update/health')
+}
+
+/**
  * 检查是否有新版本
  */
 export const checkUpdate = () => {
@@ -60,19 +76,32 @@ export const getCurrentVersion = () => {
 }
 
 /**
- * 执行热更新
+ * 开始下载新版本
  */
-export const applyHotUpdate = (version?: string) => {
+export const startDownload = (version?: string) => {
   const params = version ? { version } : {}
-  return request.post<string>('/update/apply', null, { params })
+  return request.post<string>('/update/download', null, { params })
 }
 
 /**
- * 执行容器重启更新（推荐方式）
+ * 获取下载状态
  */
-export const applyContainerRestartUpdate = (version?: string) => {
-  const params = version ? { version } : {}
-  return request.post<string>('/update/apply-restart', null, { params })
+export const getDownloadStatus = () => {
+  return request.get<DownloadStatus>('/update/download/status')
+}
+
+/**
+ * 确认重启更新
+ */
+export const confirmRestart = () => {
+  return request.post<string>('/update/restart')
+}
+
+/**
+ * 取消下载
+ */
+export const cancelDownload = () => {
+  return request.post<string>('/update/download/cancel')
 }
 
 /**

@@ -288,83 +288,122 @@ check_restart_signal() {
         local restart_info=$(cat "$restart_signal_file" 2>/dev/null || echo "{}")
         local new_version=$(echo "$restart_info" | jq -r '.newVersion // "unknown"' 2>/dev/null || echo "unknown")
         local reason=$(echo "$restart_info" | jq -r '.reason // "unknown"' 2>/dev/null || echo "unknown")
+        local download_path=$(echo "$restart_info" | jq -r '.downloadPath // ""' 2>/dev/null || echo "")
         
         log_info "📋 重启信息:"
         log_info "  • 原因: $reason"
         log_info "  • 目标版本: $new_version"
+        log_info "  • 下载路径: $download_path"
         
         # 删除重启信号文件
         rm -f "$restart_signal_file"
         log_info "✅ 重启信号文件已清理"
         
-        if [ "$reason" = "hot_update" ]; then
-            log_info "🎯 检测到热更新重启，应用已经下载了新版本文件"
-            log_info "💡 容器将继续使用新的应用文件启动"
+        if [ "$reason" = "update_restart" ] && [ -n "$download_path" ]; then
+            log_info "🎯 检测到更新重启，使用预下载的文件"
             
-            # 如果指定了版本，更新版本记录
-            if [ "$new_version" != "unknown" ] && [ "$new_version" != "null" ]; then
+            # 使用预下载的文件
+            if use_downloaded_files "$download_path" "$new_version"; then
+                log_info "✅ 使用下载文件 $new_version 启动成功"
                 echo "$new_version" > /dockpilot/data/current_version
-                log_info "✅ 版本记录已更新为: $new_version"
+                return 0
+            else
+                log_warn "⚠️ 下载文件使用失败，回退到下载模式"
             fi
         fi
     else
         log_debug "未检测到重启信号文件，正常启动"
     fi
+    
+    # 正常下载流程（作为备选）
+    log_info "执行正常下载流程..."
+    return 1
+}
+
+# 使用下载的文件
+use_downloaded_files() {
+    local download_path="$1"
+    local version="$2"
+    
+    log_info "📦 使用下载文件: $download_path"
+    
+    # 验证下载文件
+    if [ ! -f "$download_path/frontend.tar.gz" ] || [ ! -f "$download_path/backend.jar" ]; then
+        log_error "下载文件不完整"
+        return 1
+    fi
+    
+    # 备份当前文件
+    local backup_dir="/tmp/backup-$(date +%s)"
+    mkdir -p "$backup_dir"
+    
+    if [ -d "/usr/share/html" ] && [ "$(ls -A /usr/share/html 2>/dev/null)" ]; then
+        cp -r /usr/share/html/* "$backup_dir/frontend/" 2>/dev/null || true
+        log_info "前端已备份到: $backup_dir/frontend/"
+    fi
+    
+    if [ -f "/app/app.jar" ]; then
+        cp "/app/app.jar" "$backup_dir/backend.jar"
+        log_info "后端已备份到: $backup_dir/backend.jar"
+    fi
+    
+    # 部署前端
+    log_info "🎨 部署前端文件..."
+    rm -rf /usr/share/html/*
+    if ! tar -xzf "$download_path/frontend.tar.gz" -C /usr/share/html/; then
+        log_error "前端部署失败，开始回滚"
+        if [ -d "$backup_dir/frontend" ]; then
+            cp -r "$backup_dir/frontend"/* /usr/share/html/ 2>/dev/null || true
+        fi
+        return 1
+    fi
+    chmod -R 755 /usr/share/html/
+    
+    # 部署后端  
+    log_info "⚙️ 部署后端文件..."
+    if ! cp "$download_path/backend.jar" /app/app.jar; then
+        log_error "后端部署失败，开始回滚"
+        if [ -f "$backup_dir/backend.jar" ]; then
+            cp "$backup_dir/backend.jar" /app/app.jar
+        fi
+        return 1
+    fi
+    chmod 644 /app/app.jar
+    
+    # 清理下载文件
+    log_info "🧹 清理下载文件..."
+    rm -rf "$download_path"
+    
+    log_info "✅ 下载文件部署成功"
+    return 0
 }
 
 # 主启动流程
 main() {
     log_info "开始主启动流程..."
     
-    # 🔥 新增：检查重启信号文件
-    check_restart_signal
+    # 🔥 首先检查重启信号文件
+    if check_restart_signal; then
+        log_info "✅ 使用下载文件启动成功，跳过下载流程"
+    else
+        log_info "📡 执行正常应用下载流程..."
+        # 正常下载流程
+        check_and_download_app
+    fi
     
     # 1. 先启动Caddy（显示初始化页面）
     start_caddy
     
-    # 2. 后台检查并下载应用代码
-    log_info "🔄 后台开始下载应用代码..."
-    (
-        # 创建实时日志文件供前端读取
-        echo "🚀 开始初始化 DockPilot..." > /usr/share/html/init.log
-        echo "📡 正在检查版本信息..." >> /usr/share/html/init.log
-        
-        # 执行应用代码下载并捕获输出
-        if check_and_download_app 2>&1 | while IFS= read -r line; do
-            echo "$line" >> /usr/share/html/init.log
-            echo "$line"  # 同时输出到控制台
-            
-            # 如果是下载进度，也在Web日志中友好显示
-            if [[ "$line" =~ \[DOWNLOAD\].*[0-9]+% ]]; then
-                # 提取进度信息并格式化
-                echo "📊 $(echo "$line" | sed 's/\[DOWNLOAD\]/下载进度/')" >> /usr/share/html/init.log
-            fi
-        done; then
-            echo "✅ 应用代码准备完成，启动后端服务..." >> /usr/share/html/init.log
-            log_info "✅ 应用代码准备完成，启动后端服务..."
-            
-            if start_java 2>&1 | while IFS= read -r line; do
-                echo "$line" >> /usr/share/html/init.log
-                echo "$line"  # 同时输出到控制台
-                
-                # 如果是下载进度，也在Web日志中友好显示
-                if [[ "$line" =~ \[DOWNLOAD\].*[0-9]+% ]]; then
-                    # 提取进度信息并格式化
-                    echo "📊 $(echo "$line" | sed 's/\[DOWNLOAD\]/下载进度/')" >> /usr/share/html/init.log
-                fi
-            done; then
-                echo "🎉 初始化完成！DockPilot 已启动" >> /usr/share/html/init.log
-            else
-                echo "⚠️ 后端启动失败，但Web服务可用" >> /usr/share/html/init.log
-            fi
-        else
-            echo "❌ 应用代码下载失败，仅提供Web服务" >> /usr/share/html/init.log
-            log_error "❌ 应用代码下载失败，仅提供Web服务"
-        fi
-    ) &
+    # 2. 启动Java应用
+    log_info "☕ 启动Java后端服务..."
+    if start_java; then
+        log_info "✅ 应用启动完成"
+    else
+        log_error "❌ 应用启动失败，仅提供Web服务"
+    fi
     
     # 3. 显示启动信息
-    show_startup_info_initial
+    show_startup_info
     
     # 4. 保持运行，等待信号
     log_info "🔄 服务运行中，等待信号..."

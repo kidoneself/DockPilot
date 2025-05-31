@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -41,6 +42,9 @@ public class UpdateService {
     @Autowired
     private AppConfig appConfig;
 
+    @Autowired(required = false)
+    private BuildProperties buildProperties;
+
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
             .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -69,9 +73,12 @@ public class UpdateService {
     private static final String BACKEND_JAR = "/app/app.jar";
     private static final String TEMP_DIR = "/tmp/dockpilot-update";
     private static final String BACKUP_DIR = "/tmp/dockpilot-backup";
+    private static final String DOWNLOAD_STATUS_FILE = "/tmp/dockpilot-download-status.json";
+    private static final String DOWNLOAD_DIR = "/tmp/dockpilot-download";
+    private static final String RESTART_SIGNAL_FILE = "/dockpilot/data/restart_signal";
 
     /**
-     * 检查是否有新版本 - 简化版
+     * 检查是否有新版本
      */
     public UpdateInfoDTO checkForUpdates() throws Exception {
         log.info("🔍 检查新版本...");
@@ -117,290 +124,270 @@ public class UpdateService {
     public Map<String, String> getCurrentVersionInfo() {
         Map<String, String> versionInfo = new HashMap<>();
         versionInfo.put("currentVersion", getCurrentVersion());
-        versionInfo.put("updateMethod", "container-restart");
+        versionInfo.put("updateMethod", "download-then-restart");
         return versionInfo;
     }
 
     /**
-     * 执行热更新（简化为容器重启）
+     * 开始下载新版本（不重启）
      */
-    public String applyHotUpdate(String targetVersion) throws Exception {
-        // 简化：直接调用容器重启更新
-        return applyContainerRestartUpdate(targetVersion);
-    }
-    
-    /**
-     * 容器重启更新（简化版）
-     */
-    public String applyContainerRestartUpdate(String targetVersion) throws Exception {
-        log.info("🔄 开始容器重启更新...");
+    public String startDownload(String targetVersion) throws Exception {
+        if (isUpdating.get()) {
+            return "已有下载任务在进行中";
+        }
+
+        log.info("📡 开始下载版本: {}", targetVersion);
         
-        // 创建重启信号文件，让启动脚本知道需要下载新版本
-        createRestartSignal(targetVersion != null ? targetVersion : "latest");
-        
-        // 异步触发容器重启（延迟3秒，让响应能够发送出去）
+        // 异步下载
         CompletableFuture.runAsync(() -> {
             try {
-                Thread.sleep(3000);
-                log.info("🔄 触发容器重启，启动脚本将自动下载最新版本...");
-                System.exit(0);
+                isUpdating.set(true);
+                executeDownload(targetVersion);
             } catch (Exception e) {
-                log.error("❌ 触发容器重启失败", e);
+                log.error("下载失败", e);
+                updateDownloadStatus("failed", 0, "下载失败: " + e.getMessage(), targetVersion);
+            } finally {
+                isUpdating.set(false);
             }
         });
-        
-        return "容器重启更新已开始，容器将在3秒后重启并自动下载最新版本";
+
+        return "开始下载新版本，请等待完成后重启";
     }
-    
+
     /**
-     * 创建重启信号文件
+     * 确认重启应用
      */
-    private void createRestartSignal(String newVersion) throws IOException {
-        Path signalFile = Paths.get("/dockpilot/data/restart_signal");
-        Map<String, Object> restartInfo = new HashMap<>();
-        restartInfo.put("action", "restart");
-        restartInfo.put("reason", "hot_update");
-        restartInfo.put("newVersion", newVersion);
-        restartInfo.put("timestamp", LocalDateTime.now().toString());
-        
-        Files.createDirectories(signalFile.getParent());
-        Files.writeString(signalFile, objectMapper.writeValueAsString(restartInfo));
-        log.info("✅ 重启信号文件已创建: {}", signalFile);
+    public String confirmRestart() throws Exception {
+        // 检查下载状态
+        Map<String, Object> downloadStatus = getDownloadStatus();
+        if (!"completed".equals(downloadStatus.get("status"))) {
+            throw new RuntimeException("请先完成下载再重启");
+        }
+
+        String downloadedVersion = (String) downloadStatus.get("version");
+        log.info("🔄 确认重启，使用下载的版本: {}", downloadedVersion);
+
+        // 创建重启信号
+        createRestartSignal(downloadedVersion);
+
+        // 延迟重启
+        CompletableFuture.runAsync(() -> {
+            try {
+                Thread.sleep(2000);
+                log.info("🔄 执行重启，使用版本: {}", downloadedVersion);
+                System.exit(0);
+            } catch (Exception e) {
+                log.error("重启失败", e);
+            }
+        });
+
+        return "容器正在重启，请等待30秒后刷新页面";
     }
-    
+
     /**
-     * 获取更新进度（简化版）
+     * 获取下载状态
      */
-    public Map<String, Object> getUpdateProgress() {
-        Map<String, Object> progress = new HashMap<>();
-        progress.put("status", "completed");
-        progress.put("progress", 100);
-        progress.put("message", "更新已完成");
-        progress.put("isUpdating", false);
-        progress.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        return progress;
-    }
-    
-    /**
-     * 取消更新（简化版）
-     */
-    public String cancelUpdate() {
-        return "没有正在进行的更新操作";
-    }
-    
-    /**
-     * 带备用方案的获取最新版本信息
-     */
-    private JsonNode getLatestReleaseWithFallback() {
+    public Map<String, Object> getDownloadStatus() {
         try {
-            ensureHttpClientInitialized();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(GITHUB_API_URL))
-                    .header("Accept", "application/vnd.github.v3+json")
-                    .header("User-Agent", "DockPilot-UpdateService")
-                    .timeout(Duration.ofSeconds(15))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, 
-                HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() == 200) {
-                return objectMapper.readTree(response.body());
+            if (Files.exists(Paths.get(DOWNLOAD_STATUS_FILE))) {
+                String content = Files.readString(Paths.get(DOWNLOAD_STATUS_FILE));
+                return objectMapper.readValue(content, Map.class);
             }
         } catch (Exception e) {
-            log.warn("获取GitHub Release信息失败: {}", e.getMessage());
+            log.warn("读取下载状态失败", e);
         }
-        
-        // 返回最小化版本数据
-        return createMinimalReleaseData();
-    }
-    
-    /**
-     * 创建最小化的版本数据
-     */
-    private JsonNode createMinimalReleaseData() {
-        try {
-            String currentVersion = getCurrentVersion();
-            Map<String, Object> minimalData = new HashMap<>();
-            minimalData.put("tag_name", currentVersion);
-            minimalData.put("body", "无法获取最新版本信息");
-            minimalData.put("published_at", LocalDateTime.now().toString());
-            minimalData.put("name", "Local Version");
-            
-            return objectMapper.valueToTree(minimalData);
-        } catch (Exception e) {
-            log.error("❌ 创建最小化版本数据失败", e);
-            return null;
-        }
+
+        // 默认状态
+        Map<String, Object> defaultStatus = new HashMap<>();
+        defaultStatus.put("status", "idle");
+        defaultStatus.put("progress", 0);
+        defaultStatus.put("message", "就绪");
+        defaultStatus.put("version", "");
+        return defaultStatus;
     }
 
     /**
-     * 获取当前版本 - 多种方式尝试
+     * 取消下载
+     */
+    public String cancelDownload() {
+        if (!isUpdating.get()) {
+            return "没有正在进行的下载任务";
+        }
+
+        isUpdating.set(false);
+        updateDownloadStatus("cancelled", 0, "下载已取消", "");
+        
+        // 清理下载文件
+        try {
+            if (Files.exists(Paths.get(DOWNLOAD_DIR))) {
+                Files.walk(Paths.get(DOWNLOAD_DIR))
+                     .map(Path::toFile)
+                     .forEach(File::delete);
+            }
+        } catch (Exception e) {
+            log.warn("清理下载文件失败", e);
+        }
+
+        return "下载已取消";
+    }
+
+    /**
+     * 获取当前版本 - 统一从BuildProperties获取
      */
     private String getCurrentVersion() {
-        log.debug("🔍 开始获取当前版本信息...");
-        
-        // 方法1: 从版本文件读取（热更新后会写入）
-        try {
-            Path versionFile = Paths.get(VERSION_FILE);
-            if (Files.exists(versionFile)) {
-                String version = Files.readString(versionFile).trim();
-                if (!version.isEmpty() && !version.equals("unknown")) {
-                    log.debug("✅ 从版本文件获取版本: {}", version);
-                    return version;
-                }
-            }
-        } catch (IOException e) {
-            log.warn("读取版本文件失败: {}", e.getMessage());
+        // 从BuildProperties获取（推荐方式）
+        if (buildProperties != null) {
+            String version = buildProperties.getVersion();
+            log.debug("✅ 从BuildProperties获取版本: v{}", version);
+            return "v" + version;
         }
-        
-        // 方法2: 从环境变量读取
+
+        // 备选：从环境变量获取
         String envVersion = System.getenv("DOCKPILOT_VERSION");
         if (envVersion != null && !envVersion.trim().isEmpty() && !envVersion.equals("latest")) {
             log.debug("✅ 从环境变量获取版本: {}", envVersion);
             return envVersion;
         }
-        
-        // 方法3: 从application.properties读取
-        try {
-            String propVersion = getVersionFromProperties();
-            if (propVersion != null && !propVersion.trim().isEmpty()) {
-                log.debug("✅ 从配置文件获取版本: {}", propVersion);
-                return propVersion;
-            }
-        } catch (Exception e) {
-            log.warn("从配置文件读取版本失败: {}", e.getMessage());
-        }
-        
-        // 方法4: 从MANIFEST.MF读取
-        try {
-            String manifestVersion = getVersionFromManifest();
-            if (manifestVersion != null && !manifestVersion.trim().isEmpty()) {
-                log.debug("✅ 从MANIFEST获取版本: {}", manifestVersion);
-                return manifestVersion;
-            }
-        } catch (Exception e) {
-            log.warn("从MANIFEST读取版本失败: {}", e.getMessage());
-        }
-        
-        // 方法5: 返回默认版本
+
+        // 默认版本
         String defaultVersion = "v1.0.0";
         log.warn("⚠️ 无法获取版本信息，使用默认版本: {}", defaultVersion);
-        
-        // 尝试创建版本文件
-        try {
-            createDefaultVersionFile(defaultVersion);
-        } catch (Exception e) {
-            log.warn("创建默认版本文件失败: {}", e.getMessage());
-        }
-        
         return defaultVersion;
     }
-    
+
     /**
-     * 从application.properties读取版本
+     * 执行下载任务
      */
-    private String getVersionFromProperties() {
-        try {
-            // 尝试从Spring Boot的配置中读取
-            String version = System.getProperty("app.version");
-            if (version != null && !version.trim().isEmpty()) {
-                return version;
-            }
-            
-            // 尝试从类路径下的配置文件读取
-            InputStream is = getClass().getClassLoader().getResourceAsStream("application.properties");
-            if (is != null) {
-                java.util.Properties props = new java.util.Properties();
-                props.load(is);
-                version = props.getProperty("app.version");
-                if (version != null && !version.trim().isEmpty()) {
-                    return version;
-                }
-            }
-        } catch (Exception e) {
-            log.debug("从properties读取版本失败: {}", e.getMessage());
-        }
-        return null;
+    private void executeDownload(String version) throws Exception {
+        log.info("🚀 开始下载任务，版本: {}", version);
+        
+        // 创建下载目录
+        Files.createDirectories(Paths.get(DOWNLOAD_DIR));
+        
+        updateDownloadStatus("downloading", 10, "开始下载前端包...", version);
+        
+        // 下载前端包
+        String frontendUrl = String.format("https://github.com/kidoneself/DockPilot/releases/download/%s/frontend.tar.gz", version);
+        downloadFile(frontendUrl, DOWNLOAD_DIR + "/frontend.tar.gz");
+        
+        updateDownloadStatus("downloading", 50, "开始下载后端包...", version);
+        
+        // 下载后端包
+        String backendUrl = String.format("https://github.com/kidoneself/DockPilot/releases/download/%s/backend.jar", version);
+        downloadFile(backendUrl, DOWNLOAD_DIR + "/backend.jar");
+        
+        updateDownloadStatus("verifying", 80, "验证下载文件...", version);
+        
+        // 验证文件
+        validateDownloadedFiles();
+        
+        updateDownloadStatus("completed", 100, "下载完成，可以重启更新", version);
+        log.info("✅ 下载任务完成，版本: {}", version);
     }
-    
+
     /**
-     * 从MANIFEST.MF读取版本
+     * 下载单个文件
      */
-    private String getVersionFromManifest() {
-        try {
-            Package pkg = this.getClass().getPackage();
-            String version = pkg.getImplementationVersion();
-            if (version != null && !version.trim().isEmpty()) {
-                return "v" + version;
-            }
-            
-            // 尝试从jar的MANIFEST.MF读取
-            java.net.URL jarUrl = this.getClass().getProtectionDomain().getCodeSource().getLocation();
-            if (jarUrl.toString().endsWith(".jar")) {
-                java.util.jar.JarFile jarFile = new java.util.jar.JarFile(jarUrl.getPath());
-                java.util.jar.Manifest manifest = jarFile.getManifest();
-                if (manifest != null) {
-                    java.util.jar.Attributes attrs = manifest.getMainAttributes();
-                    version = attrs.getValue("Implementation-Version");
-                    if (version != null && !version.trim().isEmpty()) {
-                        return "v" + version;
-                    }
-                    version = attrs.getValue("Bundle-Version");
-                    if (version != null && !version.trim().isEmpty()) {
-                        return "v" + version;
-                    }
-                }
-                jarFile.close();
-            }
-        } catch (Exception e) {
-            log.debug("从MANIFEST读取版本失败: {}", e.getMessage());
+    private void downloadFile(String url, String targetPath) throws Exception {
+        ensureHttpClientInitialized();
+        
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofMinutes(5))
+                .build();
+
+        HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("下载失败，HTTP状态码: " + response.statusCode());
         }
-        return null;
+
+        try (InputStream inputStream = response.body();
+             FileOutputStream outputStream = new FileOutputStream(targetPath)) {
+            
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+        }
+        
+        log.info("✅ 文件下载完成: {}", targetPath);
     }
-    
+
     /**
-     * 创建默认版本文件
+     * 验证下载的文件
      */
-    private void createDefaultVersionFile(String defaultVersion) {
+    private void validateDownloadedFiles() throws Exception {
+        Path frontendFile = Paths.get(DOWNLOAD_DIR + "/frontend.tar.gz");
+        Path backendFile = Paths.get(DOWNLOAD_DIR + "/backend.jar");
+        
+        if (!Files.exists(frontendFile) || Files.size(frontendFile) < 1024) {
+            throw new RuntimeException("前端文件下载不完整");
+        }
+        
+        if (!Files.exists(backendFile) || Files.size(backendFile) < 1024 * 1024) {
+            throw new RuntimeException("后端文件下载不完整");
+        }
+        
+        log.info("✅ 文件验证通过");
+    }
+
+    /**
+     * 更新下载状态
+     */
+    private void updateDownloadStatus(String status, int progress, String message, String version) {
         try {
-            Path versionFile = Paths.get(VERSION_FILE);
-            Files.createDirectories(versionFile.getParent());
-            Files.writeString(versionFile, defaultVersion);
-            log.info("✅ 已创建默认版本文件: {} -> {}", VERSION_FILE, defaultVersion);
-        } catch (IOException e) {
-            log.warn("创建默认版本文件失败: {}", e.getMessage());
+            Map<String, Object> statusMap = new HashMap<>();
+            statusMap.put("status", status);
+            statusMap.put("progress", progress);
+            statusMap.put("message", message);
+            statusMap.put("version", version);
+            statusMap.put("timestamp", LocalDateTime.now().toString());
+            
+            String statusJson = objectMapper.writeValueAsString(statusMap);
+            Files.writeString(Paths.get(DOWNLOAD_STATUS_FILE), statusJson);
+            
+            log.info("📊 下载状态: {} ({}%) - {}", status, progress, message);
+        } catch (Exception e) {
+            log.warn("更新下载状态失败", e);
         }
     }
 
     /**
-     * 手动更新当前版本记录为最新版本
+     * 创建重启信号文件
      */
-    public String updateCurrentVersionToLatest() throws Exception {
-        log.info("🔄 开始更新当前版本记录为最新版本...");
+    private void createRestartSignal(String newVersion) throws IOException {
+        Map<String, Object> restartInfo = new HashMap<>();
+        restartInfo.put("action", "restart");
+        restartInfo.put("reason", "update_restart");
+        restartInfo.put("newVersion", newVersion);
+        restartInfo.put("downloadPath", DOWNLOAD_DIR);
+        restartInfo.put("timestamp", LocalDateTime.now().toString());
         
-        // 清除缓存，确保获取最新信息
-        clearCache();
-        
-        // 获取最新版本信息
-        JsonNode latestRelease = getLatestReleaseWithFallback();
-        if (latestRelease == null) {
-            throw new RuntimeException("无法获取最新版本信息");
+        Files.createDirectories(Paths.get(RESTART_SIGNAL_FILE).getParent());
+        Files.writeString(Paths.get(RESTART_SIGNAL_FILE), objectMapper.writeValueAsString(restartInfo));
+        log.info("✅ 重启信号文件已创建");
+    }
+
+    /**
+     * 初始化HTTP客户端
+     */
+    private synchronized void ensureHttpClientInitialized() {
+        if (httpClient == null) {
+            httpClient = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(15))
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .build();
+            log.debug("✅ HTTP客户端已初始化");
         }
-        
-        String latestVersion = latestRelease.get("tag_name").asText();
-        String currentVersion = getCurrentVersion();
-        
-        if (latestVersion.equals(currentVersion)) {
-            log.info("✅ 当前版本已是最新: {}", currentVersion);
-            return "当前版本已是最新: " + currentVersion;
-        }
-        
-        // 更新版本记录
-        updateVersionRecord(latestVersion);
-        
-        log.info("✅ 版本记录已从 {} 更新为 {}", currentVersion, latestVersion);
-        return String.format("版本记录已从 %s 更新为 %s", currentVersion, latestVersion);
+    }
+
+    /**
+     * 获取构建时间
+     */
+    private String getBuildTime() {
+        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 
     /**
@@ -439,67 +426,6 @@ public class UpdateService {
             // 进程还存在，强制杀死
             pb = new ProcessBuilder("kill", "-KILL", pid);
             pb.start().waitFor();
-        }
-    }
-
-    /**
-     * 下载文件
-     */
-    private void downloadFile(String url, Path destination) throws Exception {
-        log.info("📁 下载文件: {} -> {}", url, destination.getFileName());
-        
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("User-Agent", "DockPilot-UpdateService")
-                .header("Accept", "*/*")
-                .timeout(Duration.ofMinutes(10))
-                .build();
-
-        HttpResponse<InputStream> response = httpClient.send(request, 
-            HttpResponse.BodyHandlers.ofInputStream());
-
-        // 添加详细的响应信息日志
-        log.info("📊 响应状态码: {}", response.statusCode());
-        log.debug("📋 响应头信息: {}", response.headers().map());
-        
-        // 检查HTTP状态码 - HttpClient已配置自动处理重定向
-        // GitHub Release的302重定向会被自动跟随，最终返回200状态码
-        if (response.statusCode() != 200) {
-            String responseHeaders = response.headers().map().toString();
-            throw new IOException("下载失败: " + url + " - HTTP状态码: " + response.statusCode() + 
-                                " (HttpClient已配置自动跟随重定向，最终状态应为200)\n响应头: " + responseHeaders);
-        }
-
-        Files.createDirectories(destination.getParent());
-        try (InputStream in = response.body()) {
-            long bytesWritten = Files.copy(in, destination, StandardCopyOption.REPLACE_EXISTING);
-            log.info("✅ 文件下载完成: {} (大小: {} bytes)", destination.getFileName(), bytesWritten);
-            
-            // 验证下载的文件大小 - 前端包应该大于100KB，后端包应该大于10MB
-            if (destination.getFileName().toString().contains("frontend.tar.gz") && bytesWritten < 100_000) {
-                throw new IOException("前端包文件太小: " + bytesWritten + " bytes，可能下载不完整");
-            }
-            if (destination.getFileName().toString().contains("backend.jar") && bytesWritten < 10_000_000) {
-                throw new IOException("后端包文件太小: " + bytesWritten + " bytes，可能下载不完整");
-            }
-        }
-    }
-
-    /**
-     * 解压tar.gz文件
-     */
-    private void extractTarGz(Path tarGzFile, Path destination) throws Exception {
-        ProcessBuilder pb = new ProcessBuilder(
-            "tar", "-xzf", tarGzFile.toString(), "-C", destination.toString()
-        );
-        Process process = pb.start();
-        int exitCode = process.waitFor();
-        
-        if (exitCode != 0) {
-            // 读取错误信息
-            BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-            String error = errorReader.lines().reduce("", String::concat);
-            throw new RuntimeException("解压失败: " + tarGzFile + ", 错误: " + error);
         }
     }
 
@@ -666,13 +592,6 @@ public class UpdateService {
         } catch (Exception e) {
             log.warn("设置目录权限失败: {}", directory, e);
         }
-    }
-
-    /**
-     * 获取构建时间
-     */
-    private String getBuildTime() {
-        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 
     /**
@@ -1027,15 +946,6 @@ public class UpdateService {
                     .followRedirects(HttpClient.Redirect.NORMAL) // 支持HTTP重定向
                     .build();
             log.info("✅ HTTP客户端已初始化（支持重定向）");
-        }
-    }
-
-    /**
-     * 确保热更新前HTTP客户端已初始化
-     */
-    private void ensureHttpClientInitialized() {
-        if (httpClient == null) {
-            initHttpClient();
         }
     }
 

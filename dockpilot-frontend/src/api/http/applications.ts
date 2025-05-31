@@ -1,4 +1,7 @@
 import request from '@/utils/request'
+import { sendWebSocketMessage } from '@/api/websocket/websocketService'
+import { MessageType } from '@/api/websocket/types'
+import type { WebSocketCallbacks, DockerWebSocketMessage } from '@/api/websocket/types'
 
 // 应用接口类型定义
 export interface Application {
@@ -194,7 +197,6 @@ export interface ServiceInfo {
 export interface ApplicationDeployRequest {
   appName: string
   envVars: Record<string, string | { value: string; description: string }>
-  dataDir?: string
   configs?: Record<string, any>
 }
 
@@ -210,4 +212,41 @@ export interface AccessUrl {
   name: string
   url: string
   description: string
+}
+
+/**
+ * 部署应用 - WebSocket版本
+ */
+export interface AppInstallParams {
+  appId: number
+  appName: string
+  envVars: Record<string, string>
+}
+
+export interface AppInstallCallbacks {
+  onProgress?: (progress: number, taskId: string) => void
+  onLog?: (log: string, taskId: string) => void
+  onComplete?: (result: ApplicationDeployResult) => void
+  onError?: (error: string, taskId: string) => void
+}
+
+export function installApplicationWS(params: AppInstallParams, callbacks: AppInstallCallbacks) {
+  return sendWebSocketMessage({
+    type: MessageType.APP_INSTALL,
+    data: params,
+    callbacks: {
+      onProgress: (progress: number, taskId: string) => {
+        callbacks.onProgress?.(progress, taskId)
+      },
+      onLog: (log: string, taskId: string) => {
+        callbacks.onLog?.(log, taskId)
+      },
+      onComplete: (data: DockerWebSocketMessage, taskId: string) => {
+        console.log('应用安装完成，返回数据:', data)
+        callbacks.onComplete?.(data.data as ApplicationDeployResult)
+      },
+      onError: (error: string, taskId: string) => callbacks.onError?.(error, taskId)
+    },
+    timeout: 600000 // 10分钟超时
+  })
 } 

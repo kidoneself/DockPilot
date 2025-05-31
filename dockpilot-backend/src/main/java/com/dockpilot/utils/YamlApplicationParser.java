@@ -96,11 +96,29 @@ public class YamlApplicationParser {
                     service.setConfigUrl((String) serviceMeta.get("configUrl"));
                 }
                 
-                // 解析端口
+                // 解析基础配置
                 service.setPorts(parseServicePorts(serviceConfig));
-                
-                // 解析卷挂载
                 service.setVolumes(parseServiceVolumes(serviceConfig));
+                
+                // 解析扩展配置
+                service.setContainerName((String) serviceConfig.get("container_name"));
+                service.setEnvironment(parseStringList(serviceConfig.get("environment")));
+                service.setCommand(parseStringList(serviceConfig.get("command")));
+                service.setEntrypoint(parseStringList(serviceConfig.get("entrypoint")));
+                service.setNetworkMode((String) serviceConfig.get("network_mode"));
+                service.setNetworks(parseStringList(serviceConfig.get("networks")));
+                service.setRestart((String) serviceConfig.get("restart"));
+                service.setCapAdd(parseStringList(serviceConfig.get("cap_add")));
+                service.setDevices(parseStringList(serviceConfig.get("devices")));
+                service.setWorkingDir((String) serviceConfig.get("working_dir"));
+                service.setPrivileged((Boolean) serviceConfig.get("privileged"));
+                service.setLabels(parseStringMap(serviceConfig.get("labels")));
+                
+                // 保存原始配置，用于处理未预期的字段
+                Map<String, Object> rawConfig = new HashMap<>(serviceConfig);
+                // 移除已处理的x-meta，避免重复
+                rawConfig.remove("x-meta");
+                service.setRawConfig(rawConfig);
                 
                 services.add(service);
             }
@@ -296,5 +314,41 @@ public class YamlApplicationParser {
             return "数据存储基础路径";
         }
         return "路径配置";
+    }
+    
+    /**
+     * 解析字符串列表
+     */
+    @SuppressWarnings("unchecked")
+    private static List<String> parseStringList(Object obj) {
+        if (obj instanceof List) {
+            List<Object> objList = (List<Object>) obj;
+            List<String> stringList = new ArrayList<>();
+            for (Object item : objList) {
+                if (item != null) {
+                    stringList.add(item.toString());
+                }
+            }
+            return stringList;
+        }
+        return null;
+    }
+    
+    /**
+     * 解析字符串映射
+     */
+    @SuppressWarnings("unchecked") 
+    private static Map<String, String> parseStringMap(Object obj) {
+        if (obj instanceof Map) {
+            Map<String, Object> objMap = (Map<String, Object>) obj;
+            Map<String, String> stringMap = new HashMap<>();
+            for (Map.Entry<String, Object> entry : objMap.entrySet()) {
+                if (entry.getValue() != null) {
+                    stringMap.put(entry.getKey(), entry.getValue().toString());
+                }
+            }
+            return stringMap;
+        }
+        return null;
     }
 } 

@@ -15,11 +15,11 @@ import java.util.Map;
 import java.util.HashMap;
 
 /**
- * 系统热更新控制器
- * 提供容器内热更新功能，无需重启容器
+ * 系统更新控制器
+ * 提供下载完成后重启的安全更新功能
  */
 @Slf4j
-@Tag(name = "系统热更新", description = "容器内热更新功能，支持前后端代码热替换")
+@Tag(name = "系统更新", description = "下载完成后重启的安全更新功能")
 @RestController
 @RequestMapping("/update")
 @SecurityRequirement(name = "JWT")
@@ -70,80 +70,55 @@ public class UpdateController {
         }
     }
 
-    @Operation(summary = "执行热更新", description = "下载并应用最新版本（容器内热更新，不重启容器）")
-    @PostMapping("/apply")
-    public ApiResponse<String> applyHotUpdate(@RequestParam(required = false) String version) {
+    @Operation(summary = "开始下载新版本", description = "下载新版本文件，不立即重启")
+    @PostMapping("/download")
+    public ApiResponse<String> startDownload(@RequestParam(required = false) String version) {
         try {
-            log.info("🚀 开始执行热更新，目标版本: {}", version != null ? version : "latest");
-            String result = updateService.applyHotUpdate(version);
+            String targetVersion = version != null ? version : "latest";
+            log.info("🚀 开始下载更新，目标版本: {}", targetVersion);
+            String result = updateService.startDownload(targetVersion);
             return ApiResponse.success(result);
         } catch (Exception e) {
-            log.error("❌ 执行热更新失败", e);
-            return ApiResponse.error("执行热更新失败: " + e.getMessage());
+            log.error("❌ 开始下载失败", e);
+            return ApiResponse.error("开始下载失败: " + e.getMessage());
         }
     }
 
-    @Operation(summary = "获取更新进度", description = "获取当前更新操作的实时进度")
-    @GetMapping("/progress")
-    public ApiResponse<Map<String, Object>> getUpdateProgress() {
+    @Operation(summary = "获取下载状态", description = "获取当前下载任务的实时状态和进度")
+    @GetMapping("/download/status")
+    public ApiResponse<Map<String, Object>> getDownloadStatus() {
         try {
-            Map<String, Object> progress = updateService.getUpdateProgress();
-            return ApiResponse.success(progress);
+            Map<String, Object> status = updateService.getDownloadStatus();
+            return ApiResponse.success(status);
         } catch (Exception e) {
-            log.error("获取更新进度失败", e);
-            return ApiResponse.error("获取更新进度失败: " + e.getMessage());
+            log.error("获取下载状态失败", e);
+            return ApiResponse.error("获取下载状态失败: " + e.getMessage());
         }
     }
 
-    @Operation(summary = "取消更新", description = "取消正在进行的更新操作")
-    @PostMapping("/cancel")
-    public ApiResponse<String> cancelUpdate() {
+    @Operation(summary = "确认重启更新", description = "下载完成后确认重启应用")
+    @PostMapping("/restart")
+    public ApiResponse<String> confirmRestart() {
         try {
-            String result = updateService.cancelUpdate();
-            log.info("⏹️ 更新操作已取消");
+            log.info("🔄 用户确认重启更新");
+            String result = updateService.confirmRestart();
             return ApiResponse.success(result);
         } catch (Exception e) {
-            log.error("取消更新失败", e);
-            return ApiResponse.error("取消更新失败: " + e.getMessage());
+            log.error("❌ 确认重启失败", e);
+            return ApiResponse.error("确认重启失败: " + e.getMessage());
         }
     }
 
-    @Operation(summary = "清空版本检查缓存", description = "清空所有版本检查缓存，强制下次重新检查")
-    @PostMapping("/clear-cache")
-    public ApiResponse<Void> clearCache() {
+    @Operation(summary = "取消下载", description = "取消正在进行的下载任务")
+    @PostMapping("/download/cancel")
+    public ApiResponse<String> cancelDownload() {
         try {
-            updateService.clearCache();
-            log.info("🗑️ 版本检查缓存已清空");
-            return ApiResponse.success(null);
-        } catch (Exception e) {
-            log.error("清空缓存失败", e);
-            return ApiResponse.error("清空缓存失败: " + e.getMessage());
-        }
-    }
-
-    @Operation(summary = "更新当前版本记录", description = "手动更新当前版本记录为最新发布版本")
-    @PostMapping("/update-version-record")
-    public ApiResponse<String> updateCurrentVersionRecord() {
-        try {
-            String result = updateService.updateCurrentVersionToLatest();
-            log.info("✅ 当前版本记录已更新: {}", result);
+            String result = updateService.cancelDownload();
+            log.info("⏹️ 下载任务已取消");
             return ApiResponse.success(result);
         } catch (Exception e) {
-            log.error("更新版本记录失败", e);
-            return ApiResponse.error("更新版本记录失败: " + e.getMessage());
-        }
-    }
-
-    @Operation(summary = "容器重启更新", description = "下载新版本文件并重启容器（推荐方式，最安全可靠）")
-    @PostMapping("/apply-restart")
-    public ApiResponse<String> applyContainerRestartUpdate(@RequestParam(required = false) String version) {
-        try {
-            log.info("🔄 开始执行容器重启更新，目标版本: {}", version != null ? version : "latest");
-            String result = updateService.applyContainerRestartUpdate(version);
-            return ApiResponse.success(result);
-        } catch (Exception e) {
-            log.error("❌ 执行容器重启更新失败", e);
-            return ApiResponse.error("执行容器重启更新失败: " + e.getMessage());
+            log.error("取消下载失败", e);
+            return ApiResponse.error("取消下载失败: " + e.getMessage());
         }
     }
 } 

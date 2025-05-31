@@ -3,6 +3,7 @@ package com.dockpilot.websocket.router;
 import com.alibaba.fastjson.JSON;
 import com.dockpilot.model.MessageType;
 //import com.dockpilot.service.websocket.AppStoreService;
+import com.dockpilot.service.websocket.ApplicationWebSocketService;
 import com.dockpilot.service.websocket.ContainerWebSocketService;
 import com.dockpilot.service.websocket.ImageWebSocketService;
 import com.dockpilot.service.websocket.NetworkWebSocketService;
@@ -32,6 +33,9 @@ public class MessageRouter {
 //    private AppStoreService appStoreService;
 
     @Autowired
+    private ApplicationWebSocketService applicationService;
+
+    @Autowired
     private NetworkWebSocketService networkService;
 
     @Autowired
@@ -50,12 +54,13 @@ public class MessageRouter {
                 containerService.handle(session, message);
             } else if (type.startsWith("IMAGE_") || type.startsWith("PULL_")) {
                 imageService.handle(session, message);
+            } else if (type.startsWith("APP_")) {
+                applicationService.handle(session, message);
             } else if (type.startsWith("NETWORK_")) {
                 networkService.handle(session, message);
             } else if (type.startsWith("SYSTEM_")) {
                 systemService.handle(session, message);
-            }
-             else {
+            } else {
                 // 处理系统消息
                 handleSystemMessage(session, message);
             }

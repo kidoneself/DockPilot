@@ -253,210 +253,7 @@ public class ComposeGenerator {
      * @return YAML 格式的字符串
      */
     public String generateComposeContent(List<InspectContainerResponse> containers, Set<String> excludeFields) {
-        Map<String, Object> compose = new LinkedHashMap<>();
-        Map<String, Object> services = new LinkedHashMap<>();
-        // 🚫 移除networks配置 - 不需要定义外部桥接网络
-        // Map<String, Object> networks = new LinkedHashMap<>();
-        // Map<String, Object> defaultNetwork = new LinkedHashMap<>();
-        // defaultNetwork.put("external", true);
-        // defaultNetwork.put("name", "bridge");
-        // networks.put("default", defaultNetwork);
-
-        // 收集所有容器的端口映射和路径
-        Map<String, String> portMappings = new LinkedHashMap<>();
-        Set<String> allPaths = new HashSet<>();
-
-        // 第一遍处理：收集所有信息
-        for (InspectContainerResponse container : containers) {
-            String serviceName = getServiceName(container);
-            Map<String, Object> service = convertContainerToService(container, excludeFields);
-            service.put("container_name", serviceName);
-
-            // 收集端口映射并替换为环境变量引用
-            if (service.containsKey("ports")) {
-                @SuppressWarnings("unchecked")
-                List<String> ports = (List<String>) service.get("ports");
-                List<String> newPorts = new ArrayList<>();
-                for (String portMapping : ports) {
-                    String[] parts = portMapping.split(":");
-                    if (parts.length == 2) {
-                        String hostPort = parts[0];
-                        String containerPort = parts[1];
-                        // 从镜像名称中提取最后一个部分
-                        String imageName = container.getConfig().getImage();
-                        String shortName = imageName;
-                        if (imageName.contains("/")) {
-                            String[] imageParts = imageName.split("/");
-                            shortName = imageParts[imageParts.length - 1];
-                        }
-                        // 移除版本标签
-                        if (shortName.contains(":")) {
-                            shortName = shortName.split(":")[0];
-                        }
-                        // 标准化服务名（替换 - 为 _ 并转大写）
-                        String normalizedName = shortName.replace("-", "_").toUpperCase();
-                        String portKey = normalizedName + "_PORT_" + containerPort;
-                        portMappings.put(portKey, hostPort);
-                        // 替换为环境变量引用
-                        newPorts.add("${" + portKey + "}:" + containerPort);
-                    }
-                }
-                service.put("ports", newPorts);
-            }
-
-            // 收集路径
-            if (service.containsKey("volumes")) {
-                @SuppressWarnings("unchecked")
-                List<String> volumes = (List<String>) service.get("volumes");
-                for (String volume : volumes) {
-                    String[] parts = volume.split(":");
-                    if (parts.length >= 1) {
-                        allPaths.add(parts[0]);
-                    }
-                }
-            }
-
-            // 添加服务级元数据配置
-            Map<String, Object> serviceMeta = new LinkedHashMap<>();
-            serviceMeta.put("name", serviceName);
-            serviceMeta.put("description", "容器服务");
-            serviceMeta.put("configUrl", "");  // 直接的一级配置
-            service.put("x-meta", serviceMeta);
-
-            services.put(serviceName, service);
-        }
-
-        // 处理路径映射 - 使用智能分组算法
-        Map<String, List<String>> basePathGroups = analyzePathGroups(allPaths);
-        Map<String, String> baseEnv = new LinkedHashMap<>();
-        Map<String, String> pathToEnv = new LinkedHashMap<>();
-        int baseCount = 1;
-
-        // 根据分组结果生成BASE环境变量
-        for (Map.Entry<String, List<String>> entry : basePathGroups.entrySet()) {
-            String basePath = entry.getKey();
-            List<String> pathsInGroup = entry.getValue();
-            
-            String envName = "BASE_" + baseCount++;
-            baseEnv.put(envName, basePath);
-            
-            // 为组内每个路径生成环境变量引用
-            for (String path : pathsInGroup) {
-                String relative = path.substring(basePath.length());
-                if (relative.startsWith("/")) {
-                    relative = relative.substring(1);
-                }
-                // 如果相对路径为空，直接使用环境变量，不添加斜杠
-                pathToEnv.put(path, relative.isEmpty() ? "${" + envName + "}" : "${" + envName + "}/" + relative);
-            }
-        }
-
-        // 更新服务的卷映射
-        for (Map.Entry<String, Object> serviceEntry : services.entrySet()) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> service = (Map<String, Object>) serviceEntry.getValue();
-            if (service.containsKey("volumes")) {
-                @SuppressWarnings("unchecked")
-                List<String> volumes = (List<String>) service.get("volumes");
-                List<String> newVolumes = new ArrayList<>();
-                for (String volume : volumes) {
-                    String[] parts = volume.split(":");
-                    if (parts.length >= 1) {
-                        String hostPath = parts[0];
-                        String containerPath = parts.length > 1 ? parts[1] : "";
-                        String newHostPath = pathToEnv.getOrDefault(hostPath, hostPath);
-                        newVolumes.add(newHostPath + (containerPath.isEmpty() ? "" : ":" + containerPath));
-                    }
-                }
-                service.put("volumes", newVolumes);
-            }
-        }
-
-        // 添加项目级元数据配置
-        Map<String, Object> projectMeta = new LinkedHashMap<>();
-        projectMeta.put("name", "Docker容器项目");
-        projectMeta.put("description", "Docker容器管理项目");
-        projectMeta.put("version", "1.0.0");
-        projectMeta.put("author", "System");
-        projectMeta.put("category", "container");  // 添加到顶级配置
-
-        // 配置环境变量 - 改为支持描述的对象结构
-        Map<String, Object> envVars = new LinkedHashMap<>();
-        
-        // 添加端口环境变量
-        for (Map.Entry<String, String> entry : portMappings.entrySet()) {
-            Map<String, Object> envObj = new LinkedHashMap<>();
-            envObj.put("value", entry.getValue());
-            envObj.put("description", "");
-            envVars.put(entry.getKey(), envObj);
-        }
-        
-        // 添加路径环境变量
-        for (Map.Entry<String, String> entry : baseEnv.entrySet()) {
-            Map<String, Object> envObj = new LinkedHashMap<>();
-            envObj.put("value", entry.getValue());
-            envObj.put("description", "");
-            envVars.put(entry.getKey(), envObj);
-        }
-        
-        projectMeta.put("env", envVars);
-
-        compose.put("x-meta", projectMeta);
-        compose.put("services", services);
-
-        // 🚫 移除networks配置 - 使用Docker Compose默认网络
-        // 只有当有网络配置时才添加 networks 部分
-        // if (!networks.isEmpty()) {
-        //     compose.put("networks", networks);
-        // }
-
-        // 配置 YAML 输出选项
-        DumperOptions options = new DumperOptions();
-        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-        options.setPrettyFlow(true);
-        options.setIndent(2);
-        options.setIndicatorIndent(2);
-        options.setWidth(120);
-        options.setLineBreak(DumperOptions.LineBreak.UNIX);
-        options.setDefaultScalarStyle(DumperOptions.ScalarStyle.PLAIN);
-        options.setIndentWithIndicator(true);
-        options.setNonPrintableStyle(DumperOptions.NonPrintableStyle.BINARY);
-
-        // 生成 YAML 字符串
-        Yaml yaml = new Yaml(options);
-        String yamlContent = yaml.dump(compose);
-        // 在根节点之间添加双换行
-        yamlContent = yamlContent.replace("\nx-meta:", "\n\nx-meta:")
-                .replace("\nservices:", "\n\nservices:")
-                .replace("\nnetworks:", "\n\nnetworks:");
-
-        // 在每个服务配置块之间添加换行
-        StringBuilder formattedContent = new StringBuilder();
-        String[] lines = yamlContent.split("\n");
-        boolean inService = false;
-        boolean firstService = true;
-        int currentIndent = 0;
-
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
-            String trimmedLine = line.trim();
-
-            // 计算当前行的缩进级别
-            int indent = line.length() - line.replaceAll("^\\s+", "").length();
-
-            // 检查是否是新服务的开始（缩进为2且以冒号结尾）
-            if (indent == 2 && trimmedLine.endsWith(":") && !trimmedLine.startsWith("x-meta") && !trimmedLine.startsWith("services") && !trimmedLine.startsWith("networks")) {
-                if (inService && !firstService) {
-                    formattedContent.append("\n");  // 在服务之间添加空行
-                }
-                inService = true;
-                firstService = false;
-            }
-
-            formattedContent.append(line).append("\n");
-        }
-
-        return formattedContent.toString();
+        return generateComposeContent(containers, excludeFields, "Docker容器项目", "Docker容器管理项目");
     }
 
     /**
@@ -713,32 +510,243 @@ public class ComposeGenerator {
     }
 
     /**
-     * 根据容器ID列表生成YAML配置
+     * 根据容器ID列表生成Compose配置文件，使用自定义项目信息
+     *
      * @param containerIds 容器ID列表
-     * @return YAML配置字符串
+     * @param projectName 项目名称
+     * @param projectDescription 项目描述
+     * @return 生成的YAML内容
+     */
+    public String generateFromContainerIds(List<String> containerIds, String projectName, String projectDescription) {
+        try {
+            // 获取容器详细信息
+            List<InspectContainerResponse> containers = dockerService.listContainers().stream()
+                    .filter(container -> containerIds.contains(container.getId()))
+                    .map(container -> dockerService.inspectContainerCmd(container.getId()))
+                    .collect(Collectors.toList());
+
+            return generateComposeContent(containers, new HashSet<>(), projectName, projectDescription);
+        } catch (Exception e) {
+            throw new RuntimeException("生成YAML配置失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 根据容器ID列表生成Compose配置文件（使用默认项目信息）
+     *
+     * @param containerIds 容器ID列表  
+     * @return 生成的YAML内容
      */
     public String generateFromContainerIds(List<String> containerIds) {
-        try {
-            List<InspectContainerResponse> containers = new ArrayList<>();
-            
-            // 获取所有容器的详细信息
-            for (String containerId : containerIds) {
-                InspectContainerResponse containerInfo = dockerService.inspectContainerCmd(containerId);
-                if (containerInfo != null) {
-                    containers.add(containerInfo);
+        return generateFromContainerIds(containerIds, "Docker容器项目", "Docker容器管理项目");
+    }
+
+    /**
+     * 生成 Docker Compose YAML 内容，使用自定义项目信息
+     *
+     * @param containers    容器信息列表
+     * @param excludeFields 需要排除的字段集合
+     * @param projectName 项目名称
+     * @param projectDescription 项目描述
+     * @return YAML 格式的字符串
+     */
+    public String generateComposeContent(List<InspectContainerResponse> containers, Set<String> excludeFields, String projectName, String projectDescription) {
+        Map<String, Object> compose = new LinkedHashMap<>();
+        Map<String, Object> services = new LinkedHashMap<>();
+
+        // 收集所有容器的端口映射和路径
+        Map<String, String> portMappings = new LinkedHashMap<>();
+        Set<String> allPaths = new HashSet<>();
+
+        // 第一遍处理：收集所有信息
+        for (InspectContainerResponse container : containers) {
+            String serviceName = getServiceName(container);
+            Map<String, Object> service = convertContainerToService(container, excludeFields);
+            service.put("container_name", serviceName);
+
+            // 收集端口映射并替换为环境变量引用
+            if (service.containsKey("ports")) {
+                @SuppressWarnings("unchecked")
+                List<String> ports = (List<String>) service.get("ports");
+                List<String> newPorts = new ArrayList<>();
+                for (String portMapping : ports) {
+                    String[] parts = portMapping.split(":");
+                    if (parts.length == 2) {
+                        String hostPort = parts[0];
+                        String containerPort = parts[1];
+                        // 从镜像名称中提取最后一个部分
+                        String imageName = container.getConfig().getImage();
+                        String shortName = imageName;
+                        if (imageName.contains("/")) {
+                            String[] imageParts = imageName.split("/");
+                            shortName = imageParts[imageParts.length - 1];
+                        }
+                        // 移除版本标签
+                        if (shortName.contains(":")) {
+                            shortName = shortName.split(":")[0];
+                        }
+                        // 标准化服务名（替换 - 为 _ 并转大写）
+                        String normalizedName = shortName.replace("-", "_").toUpperCase();
+                        String portKey = normalizedName + "_PORT_" + containerPort;
+                        portMappings.put(portKey, hostPort);
+                        // 替换为环境变量引用
+                        newPorts.add("${" + portKey + "}:" + containerPort);
+                    }
+                }
+                service.put("ports", newPorts);
+            }
+
+            // 收集路径
+            if (service.containsKey("volumes")) {
+                @SuppressWarnings("unchecked")
+                List<String> volumes = (List<String>) service.get("volumes");
+                for (String volume : volumes) {
+                    String[] parts = volume.split(":");
+                    if (parts.length >= 1) {
+                        allPaths.add(parts[0]);
+                    }
                 }
             }
-            
-            if (containers.isEmpty()) {
-                throw new RuntimeException("没有找到有效的容器信息");
-            }
-            
-            // 使用现有的generateComposeContent方法生成YAML
-            return generateComposeContent(containers, new HashSet<>());
-            
-        } catch (Exception e) {
-            throw new RuntimeException("根据容器ID生成YAML配置失败: " + e.getMessage(), e);
+
+            // 添加服务级元数据配置
+            Map<String, Object> serviceMeta = new LinkedHashMap<>();
+            serviceMeta.put("name", serviceName);
+            serviceMeta.put("description", "容器服务");
+            serviceMeta.put("configUrl", "");  // 直接的一级配置
+            service.put("x-meta", serviceMeta);
+
+            services.put(serviceName, service);
         }
+
+        // 处理路径映射 - 使用智能分组算法
+        Map<String, List<String>> basePathGroups = analyzePathGroups(allPaths);
+        Map<String, String> baseEnv = new LinkedHashMap<>();
+        Map<String, String> pathToEnv = new LinkedHashMap<>();
+        int baseCount = 1;
+
+        // 根据分组结果生成BASE环境变量
+        for (Map.Entry<String, List<String>> entry : basePathGroups.entrySet()) {
+            String basePath = entry.getKey();
+            List<String> pathsInGroup = entry.getValue();
+            
+            String envName = "BASE_" + baseCount++;
+            baseEnv.put(envName, basePath);
+            
+            // 为组内每个路径生成环境变量引用
+            for (String path : pathsInGroup) {
+                String relative = path.substring(basePath.length());
+                if (relative.startsWith("/")) {
+                    relative = relative.substring(1);
+                }
+                // 如果相对路径为空，直接使用环境变量，不添加斜杠
+                pathToEnv.put(path, relative.isEmpty() ? "${" + envName + "}" : "${" + envName + "}/" + relative);
+            }
+        }
+
+        // 更新服务的卷映射
+        for (Map.Entry<String, Object> serviceEntry : services.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> service = (Map<String, Object>) serviceEntry.getValue();
+            if (service.containsKey("volumes")) {
+                @SuppressWarnings("unchecked")
+                List<String> volumes = (List<String>) service.get("volumes");
+                List<String> newVolumes = new ArrayList<>();
+                for (String volume : volumes) {
+                    String[] parts = volume.split(":");
+                    if (parts.length >= 1) {
+                        String hostPath = parts[0];
+                        String containerPath = parts.length > 1 ? parts[1] : "";
+                        String newHostPath = pathToEnv.getOrDefault(hostPath, hostPath);
+                        newVolumes.add(newHostPath + (containerPath.isEmpty() ? "" : ":" + containerPath));
+                    }
+                }
+                service.put("volumes", newVolumes);
+            }
+        }
+
+        // 添加项目级元数据配置 - 使用用户提供的项目信息
+        Map<String, Object> projectMeta = new LinkedHashMap<>();
+        // 使用用户提供的项目名称，如果为空则使用默认值
+        String finalProjectName = (projectName != null && !projectName.trim().isEmpty()) ? projectName.trim() : "Docker容器项目";
+        String finalProjectDescription = (projectDescription != null && !projectDescription.trim().isEmpty()) ? projectDescription.trim() : "Docker容器管理项目";
+        
+        projectMeta.put("name", finalProjectName);
+        projectMeta.put("description", finalProjectDescription);
+        projectMeta.put("version", "1.0.0");
+        projectMeta.put("author", "System");
+        projectMeta.put("category", "container");
+
+        // 配置环境变量 - 改为支持描述的对象结构
+        Map<String, Object> envVars = new LinkedHashMap<>();
+        
+        // 添加端口环境变量
+        for (Map.Entry<String, String> entry : portMappings.entrySet()) {
+            Map<String, Object> envObj = new LinkedHashMap<>();
+            envObj.put("value", entry.getValue());
+            envObj.put("description", "");
+            envVars.put(entry.getKey(), envObj);
+        }
+        
+        // 添加路径环境变量
+        for (Map.Entry<String, String> entry : baseEnv.entrySet()) {
+            Map<String, Object> envObj = new LinkedHashMap<>();
+            envObj.put("value", entry.getValue());
+            envObj.put("description", "");
+            envVars.put(entry.getKey(), envObj);
+        }
+        
+        projectMeta.put("env", envVars);
+
+        compose.put("x-meta", projectMeta);
+        compose.put("services", services);
+
+        // 配置 YAML 输出选项
+        DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setPrettyFlow(true);
+        options.setIndent(2);
+        options.setIndicatorIndent(2);
+        options.setWidth(120);
+        options.setLineBreak(DumperOptions.LineBreak.UNIX);
+        options.setDefaultScalarStyle(DumperOptions.ScalarStyle.PLAIN);
+        options.setIndentWithIndicator(true);
+        options.setNonPrintableStyle(DumperOptions.NonPrintableStyle.BINARY);
+
+        // 生成 YAML 字符串
+        Yaml yaml = new Yaml(options);
+        String yamlContent = yaml.dump(compose);
+        // 在根节点之间添加双换行
+        yamlContent = yamlContent.replace("\nx-meta:", "\n\nx-meta:")
+                .replace("\nservices:", "\n\nservices:")
+                .replace("\nnetworks:", "\n\nnetworks:");
+
+        // 在每个服务配置块之间添加换行
+        StringBuilder formattedContent = new StringBuilder();
+        String[] lines = yamlContent.split("\n");
+        boolean inService = false;
+        boolean firstService = true;
+        int currentIndent = 0;
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            String trimmedLine = line.trim();
+
+            // 计算当前行的缩进级别
+            int indent = line.length() - line.replaceAll("^\\s+", "").length();
+
+            // 检查是否是新服务的开始（缩进为2且以冒号结尾）
+            if (indent == 2 && trimmedLine.endsWith(":") && !trimmedLine.startsWith("x-meta") && !trimmedLine.startsWith("services") && !trimmedLine.startsWith("networks")) {
+                if (inService && !firstService) {
+                    formattedContent.append("\n");  // 在服务之间添加空行
+                }
+                inService = true;
+                firstService = false;
+            }
+
+            formattedContent.append(line).append("\n");
+        }
+
+        return formattedContent.toString();
     }
 
     /**
