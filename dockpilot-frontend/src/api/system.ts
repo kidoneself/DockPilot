@@ -18,4 +18,62 @@ export function getSystemStatus(callbacks: WebSocketCallbacks) {
     callbacks,
     timeout: TIMEOUT.SYSTEM_STATUS
   })
+}
+
+/**
+ * 获取Docker Events监听状态
+ */
+export async function getDockerEventsStatus() {
+  try {
+    const response = await fetch('/api/docker/events/status')
+    return await response.json()
+  } catch (error) {
+    console.error('获取Docker Events状态失败:', error)
+    throw error
+  }
+}
+
+/**
+ * 启动Docker Events监听
+ */
+export async function startDockerEvents() {
+  try {
+    const response = await fetch('/api/docker/events/start', {
+      method: 'POST'
+    })
+    return await response.json()
+  } catch (error) {
+    console.error('启动Docker Events失败:', error)
+    throw error
+  }
+}
+
+/**
+ * 停止Docker Events监听
+ */
+export async function stopDockerEvents() {
+  try {
+    const response = await fetch('/api/docker/events/stop', {
+      method: 'POST'
+    })
+    return await response.json()
+  } catch (error) {
+    console.error('停止Docker Events失败:', error)
+    throw error
+  }
+}
+
+/**
+ * 重启Docker Events监听
+ */
+export async function restartDockerEvents() {
+  try {
+    const response = await fetch('/api/docker/events/restart', {
+      method: 'POST'
+    })
+    return await response.json()
+  } catch (error) {
+    console.error('重启Docker Events失败:', error)
+    throw error
+  }
 } 

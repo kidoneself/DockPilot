@@ -1083,10 +1083,17 @@ onUnmounted(() => {
   align-items: center;
   gap: 16px;
   padding: 20px 24px;
-  background: white;
+  background: var(--card-color);
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 深色模式下的增强效果 */
+[data-theme="dark"] .app-basic-info {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .app-icon {
@@ -1106,12 +1113,12 @@ onUnmounted(() => {
   margin: 0 0 4px 0;
   font-size: 20px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-color-1);
 }
 
 .app-desc {
   margin: 0 0 8px 0;
-  color: #6b7280;
+  color: var(--text-color-2);
   font-size: 14px;
   line-height: 1.4;
 }
@@ -1123,7 +1130,7 @@ onUnmounted(() => {
 }
 
 .meta-text {
-  color: #9ca3af;
+  color: var(--text-color-3);
   font-size: 12px;
 }
 
@@ -1138,15 +1145,22 @@ onUnmounted(() => {
 .install-content {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 28px;
 }
 
 .section {
-  background: white;
+  background: var(--card-color);
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+}
+
+/* 深色模式下的增强效果 */
+[data-theme="dark"] .section {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .section-header {
@@ -1154,8 +1168,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #fafbfc;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-color-hover);
 }
 
 .section-header.expandable {
@@ -1164,14 +1178,14 @@ onUnmounted(() => {
 }
 
 .section-header.expandable:hover {
-  background: #f1f5f9;
+  background: var(--bg-color-2);
 }
 
 .section-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-color-1);
 }
 
 .section-header .n-icon {
@@ -1198,16 +1212,34 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  background: #f8fafc;
+  background: var(--card-color-hover);
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   transition: all 0.2s ease;
   margin-bottom: 16px;
+  /* 增加阴影效果 */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
 .service-item:hover {
   border-color: #3b82f6;
-  background: #f1f5f9;
+  background: var(--bg-color-2);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+}
+
+/* 深色模式下的服务项增强效果 */
+[data-theme="dark"] .service-item {
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="dark"] .service-item:hover {
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.15), 0 1px 6px rgba(0, 0, 0, 0.3);
+  border-color: #3b82f6;
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
 }
 
 .service-main {
@@ -1227,7 +1259,7 @@ onUnmounted(() => {
 
 .service-name {
   font-weight: 500;
-  color: #1f2937;
+  color: var(--text-color-1);
   font-size: 14px;
   margin-bottom: 2px;
 }
@@ -1244,7 +1276,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: #f0f9ff;
+  background: var(--card-color-hover);
   border-radius: 6px;
   border-left: 3px solid #0ea5e9;
 }
@@ -1267,14 +1299,14 @@ onUnmounted(() => {
 
 .image-name {
   font-weight: 500;
-  color: #1f2937;
+  color: var(--text-color-1);
   font-size: 12px;
   margin-bottom: 2px;
   font-family: 'Monaco', 'Consolas', monospace;
 }
 
 .image-size {
-  color: #6b7280;
+  color: var(--text-color-3);
   font-size: 11px;
 }
 
@@ -1290,7 +1322,7 @@ onUnmounted(() => {
 .image-progress {
   margin-top: 12px;
   padding: 12px;
-  background: #f8fafc;
+  background: var(--card-color-hover);
   border-radius: 6px;
   border-left: 3px solid #3b82f6;
 }
@@ -1304,7 +1336,7 @@ onUnmounted(() => {
 
 .progress-text {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-color-2);
   font-weight: 500;
 }
 
@@ -1320,13 +1352,13 @@ onUnmounted(() => {
 
 .logs-header {
   font-size: 11px;
-  color: #6b7280;
+  color: var(--text-color-2);
   font-weight: 500;
   margin-bottom: 6px;
 }
 
 .logs-content {
-  background: #1f2937;
+  background: var(--bg-color-3);
   border-radius: 4px;
   padding: 8px;
   max-height: 120px;
@@ -1336,7 +1368,7 @@ onUnmounted(() => {
 .log-item {
   font-family: 'Monaco', 'Consolas', monospace;
   font-size: 10px;
-  color: #e5e7eb;
+  color: var(--text-color-1);
   line-height: 1.4;
   margin-bottom: 2px;
   word-break: break-word;
@@ -1396,7 +1428,7 @@ onUnmounted(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-color-1);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1404,36 +1436,53 @@ onUnmounted(() => {
 
 .config-count {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-color-2);
   font-weight: 400;
 }
 
 .config-item {
   padding: 20px;
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: white;
+  border: 1px solid var(--border-color);
+  background: var(--card-color);
   transition: all 0.2s ease;
+  /* 增加阴影效果 */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
 .config-item:hover {
   border-color: #3b82f6;
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+  transform: translateY(-1px);
+}
+
+/* 深色模式下的配置项增强效果 */
+[data-theme="dark"] .config-item {
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="dark"] .config-item:hover {
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.15), 0 1px 6px rgba(0, 0, 0, 0.3);
+  border-color: #3b82f6;
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
 }
 
 .port-item {
   border-left: 3px solid #3b82f6;
-  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+  background: var(--card-color-hover);
 }
 
 .other-item {
   border-left: 3px solid #6b7280;
-  background: linear-gradient(135deg, #f9fafb 0%, #f8fafc 100%);
+  background: var(--card-color-hover);
 }
 
 .path-item {
   border-left: 3px solid #f59e0b;
-  background: linear-gradient(135deg, #fffbeb 0%, #f8fafc 100%);
+  background: var(--card-color-hover);
 }
 
 .config-header {
@@ -1445,7 +1494,7 @@ onUnmounted(() => {
 
 .config-label {
   font-weight: 500;
-  color: #1f2937;
+  color: var(--text-color-1);
   font-size: 14px;
 }
 
@@ -1508,7 +1557,7 @@ onUnmounted(() => {
 
 .progress-text {
   text-align: center;
-  color: #6b7280;
+  color: var(--text-color-2);
   margin-top: 8px;
   font-size: 14px;
 }
@@ -1517,18 +1566,18 @@ onUnmounted(() => {
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-color-1);
 }
 
 .log-container {
   max-height: 200px;
   overflow-y: auto;
-  background: #1f2937;
+  background: var(--bg-color-3);
   border-radius: 6px;
   padding: 12px;
   font-family: 'Monaco', 'Consolas', monospace;
   font-size: 11px;
-  color: #e5e7eb;
+  color: var(--text-color-1);
 }
 
 .log-item {
@@ -1541,7 +1590,7 @@ onUnmounted(() => {
 
 .log-time {
   min-width: 60px;
-  color: #9ca3af;
+  color: var(--text-color-3);
   flex-shrink: 0;
   font-size: 10px;
 }
@@ -1568,7 +1617,7 @@ onUnmounted(() => {
 .log-message {
   flex: 1;
   min-width: 0;
-  color: #e5e7eb;
+  color: var(--text-color-1);
   font-size: 11px;
 }
 
@@ -1592,16 +1641,16 @@ onUnmounted(() => {
 .access-info {
   margin-top: 16px;
   padding: 16px;
-  background: white;
+  background: var(--card-color);
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
 }
 
 .access-info h4 {
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-color-1);
 }
 
 .access-list {
@@ -1615,7 +1664,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: #f9fafb;
+  background: var(--card-color-hover);
   border-radius: 6px;
 }
 
@@ -1623,6 +1672,7 @@ onUnmounted(() => {
   min-width: 80px;
   font-weight: 500;
   font-size: 13px;
+  color: var(--text-color-1);
 }
 
 /* 响应式设计 */

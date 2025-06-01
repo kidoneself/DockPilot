@@ -35,6 +35,16 @@ class TaskManager {
   handleMessage(message: DockerWebSocketMessage) {
     console.log('🔍 TaskManager 收到消息:', message.type, 'taskId:', message.taskId, 'progress:', message.progress)
     
+    // 🔥 特殊处理：Docker事件通知（无需注册任务，直接广播）
+    if (message.type === 'DOCKER_EVENT_NOTIFICATION') {
+      console.log('🔔 处理Docker事件通知:', message.data)
+      // 触发自定义事件，让通知处理器接收
+      window.dispatchEvent(new CustomEvent('docker-websocket-message', {
+        detail: message
+      }))
+      return
+    }
+    
     let handler = this.taskHandlers.get(message.taskId)
     
     if (!handler) {

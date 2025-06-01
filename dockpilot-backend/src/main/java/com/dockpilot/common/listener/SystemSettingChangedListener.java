@@ -79,5 +79,24 @@ public class SystemSettingChangedListener {
                 }
             }
         }
+
+        if ("docker_base_dir".equals(key)) {
+            try {
+                if (newValue != null && !newValue.isBlank()) {
+                    // 设置Docker运行目录
+                    appConfig.setDockerBaseDir(newValue.trim());
+                    LogUtil.logSysInfo("✅已设置Docker运行目录: " + newValue.trim());
+                } else {
+                    // 配置值为空，提示用户设置
+                    appConfig.setDockerBaseDir(null);
+                    LogUtil.logSysInfo("⚠️ Docker运行目录配置为空，请在系统设置中配置Docker运行目录");
+                }
+            } catch (Exception e) {
+                LogUtil.logSysError("处理Docker运行目录配置变更失败: " + e.getMessage());
+                // 异常时设置为null
+                appConfig.setDockerBaseDir(null);
+                LogUtil.logSysInfo("⚠️ Docker运行目录配置异常，已清空，请重新配置");
+            }
+        }
     }
 } 

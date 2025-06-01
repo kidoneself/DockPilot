@@ -1,0 +1,195 @@
+services:
+  cloud-media-sync:
+    container_name: cloud-media-sync
+    image: imaliang/cloud-media-sync:latest
+    environment:
+      - EMBY_HOST_PORT=http://172.17.0.1:38096
+      - PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - PYTHONPATH=/cms/cms-api
+      - PYTHON_SHA256=24887b92e2afd4a2ac602419ad4b596372f67ac9b077190f459aba390faf5550
+      - EMBY_API_KEY=d5d013c65e86428ea537006b3926737a
+      - PUID=0
+      - TZ=Asia/Shanghai
+      - TERM=xterm
+      - GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305
+      - LANG=C.UTF-8
+      - DONATE_CODE=CMS_HQFO2BSD_EE104D0293B84F668F7CC0B518F3AAD2
+      - UMASK=022
+      - ADMIN_PASSWORD=admin
+      - EMBY_PROXY_PORT=9096
+      - IMAGE_CACHE_POLICY=3
+      - PGID=0
+      - CMS_API_TOKEN=cloud_media_sync
+      - PYTHON_VERSION=3.12.7
+      - RUN_ENV=online
+      - ADMIN_USERNAME=admin
+      - HOME=/cms
+    ports:
+      - ${CLOUD_MEDIA_SYNC_PORT_9096}:9096
+      - ${CLOUD_MEDIA_SYNC_PORT_9527}:9527
+    volumes:
+      - ${DOCKER_BASE}/cloud-media-sync/config:/config
+      - ${DOCKER_BASE}/cloud-media-sync/logs:/logs
+      - ${MEDIA_BASE}/media:/media
+      - ${BASE_1}/docker/115/naspt-115-cms/cache:/var/cache/nginx/emby
+    restart: always
+    x-meta:
+      name: cloud-media-sync
+      description: 容器服务
+      configUrl: ''
+
+  buildx_buildkit_mybuilder0:
+    container_name: buildx_buildkit_mybuilder0
+    image: moby/buildkit:buildx-stable-1
+    command:
+      - --allow-insecure-entitlement=network.host
+    environment:
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - BUILDKIT_SETUP_CGROUPV2_ROOT=1
+    volumes:
+      - ${DOCKER_BASE}/buildx_buildkit_mybuilder0/var/lib/buildkit:/var/lib/buildkit
+    restart: unless-stopped
+    x-meta:
+      name: buildx_buildkit_mybuilder0
+      description: 容器服务
+      configUrl: ''
+
+  naspt-allinone-v2:
+    container_name: naspt-allinone-v2
+    image: ccr.ccs.tencentyun.com/naspt/allinone:latest
+    command:
+      - -tv=true
+      - -aesKey=swj6pnb4h6xyvhpq69fgae2bbpjlb8y2
+      - -userid=5892131247
+      - -token=9209187973c38fb7ee461017e1147ebe43ef7d73779840ba57447aaa439bac301b02ad7189d2f1b58d3de8064ba9d52f46ec2de6a834d1373071246ac0eed55bb3ff4ccd79d137
+    environment:
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    network_mode: host
+    restart: always
+    x-meta:
+      name: naspt-allinone-v2
+      description: 容器服务
+      configUrl: ''
+
+  moviepilot-v2-23:
+    container_name: moviepilot-v2-23
+    image: ccr.ccs.tencentyun.com/naspt/moviepilot-v2:latest
+    environment:
+      - PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - LANG=C.UTF-8
+      - GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305
+      - PYTHON_VERSION=3.12.8
+      - PYTHON_SHA256=c909157bb25ec114e5869124cc2a9c4a4d4c1e957ca4ff553f1edc692101154e
+      - TZ=Asia/Shanghai
+      - HOME=/moviepilot
+      - CONFIG_DIR=/config
+      - TERM=xterm
+      - DISPLAY=:987
+      - PUID=0
+      - PGID=0
+      - UMASK=000
+      - PORT=3001
+      - NGINX_PORT=3000
+      - MOVIEPILOT_AUTO_UPDATE=release
+    ports:
+      - ${MOVIEPILOT_V2_PORT_3000}:3000
+    volumes:
+      - ${DOCKER_BASE}/moviepilot-v2-23/config:/config
+    restart: always
+    x-meta:
+      name: moviepilot-v2-23
+      description: 容器服务
+      configUrl: ''
+
+  naspt-cloudsaver:
+    container_name: naspt-cloudsaver
+    image: jiangrui1994/cloudsaver:latest
+    environment:
+      - PUID=0
+      - PGID=0
+      - UMASK=022
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - NODE_VERSION=18.20.8
+      - YARN_VERSION=1.22.22
+    ports:
+      - ${CLOUDSAVER_PORT_8008}:8008
+    volumes:
+      - ${DOCKER_BASE}/naspt-cloudsaver/app/config:/app/config
+      - ${DOCKER_BASE}/naspt-cloudsaver/app/data:/app/data
+      - ${DOCKER_BASE}/naspt-cloudsaver/config:/config
+      - ${DOCKER_BASE}/naspt-cloudsaver/data:/data
+    restart: always
+    x-meta:
+      name: naspt-cloudsaver
+      description: 容器服务
+      configUrl: ''
+
+  v2ray:
+    container_name: v2ray
+    image: mzz2017/v2raya:latest
+    environment:
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    ports:
+      - ${V2RAYA_PORT_2017}:2017
+    volumes:
+      - ${BASE_1}/docker:/etc/v2raya
+    restart: always
+    x-meta:
+      name: v2ray
+      description: 容器服务
+      configUrl: ''
+
+  naspt-allinone-format:
+    container_name: naspt-allinone-format
+    image: ccr.ccs.tencentyun.com/naspt/allinone_format:latest
+    command:
+      - php
+      - -S
+      - '[::]:35456'
+      - -t
+      - public
+      - index.php
+    environment:
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - TZ=Asia/Shanghai
+    volumes:
+      - ${DOCKER_BASE}/naspt-allinone-format/app/config:/app/config
+    network_mode: host
+    restart: always
+    x-meta:
+      name: naspt-allinone-format
+      description: 容器服务
+      configUrl: ''
+
+x-meta:
+  name: 容器项目-1748802324095
+  description: Docker容器管理项目
+  version: 1.0.0
+  author: System
+  category: container
+
+  env:
+    DOCKER_BASE:
+      value: /volume1/docker
+      description: Docker容器基础目录
+    MEDIA_BASE:
+      value: /Users/lizhiqiang/testDocker/new
+      description: 媒体文件存储目录
+    BASE_1:
+      value: /Users/lizhiqiang/testDocker/new
+      description: 通用存储目录
+    CLOUD_MEDIA_SYNC_PORT_9527:
+      value: '9527'
+      description: 服务端口映射
+    V2RAYA_PORT_2017:
+      value: '2017'
+      description: 服务端口映射
+    MOVIEPILOT_V2_PORT_3000:
+      value: '4444'
+      description: 服务端口映射
+    CLOUD_MEDIA_SYNC_PORT_9096:
+      value: '9096'
+      description: 服务端口映射
+    CLOUDSAVER_PORT_8008:
+      value: '9009'
+      description: 服务端口映射

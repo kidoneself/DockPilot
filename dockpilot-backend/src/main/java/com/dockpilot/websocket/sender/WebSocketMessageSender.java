@@ -235,4 +235,59 @@ public class WebSocketMessageSender {
             log.error("发送完成消息失败: taskId={}", taskId, e);
         }
     }
+
+    /**
+     * 广播消息到所有活跃的WebSocket会话
+     *
+     * @param type 消息类型
+     * @param data 消息数据
+     */
+    public void broadcastToAll(MessageType type, Object data) {
+        try {
+            DockerWebSocketMessage message = new DockerWebSocketMessage(type.name(), null, data);
+            TextMessage textMessage = new TextMessage(message.toJson());
+            
+            // 获取所有活跃会话
+            int broadcastCount = 0;
+            for (WebSocketSession session : sessionManager.getAllActiveSessions()) {
+                if (session != null && session.isOpen()) {
+                    try {
+                        session.sendMessage(textMessage);
+                        broadcastCount++;
+                    } catch (Exception e) {
+                        log.warn("广播消息失败到会话: {}", session.getId(), e);
+                    }
+                }
+            }
+            
+            log.debug("广播消息完成: type={}, 成功发送到 {} 个会话", type, broadcastCount);
+            
+        } catch (Exception e) {
+            log.error("广播消息失败: type={}", type, e);
+        }
+    }
+
+    /**
+     * 发送Docker事件通知（广播到所有客户端）
+     *
+     * @param eventType 事件类型
+     * @param containerId 容器ID
+     * @param containerName 容器名称
+     * @param message 通知消息
+     */
+    public void sendDockerEventNotification(String eventType, String containerId, String containerName, String message) {
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("eventType", eventType);
+            data.put("containerId", containerId);
+            data.put("containerName", containerName);
+            data.put("message", message);
+            data.put("timestamp", System.currentTimeMillis());
+            
+            broadcastToAll(MessageType.DOCKER_EVENT_NOTIFICATION, data);
+            
+        } catch (Exception e) {
+            log.error("发送Docker事件通知失败: eventType={}, containerName={}", eventType, containerName, e);
+        }
+    }
 } 

@@ -176,7 +176,7 @@
             <div class="env-config-info">
               <code class="env-name">{{ env.name }}</code>
               <span class="env-value">{{ env.value }}</span>
-  </div>
+            </div>
             <NInput
               v-model:value="env.description"
               placeholder="可选：添加说明，例如'Emby访问端口'、'数据存储目录'等"
@@ -781,24 +781,63 @@ function startStatsTimer() {
   
   // 如果没有任何运行中的容器，直接返回
   if (runningContainers.length === 0) {
+    console.log('📊 没有运行中的容器，跳过性能数据获取')
     return
   }
+
+  console.log(`📊 启动性能监控，运行中容器数量: ${runningContainers.length}`)
 
   // 当前要请求的容器索引
   let currentIndex = 0
 
-  // 设置定时器，每次只请求一个容器的性能数据
+  // 设置定时器，智能请求容器性能数据
   statsTimer = window.setInterval(() => {
-    // 获取当前要请求的容器
-    const container = runningContainers[currentIndex]
+    // 🔥 动态获取当前运行中的容器（每次都重新筛选）
+    const currentRunningContainers = containers.value.filter(container => container.status === 'running')
     
-    // 请求该容器的性能数据
-    loadContainerStats(container.id)
+    // 如果没有运行中的容器，暂停请求
+    if (currentRunningContainers.length === 0) {
+      console.log('📊 当前无运行中容器，暂停性能数据获取')
+      return
+    }
+
+    // 重置索引如果超出范围
+    if (currentIndex >= currentRunningContainers.length) {
+      currentIndex = 0
+    }
+
+    // 获取要请求的容器
+    const targetContainer = currentRunningContainers[currentIndex]
+    
+    // 二次验证：确保容器仍然存在且状态正确
+    const containerStillValid = containers.value.find(c => 
+      c.id === targetContainer.id && c.status === 'running'
+    )
+    
+    if (containerStillValid) {
+      console.log(`📊 获取容器性能数据: ${targetContainer.name} (${targetContainer.id.slice(0, 12)})`)
+      loadContainerStats(targetContainer.id)
+    } else {
+      console.log(`📊 跳过无效容器: ${targetContainer.id.slice(0, 12)}`)
+    }
     
     // 更新索引，循环请求
-    currentIndex = (currentIndex + 1) % runningContainers.length
-  }, STATS_UPDATE_INTERVAL) // 修改定时器间隔，可以根据需要调整
+    currentIndex = (currentIndex + 1) % currentRunningContainers.length
+  }, STATS_UPDATE_INTERVAL)
 }
+
+// 监听容器列表变化，智能重启性能监控
+watch(containers, (newContainers, oldContainers) => {
+  // 检查运行中容器数量是否变化
+  const newRunningCount = newContainers.filter(c => c.status === 'running').length
+  const oldRunningCount = oldContainers ? oldContainers.filter(c => c.status === 'running').length : 0
+  
+  if (newRunningCount !== oldRunningCount) {
+    console.log(`📊 运行中容器数量变化: ${oldRunningCount} -> ${newRunningCount}`)
+    // 重启性能监控
+    startStatsTimer()
+  }
+}, { deep: true })
 
 // 前端过滤：支持名称和项目字段
 const filteredContainers = computed(() => {

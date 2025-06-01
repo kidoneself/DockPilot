@@ -566,20 +566,20 @@ onUnmounted(() => {
 
 .about-button {
   font-size: 12px;
-  color: #666;
+  color: var(--n-text-color-2);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 6px;
   padding: 4px 8px;
 }
 
 .about-button:hover {
-  color: #409eff;
+  color: var(--n-color-primary);
   background: rgba(64, 158, 255, 0.1);
   transform: translateY(-1px);
 }
 
 .about-button.has-update {
-  color: #f0a020;
+  color: var(--n-color-warning);
   font-weight: 500;
   background: rgba(240, 160, 32, 0.1);
 }
@@ -632,6 +632,7 @@ onUnmounted(() => {
 .tooltip-version {
   font-weight: 600;
   margin-bottom: 4px;
+  color: var(--n-text-color);
 }
 
 .tooltip-status {
@@ -643,17 +644,17 @@ onUnmounted(() => {
 
 .tooltip-status.update {
   background: rgba(240, 160, 32, 0.2);
-  color: #f0a020;
+  color: var(--n-color-warning);
 }
 
 .tooltip-status.downloading {
   background: rgba(64, 158, 255, 0.2);
-  color: #409eff;
+  color: var(--n-color-primary);
 }
 
 .tooltip-status.latest {
   background: rgba(24, 160, 88, 0.2);
-  color: #18a058;
+  color: var(--n-color-success);
 }
 
 /* 模态框样式 */
@@ -661,6 +662,7 @@ onUnmounted(() => {
   border-radius: 16px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  background: var(--n-color);
 }
 
 :deep(.about-modal .n-card-header) {
@@ -696,8 +698,8 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   background: linear-gradient(135deg, 
-    #667eea 0%, 
-    #764ba2 100%);
+    #2c2c2c 0%, 
+    #1a1a1a 100%);
 }
 
 .pattern-overlay {
@@ -707,10 +709,10 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   background-image: 
-    radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.1) 2px, transparent 2px),
-    radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.1) 2px, transparent 2px);
+    radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.05) 2px, transparent 2px),
+    radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.05) 2px, transparent 2px);
   background-size: 60px 60px;
-  opacity: 0.6;
+  opacity: 0.4;
 }
 
 .header-content {
@@ -742,7 +744,7 @@ onUnmounted(() => {
   left: -4px;
   right: -4px;
   bottom: -4px;
-  background: linear-gradient(45deg, #667eea, #764ba2);
+  background: linear-gradient(45deg, #404040, #2a2a2a);
   border-radius: 20px;
   opacity: 0.3;
   filter: blur(8px);
@@ -835,16 +837,16 @@ onUnmounted(() => {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 16px;
   padding: 24px;
-  background: #f8f9fa;
+  background: var(--n-color-hover);
 }
 
 .feature-card {
-  background: white;
+  background: var(--n-color);
   padding: 20px;
   border-radius: 12px;
   text-align: center;
   transition: all 0.3s ease;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--n-border-color);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
@@ -866,12 +868,12 @@ onUnmounted(() => {
   font-size: 14px;
   font-weight: 600;
   margin: 0 0 8px 0;
-  color: #333;
+  color: var(--n-text-color);
 }
 
 .feature-card p {
   font-size: 12px;
-  color: #666;
+  color: var(--n-text-color-2);
   margin: 0;
   line-height: 1.4;
 }
@@ -882,32 +884,32 @@ onUnmounted(() => {
 }
 
 .update-card {
-  background: white;
+  background: var(--n-color);
   border-radius: 12px;
   padding: 24px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--n-border-color);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   transition: all 0.3s ease;
 }
 
 .update-card.downloading {
   border-color: rgba(64, 158, 255, 0.2);
-  background: linear-gradient(135deg, #ffffff 0%, #f0f8ff 100%);
+  background: var(--n-color);
 }
 
 .update-card.completed {
   border-color: rgba(24, 160, 88, 0.2);
-  background: linear-gradient(135deg, #ffffff 0%, #f0fff4 100%);
+  background: var(--n-color);
 }
 
 .update-card.failed {
   border-color: rgba(245, 108, 108, 0.2);
-  background: linear-gradient(135deg, #ffffff 0%, #fff5f5 100%);
+  background: var(--n-color);
 }
 
 .update-card.restarting {
   border-color: rgba(64, 158, 255, 0.2);
-  background: linear-gradient(135deg, #ffffff 0%, #f0f8ff 100%);
+  background: var(--n-color);
 }
 
 .update-header {
@@ -971,12 +973,12 @@ onUnmounted(() => {
   font-size: 16px;
   font-weight: 600;
   margin: 0 0 4px 0;
-  color: #333;
+  color: var(--n-text-color);
 }
 
 .update-info p {
   font-size: 14px;
-  color: #666;
+  color: var(--n-text-color-2);
   margin: 0;
   line-height: 1.4;
 }
@@ -1008,7 +1010,7 @@ onUnmounted(() => {
   right: 0;
   top: -20px;
   font-size: 12px;
-  color: #666;
+  color: var(--n-text-color-2);
   font-weight: 600;
 }
 
@@ -1021,7 +1023,7 @@ onUnmounted(() => {
   background: rgba(24, 160, 88, 0.1);
   border-radius: 8px;
   font-size: 12px;
-  color: #18a058;
+  color: var(--n-color-success);
 }
 
 .restart-container {
@@ -1048,7 +1050,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #18a058;
+  color: var(--n-color-success);
   font-size: 14px;
 }
 
@@ -1070,21 +1072,21 @@ onUnmounted(() => {
 }
 
 .secondary-action, .later-action {
-  background: #f8f9fa;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  color: #666;
+  background: var(--n-color-hover);
+  border: 1px solid var(--n-border-color);
+  color: var(--n-text-color);
   transition: all 0.3s ease;
 }
 
 .secondary-action:hover, .later-action:hover {
-  background: #e9ecef;
+  background: var(--n-color-pressed);
   transform: translateY(-1px);
 }
 
 .cancel-action {
-  background: #f8f9fa;
+  background: var(--n-color-hover);
   border: 1px solid rgba(245, 108, 108, 0.2);
-  color: #f56c6c;
+  color: var(--n-color-error);
   transition: all 0.3s ease;
 }
 
@@ -1096,15 +1098,15 @@ onUnmounted(() => {
 /* 作者信息 */
 .author-section {
   padding: 24px;
-  background: #f8f9fa;
+  background: var(--n-color-hover);
 }
 
 .author-card {
-  background: white;
+  background: var(--n-color);
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--n-border-color);
   display: flex;
   align-items: center;
   gap: 20px;
@@ -1120,24 +1122,24 @@ onUnmounted(() => {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #404040, #2a2a2a);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .author-info h3 {
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 4px 0;
-  color: #333;
+  color: var(--n-text-color);
 }
 
 .author-title {
   font-size: 14px;
-  color: #666;
+  color: var(--n-text-color-2);
   margin: 0 0 12px 0;
 }
 
@@ -1145,7 +1147,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #409eff;
+  color: var(--n-color-primary);
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
@@ -1172,11 +1174,11 @@ onUnmounted(() => {
 }
 
 .support-card {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #2c2c2c, #1a1a1a);
   border-radius: 12px;
   padding: 24px;
   color: white;
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
 
 .support-content {

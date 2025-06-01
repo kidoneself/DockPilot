@@ -45,6 +45,9 @@ public class ApplicationWebSocketService implements BaseService {
 
     @Autowired
     private WebSocketMessageSender messageSender;
+    
+    @Autowired
+    private com.dockpilot.common.config.AppConfig appConfig;
 
     // 活跃的安装任务
     private final Map<String, CompletableFuture<Void>> activeTasks = new ConcurrentHashMap<>();
@@ -504,6 +507,12 @@ public class ApplicationWebSocketService implements BaseService {
                         
                         // hostPath可能包含环境变量引用，在YAML处理阶段已经替换完成
                         
+                        // 🔥 新增：自动创建宿主机目录
+                        if (!ensureHostDirectoryExists(hostPath, callback)) {
+                            callback.onLog("⚠️ 无法创建宿主机目录: " + hostPath + "，跳过此挂载");
+                            continue;
+                        }
+                        
                         com.github.dockerjava.api.model.Volume volume = new com.github.dockerjava.api.model.Volume(containerPath);
                         com.github.dockerjava.api.model.Bind bind;
                         
@@ -536,6 +545,199 @@ public class ApplicationWebSocketService implements BaseService {
         if (!binds.isEmpty()) {
             request.setBinds(binds);
         }
+    }
+    
+    /**
+     * 🔥 新增：确保宿主机目录存在，如果不存在则自动创建
+     * 
+     * @param hostPath 宿主机路径
+     * @param callback 回调对象用于日志输出
+     * @return true如果目录存在或创建成功，false如果创建失败
+     */
+    private boolean ensureHostDirectoryExists(String hostPath, InstallCallback callback) {
+        try {
+            // 验证路径格式
+            if (hostPath == null || hostPath.trim().isEmpty()) {
+                callback.onLog("⚠️ 宿主机路径为空，跳过创建");
+                return false;
+            }
+            
+            // 规范化路径
+            String normalizedPath = hostPath.trim();
+            
+            // 检查是否为绝对路径
+            if (!normalizedPath.startsWith("/")) {
+                callback.onLog("⚠️ 宿主机路径必须是绝对路径: " + normalizedPath);
+                return false;
+            }
+            
+            // 检查是否为系统敏感路径，避免误操作
+            if (isSystemSensitivePath(normalizedPath)) {
+                callback.onLog("⚠️ 跳过系统敏感路径: " + normalizedPath);
+                return true; // 返回true，让Docker处理这些路径
+            }
+            
+            // 🔥 新增：只创建基于 docker_base_dir 的目录
+            if (!shouldCreateDirectory(normalizedPath, callback)) {
+                callback.onLog("⚠️ 跳过非Docker配置目录: " + normalizedPath + " (只自动创建Docker配置目录)");
+                return true; // 返回true，让Docker处理这些路径
+            }
+            
+            // 🔥 新增：获取实际的文件系统路径（容器化部署）
+            String actualPath = getActualFilePath(normalizedPath, callback);
+            java.nio.file.Path targetPath = java.nio.file.Paths.get(actualPath);
+            
+            // 检查路径是否已存在
+            if (java.nio.file.Files.exists(targetPath)) {
+                if (java.nio.file.Files.isDirectory(targetPath)) {
+                    callback.onLog("✅ 宿主机目录已存在: " + normalizedPath);
+                    return true;
+                } else {
+                    callback.onLog("❌ 宿主机路径已存在但不是目录: " + normalizedPath);
+                    return false;
+                }
+            }
+            
+            // 目录不存在，尝试创建
+            callback.onLog("📁 正在创建Docker配置目录: " + normalizedPath);
+            java.nio.file.Files.createDirectories(targetPath);
+            
+            // 验证创建结果
+            if (java.nio.file.Files.exists(targetPath) && java.nio.file.Files.isDirectory(targetPath)) {
+                callback.onLog("✅ Docker配置目录创建成功: " + normalizedPath);
+                
+                // 尝试设置目录权限（非关键操作，失败不影响整体流程）
+                try {
+                    // 设置目录权限为777（rwxrwxrwx）
+                    java.nio.file.Files.setPosixFilePermissions(targetPath, 
+                        java.util.EnumSet.of(
+                            java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                            java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
+                            java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE,
+                            java.nio.file.attribute.PosixFilePermission.GROUP_READ,
+                            java.nio.file.attribute.PosixFilePermission.GROUP_WRITE,
+                            java.nio.file.attribute.PosixFilePermission.GROUP_EXECUTE,
+                            java.nio.file.attribute.PosixFilePermission.OTHERS_READ,
+                            java.nio.file.attribute.PosixFilePermission.OTHERS_WRITE,
+                            java.nio.file.attribute.PosixFilePermission.OTHERS_EXECUTE
+                        ));
+                    callback.onLog("✅ 目录权限设置成功: 777");
+                } catch (Exception permissionError) {
+                    callback.onLog("⚠️ 目录权限设置失败（不影响挂载）: " + permissionError.getMessage());
+                }
+                
+                return true;
+            } else {
+                callback.onLog("❌ 目录创建失败，验证不通过: " + normalizedPath);
+                return false;
+            }
+            
+        } catch (java.nio.file.FileAlreadyExistsException e) {
+            // 并发创建导致的异常，再次检查是否为目录
+            try {
+                String actualPath = getActualFilePath(hostPath, callback);
+                java.nio.file.Path targetPath = java.nio.file.Paths.get(actualPath);
+                if (java.nio.file.Files.isDirectory(targetPath)) {
+                    callback.onLog("✅ 目录已被并发创建: " + hostPath);
+                    return true;
+                } else {
+                    callback.onLog("❌ 路径被创建但不是目录: " + hostPath);
+                    return false;
+                }
+            } catch (Exception verifyError) {
+                callback.onLog("❌ 验证并发创建结果失败: " + verifyError.getMessage());
+                return false;
+            }
+        } catch (java.nio.file.AccessDeniedException e) {
+            callback.onLog("❌ 权限不足，无法创建目录: " + hostPath);
+            return false;
+        } catch (SecurityException e) {
+            callback.onLog("❌ 安全策略阻止创建目录: " + hostPath);
+            return false;
+        } catch (Exception e) {
+            callback.onLog("❌ 创建宿主机目录失败: " + hostPath + ", 错误: " + e.getMessage());
+            log.error("创建宿主机目录失败: {}", hostPath, e);
+            return false;
+        }
+    }
+    
+    /**
+     * 🔥 新增：获取实际的文件系统路径（容器化部署）
+     * 
+     * @param hostPath 宿主机路径（如 /volume1/docker/app/config）
+     * @param callback 回调对象用于日志输出
+     * @return 实际的文件系统路径
+     */
+    private String getActualFilePath(String hostPath, InstallCallback callback) {
+        // 容器化部署，通过 /mnt/host 访问宿主机文件系统
+        String actualPath = "/mnt/host" + hostPath;
+        callback.onLog("🐳 容器化部署，实际操作路径: " + actualPath);
+        return actualPath;
+    }
+    
+    /**
+     * 🔥 新增：判断是否应该创建目录（只创建Docker配置目录）
+     * 
+     * @param path 要检查的路径
+     * @param callback 回调对象用于日志输出
+     * @return true如果应该创建，false如果不应该创建
+     */
+    private boolean shouldCreateDirectory(String path, InstallCallback callback) {
+        try {
+            // 检查Docker运行目录是否已配置
+            if (!appConfig.isDockerBaseDirConfigured()) {
+                callback.onLog("⚠️ Docker运行目录未配置，跳过自动创建");
+                return false;
+            }
+            
+            // 获取Docker运行目录
+            String dockerBaseDir = appConfig.getDockerBaseDirOrThrow();
+            
+            // 规范化Docker基础目录路径（确保以/结尾）
+            if (!dockerBaseDir.endsWith("/")) {
+                dockerBaseDir = dockerBaseDir + "/";
+            }
+            
+            // 检查路径是否以Docker基础目录开头
+            boolean shouldCreate = path.startsWith(dockerBaseDir) || path.equals(dockerBaseDir.substring(0, dockerBaseDir.length() - 1));
+            
+            if (shouldCreate) {
+                callback.onLog("✅ 检测到Docker配置目录，将自动创建: " + path);
+            } else {
+                callback.onLog("ℹ️ 非Docker配置目录，跳过创建: " + path + " (Docker目录: " + dockerBaseDir + ")");
+            }
+            
+            return shouldCreate;
+            
+        } catch (Exception e) {
+            callback.onLog("⚠️ 检查Docker目录配置失败: " + e.getMessage());
+            log.warn("检查Docker目录配置失败: {}", e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * 🔥 新增：检查是否为系统敏感路径
+     * 
+     * @param path 要检查的路径
+     * @return true如果是敏感路径，false如果是安全路径
+     */
+    private boolean isSystemSensitivePath(String path) {
+        // 系统敏感路径列表
+        String[] sensitivePaths = {
+            "/", "/bin", "/sbin", "/usr/bin", "/usr/sbin",
+            "/etc", "/boot", "/dev", "/proc", "/sys", "/run",
+            "/lib", "/lib64", "/usr/lib", "/usr/lib64",
+            "/var/run", "/var/log/system", "/tmp"
+        };
+        
+        for (String sensitivePath : sensitivePaths) {
+            if (path.equals(sensitivePath) || path.startsWith(sensitivePath + "/")) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /**

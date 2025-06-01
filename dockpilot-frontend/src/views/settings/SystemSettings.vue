@@ -280,6 +280,14 @@ const settingsGroups = ref([
         configType: 'form',
         status: 'active' as const,
         icon: '⏰'
+      },
+      {
+        key: 'dockerBaseDir',
+        title: 'Docker运行目录',
+        desc: '设置Docker容器运行和数据存储的基础目录',
+        configType: 'form',
+        status: 'active' as const,
+        icon: '📁'
       }
     ]
   },
@@ -638,6 +646,78 @@ const openConfig = async (item: any) => {
         }
         break
         
+      case 'dockerBaseDir':
+        currentConfig.value = {
+          title: '📁 Docker运行目录配置',
+          width: '600px',
+          confirmText: '保存配置',
+          showResetButton: true,
+          resetText: '清空配置',
+          beforeConfirm: async (data) => {
+            // 验证目录路径格式
+            const path = data.path ? data.path.trim() : ''
+            if (!path) {
+              message.error('Docker运行目录不能为空')
+              return false
+            }
+            if (!path.startsWith('/')) {
+              message.error('目录路径必须以 / 开头')
+              return false
+            }
+            return true
+          },
+          beforeReset: async () => {
+            // 重置前确认
+            return new Promise((resolve) => {
+              dialog.warning({
+                title: '确认清空',
+                content: '确定要清空Docker运行目录配置吗？清空后需要重新设置。',
+                positiveText: '确定',
+                negativeText: '取消',
+                onPositiveClick: () => resolve(true),
+                onNegativeClick: () => resolve(false)
+              })
+            })
+          },
+          afterConfirm: async (data) => {
+            await saveDockerBaseDirConfig(data)
+          },
+          afterReset: async () => {
+            await resetDockerBaseDirConfig()
+          }
+        }
+
+        // 设置表单字段
+        currentFormFields.value = [
+          {
+            key: 'path',
+            label: 'Docker运行目录',
+            type: 'input',
+            placeholder: '请输入Docker运行目录的绝对路径，例如：/opt/docker',
+            required: true
+          }
+        ]
+
+        currentFormDescription.value = 
+          '设置Docker容器运行和数据存储的基础目录。' +
+          '此目录将用于存储所有容器的配置、数据等文件。' +
+          '修改后将影响新部署的应用，已部署的应用不受影响。'
+
+        // 从后端加载当前配置
+        try {
+          const dockerBaseDirStr = await getSetting('docker_base_dir')
+          const dockerBaseDir = dockerBaseDirStr || ''
+          configData.value = {
+            path: dockerBaseDir
+          }
+          console.log('✅ Docker运行目录配置加载成功:', dockerBaseDir || '(未配置)')
+        } catch (error) {
+          console.error('加载Docker运行目录配置失败:', error)
+          message.warning('加载配置失败，请重新设置')
+          configData.value = { path: '' }
+        }
+        break
+        
       default:
         currentConfig.value = {
           title: `⚙️ ${item.title}配置`,
@@ -947,6 +1027,61 @@ const resetMirrorConfig = async () => {
   } catch (error) {
     console.error('❌ 重置镜像加速配置失败:', error)
     message.error('重置镜像加速配置失败')
+    throw error
+  }
+}
+
+// 📁 Docker运行目录配置相关函数
+
+// 保存Docker运行目录配置
+const saveDockerBaseDirConfig = async (data: any) => {
+  try {
+    const path = data.path ? data.path.trim() : ''
+    
+    if (!path) {
+      message.error('Docker运行目录不能为空')
+      return
+    }
+    
+    if (!path.startsWith('/')) {
+      message.error('目录路径必须以 / 开头')
+      return
+    }
+    
+    // 保存到后端
+    await setSetting({ key: 'docker_base_dir', value: path })
+    
+    message.success(`Docker运行目录已设置为: ${path}`)
+    console.log('✅ Docker运行目录配置已保存:', path)
+    
+    // 配置会通过事件监听器自动热更新
+    message.info('配置已自动热更新，新部署的应用将使用新目录')
+    
+  } catch (error) {
+    console.error('❌ 保存Docker运行目录配置失败:', error)
+    message.error('保存配置失败: ' + (error as Error).message)
+    throw error
+  }
+}
+
+// 重置Docker运行目录配置
+const resetDockerBaseDirConfig = async () => {
+  try {
+    // 清空配置
+    await setSetting({ key: 'docker_base_dir', value: '' })
+    
+    message.success('Docker运行目录配置已清空')
+    console.log('✅ Docker运行目录配置已清空')
+    
+    // 更新当前配置数据
+    configData.value = { path: '' }
+    
+    // 配置会通过事件监听器自动热更新
+    message.info('配置已清空，请重新设置Docker运行目录')
+    
+  } catch (error) {
+    console.error('❌ 清空Docker运行目录配置失败:', error)
+    message.error('清空配置失败: ' + (error as Error).message)
     throw error
   }
 }

@@ -35,6 +35,9 @@ export enum MessageType {
   // 系统状态相关
   SYSTEM_STATUS = 'SYSTEM_STATUS',
 
+  // Docker事件通知
+  DOCKER_EVENT_NOTIFICATION = 'DOCKER_EVENT_NOTIFICATION',
+
   // 系统消息
   COMPLETE = 'COMPLETE',
   ERROR = 'ERROR',
@@ -49,6 +52,14 @@ export interface DockerWebSocketMessage {
   timestamp: number;
   errorMessage?: string;
   progress?: number;
+}
+
+export interface DockerEventNotification {
+  eventType: string; // create, start, stop, destroy, rename
+  containerId: string;
+  containerName: string;
+  message: string;
+  timestamp: number;
 }
 
 export interface WebSocketCallbacks {

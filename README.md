@@ -50,7 +50,7 @@ mvn spring-boot:run
 
 ## 联系方式
 
-- Telegram: https://t.me/+hGFa3joV-TNhNDc1
+- Telegram: https://t.me/dockpilot
 - 问题反馈：提交 GitHub Issue
 
 ## 许可证

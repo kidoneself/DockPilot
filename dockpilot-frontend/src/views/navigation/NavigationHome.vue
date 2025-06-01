@@ -33,6 +33,23 @@
         <div class="header-right">
           <WeatherWidget />
           
+          <!-- 刷新背景按钮 -->
+          <div class="refresh-background-toggle">
+            <n-button
+              size="small"
+              quaternary
+              circle
+              @click="refreshBackground"
+              :loading="refreshingBackground"
+              :title="refreshingBackground ? '正在刷新背景...' : '刷新背景'"
+              class="refresh-bg-toggle-btn"
+            >
+              <template #icon>
+                <n-icon :size="16" :component="RefreshOutline" />
+              </template>
+            </n-button>
+          </div>
+          
           <!-- 网络模式切换按钮 -->
           <div class="network-mode-toggle">
             <n-button
@@ -113,6 +130,7 @@ import { useMessage, useDialog } from 'naive-ui'
 import { getCategories, getWebServers, createWebServer, updateWebServer, deleteWebServer, batchUpdateWebServerSort, toggleFavorite, type CategoryVO, type WebServerVO, type CreateWebServerRequest, type UpdateWebServerRequest } from '@/api/http/webserver'
 import { getAllCategoriesForManage } from '@/api/http/category'
 import { getCurrentBackground } from '@/api/http/background'
+import { getSetting } from '@/api/http/system'
 import defaultBackgroundImg from '@/assets/background.png'
 // 导入组件
 import WeatherWidget from './components/WeatherWidget.vue'
@@ -125,7 +143,8 @@ import SideDrawer from './components/SideDrawer.vue'
 import {
   CubeOutline,
   WifiOutline,
-  GlobeOutline
+  GlobeOutline,
+  RefreshOutline
 } from '@vicons/ionicons5'
 
 const router = useRouter()
@@ -151,6 +170,9 @@ let moveTimeout: NodeJS.Timeout | null = null
 
 // 内外网模式切换
 const isInternalMode = ref(false) // false: 外网模式, true: 内网模式
+
+// 背景刷新状态
+const refreshingBackground = ref(false)
 
 // 组件引用
 const systemStatsRef = ref()
@@ -288,6 +310,110 @@ const toggleNetworkMode = () => {
   message.success(`${mode}模式 - ${description}`)
   
   console.log('🔄 网络模式切换:', mode)
+}
+
+// 手动刷新背景
+const refreshBackground = async () => {
+  if (refreshingBackground.value) return
+  
+  refreshingBackground.value = true
+  try {
+    console.log('🎨 手动刷新背景...')
+    
+    // 检查当前背景设置
+    const backgroundSetting = await getCurrentBackground()
+    
+    if (backgroundSetting === 'auto-background') {
+      // 对于自动背景，重新获取随机背景
+      if (!navigationBackgroundRef.value) return
+      
+      const autoBackgroundUrl = await fetchAutoBackground()
+      console.log('🖼️ 新随机背景URL已生成:', autoBackgroundUrl)
+      
+      // 预加载新背景
+      await preloadImage(autoBackgroundUrl)
+      console.log('✅ 新随机背景预加载完成')
+      
+      // 保存手动选择的背景到缓存
+      localStorage.setItem('dockpilot-cached-background', autoBackgroundUrl)
+      localStorage.setItem('dockpilot-cached-background-time', Date.now().toString())
+      console.log('💾 背景已缓存到本地存储')
+      
+      // 平滑切换到新背景
+      navigationBackgroundRef.value.style.transition = 'opacity 1s cubic-bezier(0.4, 0, 0.2, 1)'
+      navigationBackgroundRef.value.style.opacity = '0'
+      
+      setTimeout(() => {
+        if (navigationBackgroundRef.value) {
+          navigationBackgroundRef.value.style.backgroundImage = `url(${autoBackgroundUrl})`
+          setTimeout(() => {
+            if (navigationBackgroundRef.value) {
+              navigationBackgroundRef.value.style.opacity = '1'
+              console.log('✨ 手动刷新背景完成')
+            }
+          }, 50)
+        }
+      }, 500)
+      
+    } else {
+      message.info('当前使用的不是自动背景，无需刷新')
+    }
+    
+  } catch (error) {
+    console.error('❌ 手动刷新背景失败:', error)
+    message.error('刷新背景失败')
+  } finally {
+    // 延迟重置状态，确保动画完成
+    setTimeout(() => {
+      refreshingBackground.value = false
+    }, 1500)
+  }
+}
+
+// 获取缓存的背景
+const getCachedBackground = () => {
+  try {
+    const cachedUrl = localStorage.getItem('dockpilot-cached-background')
+    const cachedTime = localStorage.getItem('dockpilot-cached-background-time')
+    
+    if (cachedUrl && cachedTime) {
+      const cacheAge = Date.now() - parseInt(cachedTime)
+      const maxAge = 24 * 60 * 60 * 1000 // 24小时
+      
+      if (cacheAge < maxAge) {
+        console.log('📖 找到缓存的背景:', cachedUrl)
+        return cachedUrl
+      } else {
+        console.log('⏰ 缓存背景已过期，清理缓存')
+        localStorage.removeItem('dockpilot-cached-background')
+        localStorage.removeItem('dockpilot-cached-background-time')
+      }
+    }
+    
+    return null
+  } catch (error) {
+    console.warn('⚠️ 读取缓存背景失败:', error)
+    return null
+  }
+}
+
+// 清理过期的背景缓存
+const cleanupBackgroundCache = () => {
+  try {
+    const cachedTime = localStorage.getItem('dockpilot-cached-background-time')
+    if (cachedTime) {
+      const cacheAge = Date.now() - parseInt(cachedTime)
+      const maxAge = 24 * 60 * 60 * 1000 // 24小时
+      
+      if (cacheAge >= maxAge) {
+        localStorage.removeItem('dockpilot-cached-background')
+        localStorage.removeItem('dockpilot-cached-background-time')
+        console.log('🧹 已清理过期的背景缓存')
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ 清理背景缓存失败:', error)
+  }
 }
 
 // 从localStorage读取网络模式偏好
@@ -593,28 +719,197 @@ const preloadImage = (url: string): Promise<void> => {
   })
 }
 
+// 获取网络随机背景图片
+const fetchAutoBackground = async (): Promise<string> => {
+  try {
+    // 从配置中获取API地址
+    let apiUrl = await getSetting('auto_background_api_url')
+    
+    // 如果没有配置，使用默认地址
+    if (!apiUrl) {
+      apiUrl = 'https://bing.img.run/rand_uhd.php'
+      console.log('⚠️ 未配置自动背景API，使用默认地址:', apiUrl)
+    } else {
+      console.log('✅ 使用配置的自动背景API:', apiUrl)
+    }
+    
+    // 对于直接返回图片的API，直接返回URL，添加时间戳防止缓存
+    const timestamp = Date.now()
+    const finalUrl = apiUrl.includes('?') 
+      ? `${apiUrl}&t=${timestamp}` 
+      : `${apiUrl}?t=${timestamp}`
+    
+    console.log('🖼️ 生成随机背景URL:', finalUrl)
+    return finalUrl
+    
+  } catch (error) {
+    console.error('获取自动背景失败:', error)
+    throw error
+  }
+}
+
 // 设置导航页面背景
 const setNavigationBackground = async () => {
   if (!navigationBackgroundRef.value) return
   
+  // 立即设置默认背景，使用平滑淡入效果
+  navigationBackgroundRef.value.style.backgroundImage = `url(${defaultBackgroundImg})`
+  navigationBackgroundRef.value.style.transition = 'opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1)'
+  navigationBackgroundRef.value.style.opacity = '1'
+  console.log('✅ 默认背景已平滑显示')
+  
   try {
-    const backgroundUrl = await getCurrentBackground()
-    const finalUrl = backgroundUrl || defaultBackgroundImg
+    const backgroundSetting = await getCurrentBackground()
     
-    // 预加载图片以避免闪烁
-    await preloadImage(finalUrl)
+    if (backgroundSetting === 'auto-background') {
+      // 自动随机背景：优先使用缓存，然后可选择获取新背景
+      console.log('🌐 使用自动随机背景模式...')
+      
+      // 检查是否有缓存的背景
+      const cachedBackgroundUrl = getCachedBackground()
+      
+      if (cachedBackgroundUrl) {
+        // 如果有缓存背景，先显示缓存的背景
+        console.log('🎯 发现缓存背景，优先显示')
+        
+        setTimeout(async () => {
+          try {
+            // 预加载缓存背景
+            await preloadImage(cachedBackgroundUrl)
+            console.log('✅ 缓存背景预加载完成')
+            
+            if (navigationBackgroundRef.value) {
+              // 平滑切换到缓存背景
+              navigationBackgroundRef.value.style.transition = 'opacity 1s cubic-bezier(0.4, 0, 0.2, 1)'
+              navigationBackgroundRef.value.style.opacity = '0'
+              
+              setTimeout(() => {
+                if (navigationBackgroundRef.value) {
+                  navigationBackgroundRef.value.style.backgroundImage = `url(${cachedBackgroundUrl})`
+                  setTimeout(() => {
+                    if (navigationBackgroundRef.value) {
+                      navigationBackgroundRef.value.style.opacity = '1'
+                      console.log('✨ 缓存背景已显示')
+                    }
+                  }, 50)
+                }
+              }, 500)
+            }
+          } catch (error) {
+            console.warn('⚠️ 缓存背景加载失败，获取新背景:', error)
+            // 如果缓存背景加载失败，清理缓存并获取新背景
+            localStorage.removeItem('dockpilot-cached-background')
+            localStorage.removeItem('dockpilot-cached-background-time')
+            loadNewRandomBackground()
+          }
+        }, 100)
+        
+      } else {
+        // 没有缓存背景，获取新的随机背景
+        console.log('🆕 无缓存背景，获取新的随机背景')
+        setTimeout(() => {
+          loadNewRandomBackground()
+        }, 100)
+      }
+      
+    } else if (backgroundSetting && backgroundSetting !== '') {
+      // 设置的背景：也异步加载，不阻塞页面
+      setTimeout(async () => {
+        try {
+          await preloadImage(backgroundSetting)
+          
+          if (navigationBackgroundRef.value) {
+            // 使用相同的平滑淡入淡出效果
+            navigationBackgroundRef.value.style.transition = 'opacity 1s cubic-bezier(0.4, 0, 0.2, 1)'
+            
+            // 第一步：淡出当前背景
+            navigationBackgroundRef.value.style.opacity = '0'
+            console.log('🎬 开始淡出到设置背景...')
+            
+            // 第二步：切换背景图片
+            setTimeout(() => {
+              if (navigationBackgroundRef.value) {
+                navigationBackgroundRef.value.style.backgroundImage = `url(${backgroundSetting})`
+                console.log('🖼️ 设置背景图片已切换')
+                
+                // 第三步：淡入新背景
+                setTimeout(() => {
+                  if (navigationBackgroundRef.value) {
+                    navigationBackgroundRef.value.style.opacity = '1'
+                    console.log('✨ 设置背景淡入完成')
+                  }
+                }, 50)
+              }
+            }, 500) // 等待淡出完成
+          }
+        } catch (error) {
+          console.warn('⚠️ 设置背景加载失败，保持默认背景:', error)
+        }
+      }, 50)
+    }
     
-    // 设置背景
-    navigationBackgroundRef.value.style.backgroundImage = `url(${finalUrl})`
-    navigationBackgroundRef.value.style.opacity = '1'
-    
-    console.log('✅ 导航页面背景已加载:', finalUrl)
   } catch (error) {
-    // 降级到默认背景
-    await preloadImage(defaultBackgroundImg)
-    navigationBackgroundRef.value.style.backgroundImage = `url(${defaultBackgroundImg})`
-    navigationBackgroundRef.value.style.opacity = '1'
-    console.log('⚠️ 获取背景失败，使用默认背景:', error)
+    console.warn('⚠️ 背景配置获取失败，使用默认背景:', error)
+    // 已经显示了默认背景，不需要额外处理
+  }
+}
+
+// 预缓存下一张背景（可选功能）
+const preloadNextBackground = async () => {
+  try {
+    // 延迟3秒后预加载下一张，避免影响当前加载
+    setTimeout(async () => {
+      const nextBackgroundUrl = await fetchAutoBackground()
+      await preloadImage(nextBackgroundUrl)
+      console.log('🎯 下一张背景已预缓存:', nextBackgroundUrl)
+    }, 3000)
+  } catch (error) {
+    console.log('💡 下一张背景预缓存失败，忽略:', error)
+  }
+}
+
+// 加载新的随机背景
+const loadNewRandomBackground = async () => {
+  try {
+    const autoBackgroundUrl = await fetchAutoBackground()
+    console.log('🖼️ 新随机背景URL已生成:', autoBackgroundUrl)
+    
+    // 预加载新随机背景图片
+    await preloadImage(autoBackgroundUrl)
+    console.log('✅ 新随机背景图片预加载完成')
+    
+    // 检查元素是否还存在（防止组件已卸载）
+    if (!navigationBackgroundRef.value) return
+    
+    // 平滑淡入淡出过渡：先完全淡出，再切换背景，最后淡入
+    navigationBackgroundRef.value.style.transition = 'opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
+    
+    // 第一步：淡出到完全透明
+    navigationBackgroundRef.value.style.opacity = '0'
+    console.log('🎬 开始淡出当前背景...')
+    
+    // 第二步：等待淡出完成后切换背景图片
+    setTimeout(() => {
+      if (navigationBackgroundRef.value) {
+        navigationBackgroundRef.value.style.backgroundImage = `url(${autoBackgroundUrl})`
+        console.log('🖼️ 背景图片已切换')
+        
+        // 第三步：淡入新背景
+        setTimeout(() => {
+          if (navigationBackgroundRef.value) {
+            navigationBackgroundRef.value.style.opacity = '1'
+            console.log('✨ 新随机背景淡入完成')
+            
+            // 预缓存下一张背景（完全后台进行）
+            preloadNextBackground()
+          }
+        }, 50) // 小延迟确保背景图片设置生效
+      }
+    }, 600) // 等待淡出动画完成(1200ms的一半)
+    
+  } catch (autoError) {
+    console.warn('⚠️ 新随机背景加载失败，保持默认背景:', autoError)
+    // 保持默认背景，不做任何处理
   }
 }
 
@@ -628,20 +923,31 @@ onMounted(async () => {
   // 加载网络模式偏好
   loadNetworkModePreference()
   
+  // 清理过期的背景缓存
+  cleanupBackgroundCache()
+  
+  // 立即显示页面内容，不等待背景加载
   try {
-    // 并行加载背景和数据，提高加载速度
-    await Promise.all([
-      setNavigationBackground(),
-      loadData()
-    ])
+    // 只加载数据，不等待背景
+    await loadData()
     
-    // 等待一个小的延迟确保渲染完成
-    setTimeout(() => {
-      pageLoading.value = false
-    }, 100)
+    // 立即显示页面内容
+    pageLoading.value = false
+    console.log('✅ 页面内容已显示')
+    
+    // 背景独立异步加载，不阻塞页面显示
+    setNavigationBackground().catch(error => {
+      console.warn('⚠️ 背景加载失败，但不影响页面显示:', error)
+    })
+    
   } catch (error) {
     console.error('页面初始化失败:', error)
     pageLoading.value = false
+    
+    // 即使数据加载失败，也尝试加载背景
+    setNavigationBackground().catch(bgError => {
+      console.warn('⚠️ 背景加载也失败:', bgError)
+    })
   }
 })
 
@@ -708,7 +1014,7 @@ const handleToggleFavorite = async (app: any) => {
   z-index: -999;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.3s ease-in-out;
+  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: opacity;
 }
 
@@ -883,9 +1189,26 @@ const handleToggleFavorite = async (app: any) => {
   transform: scale(1.05);
 }
 
+/* 刷新背景按钮 */
+.refresh-background-toggle {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
 
+.refresh-bg-toggle-btn {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  transition: all 0.2s ease !important;
+}
 
-
+.refresh-bg-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  color: #ffffff !important;
+  transform: scale(1.05);
+}
 
 /* 组件相关样式已移至独立组件文件 */
 
@@ -977,6 +1300,16 @@ const handleToggleFavorite = async (app: any) => {
   
   .time {
     font-size: 20px;
+  }
+
+  /* 移动端刷新背景按钮 */
+  .refresh-background-toggle {
+    margin-left: 4px;
+  }
+  
+  .refresh-bg-toggle-btn {
+    width: 28px !important;
+    height: 28px !important;
   }
 
   /* 移动端网络模式按钮 */

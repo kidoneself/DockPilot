@@ -47,6 +47,10 @@ docker:
   connection-timeout: 30000
   response-timeout: 45000
   max-connections: 100
+  events:
+    enabled: true
+    auto-restart: true
+    restart-delay: 5000
 
 jwt:
   secret: DockPilot

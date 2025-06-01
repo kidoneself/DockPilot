@@ -48,9 +48,9 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
         return containerInfoMapper.selectAll();
     }
 
-    @Scheduled(fixedRate = 60000, initialDelay = 10000) // 每分钟执行一次，延迟10秒启动
+    @Scheduled(fixedRate = 300000, initialDelay = 30000) // 🔥 降低频率：5分钟执行一次，延迟30秒启动
     public void scheduledSync() {
-        log.info("开始执行定时容器同步任务...");
+        log.info("开始执行定时容器同步任务（兜底机制）...");
         try {
             syncContainers();
             log.info("定时容器同步任务执行完成");
@@ -288,9 +288,9 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
         }
     }
 
-    @Scheduled(fixedRate = 3600000, initialDelay = 30000) // 1小时执行一次，延迟30秒启动
+    @Scheduled(fixedRate = 21600000, initialDelay = 60000) // 🔥 降低频率：6小时执行一次，延迟1分钟启动
     public void checkContainerUpdates() {
-        log.info("开始检查容器更新状态...");
+        log.info("开始检查容器更新状态（兜底检查）...");
         try {
             // 获取 Docker 容器列表
             List<Container> containers = dockerService.listContainers();

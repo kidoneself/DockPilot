@@ -39,5 +39,16 @@ public class ProxyConfigLoader {
         } else {
             log.info("未配置镜像加速地址");
         }
+        
+        // 加载Docker运行目录配置
+        String dockerBaseDir = systemSettingService.get("docker_base_dir");
+        if (dockerBaseDir != null && !dockerBaseDir.isBlank()) {
+            appConfig.setDockerBaseDir(dockerBaseDir.trim());
+            log.info("✅已设置Docker运行目录: {}", dockerBaseDir.trim());
+        } else {
+            // 未配置Docker运行目录，提示用户设置
+            log.warn("⚠️ 未配置Docker运行目录，请在系统设置中配置Docker运行目录");
+            appConfig.setDockerBaseDir(null);
+        }
     }
 }

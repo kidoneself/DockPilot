@@ -4,6 +4,7 @@ import naive from 'naive-ui'
 import App from './App.vue'
 import router from './router'
 import { ws } from './utils/websocketClient'
+import { dockerEventNotificationHandler } from './utils/dockerEventNotification'
 
 // 创建应用实例
 const app = createApp(App)
@@ -17,6 +18,9 @@ app.use(naive)
 ws.connect().catch(error => {
   console.error('WebSocket 初始化失败:', error)
 })
+
+// 初始化Docker事件通知监听器
+dockerEventNotificationHandler.registerWebSocketListener()
 
 // 挂载应用
 app.mount('#app') 

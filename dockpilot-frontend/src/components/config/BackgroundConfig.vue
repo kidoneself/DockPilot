@@ -19,6 +19,20 @@
           <div class="gallery-name">默认背景</div>
         </div>
         
+        <!-- 自动随机背景 -->
+        <div 
+          class="gallery-item"
+          :class="{ active: selectedBackground === 'auto-background' }"
+          @click="selectBackground('auto-background')"
+        >
+          <div class="gallery-thumbnail auto-background-thumbnail">
+            <div class="auto-background-icon">🌐</div>
+            <div class="auto-background-text">自动背景</div>
+            <div class="system-badge auto-badge">随机</div>
+          </div>
+          <div class="gallery-name">网络随机背景</div>
+        </div>
+        
         <!-- 透明背景选项 -->
         <div 
           class="gallery-item"
@@ -29,6 +43,69 @@
             <div class="transparent-icon">🚫</div>
           </div>
           <div class="gallery-name">无背景</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 自动背景配置区域 -->
+    <div v-if="selectedBackground === 'auto-background'" class="auto-background-config">
+      <div class="config-header">
+        <h4>🌐 自动背景配置</h4>
+      </div>
+      
+      <div class="config-form">
+        <div class="form-item">
+          <label>随机背景API地址：</label>
+          <n-input
+            v-model:value="autoBackgroundApiUrl"
+            placeholder="请输入随机背景API地址，如：https://bing.img.run/rand_uhd.php"
+            @input="handleApiUrlChange"
+          />
+        </div>
+        
+        <div class="config-tips">
+          <div class="tip-item">
+            <n-icon size="16" color="#10b981">
+              <svg viewBox="0 0 24 24">
+                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+            </n-icon>
+            <span>API应返回图片URL或直接返回图片文件</span>
+          </div>
+          <div class="tip-item">
+            <n-icon size="16" color="#10b981">
+              <svg viewBox="0 0 24 24">
+                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+            </n-icon>
+            <span>支持必应、Unsplash等随机图片API</span>
+          </div>
+          <div class="tip-item">
+            <n-icon size="16" color="#f59e0b">
+              <svg viewBox="0 0 24 24">
+                <path fill="currentColor" d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+              </svg>
+            </n-icon>
+            <span>请确保API支持CORS跨域访问</span>
+          </div>
+        </div>
+        
+        <div class="test-section">
+          <n-button 
+            type="primary" 
+            size="small" 
+            @click="testAutoBackgroundApi"
+            :loading="testingApi"
+            :disabled="!autoBackgroundApiUrl"
+          >
+            验证格式
+          </n-button>
+          
+          <div class="test-notice">
+            <n-alert type="info" size="small" style="margin-top: 8px;">
+              💡 由于浏览器安全限制，无法直接测试外部API。请确保您的API支持CORS跨域访问，或在应用背景后查看效果。
+            </n-alert>
+          </div>
         </div>
       </div>
     </div>
@@ -99,6 +176,7 @@ import ImageUpload from '@/components/ImageUpload.vue'
 import type { FileUploadResponse } from '@/api/http/file-upload'
 import { getAllImages, getImageUrl } from '@/api/http/file-upload'
 import { getCurrentBackground } from '@/api/http/background'
+import { getSetting, setSetting } from '@/api/http/system'
 // 导入默认背景图片
 import defaultBackgroundImg from '@/assets/background.png'
 
@@ -126,6 +204,10 @@ const availableImages = ref<Array<{name: string, url: string, filename: string}>
 // 界面状态
 const loading = ref(false)
 const showUploadModal = ref(false)
+
+// 自动背景配置
+const autoBackgroundApiUrl = ref('')
+const testingApi = ref(false)
 
 // 加载所有可用图片
 const loadAvailableImages = async () => {
@@ -234,12 +316,86 @@ watch(() => props.modelValue, (newValue) => {
   }
 })
 
+// 自动背景配置相关方法
+const handleApiUrlChange = () => {
+  // 实时保存API地址变化
+  saveAutoBackgroundConfig()
+}
+
+const testAutoBackgroundApi = async () => {
+  if (!autoBackgroundApiUrl.value) {
+    message.warning('请先输入API地址')
+    return
+  }
+
+  testingApi.value = true
+  try {
+    // 简单的URL格式验证
+    const url = new URL(autoBackgroundApiUrl.value)
+    if (!url.protocol.startsWith('http')) {
+      throw new Error('API地址必须以http://或https://开头')
+    }
+    
+    message.success('API地址格式正确！请应用背景后查看实际效果')
+    console.log('✅ API地址验证通过:', autoBackgroundApiUrl.value)
+    
+    // 保存配置
+    await saveAutoBackgroundConfig()
+  } catch (error) {
+    console.error('❌ API地址验证失败:', error)
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    message.error(`API地址格式错误: ${errorMsg}`)
+  } finally {
+    testingApi.value = false
+  }
+}
+
+// 显示API测试预览
+const showApiTestPreview = (imageUrl: string) => {
+  // 可以在这里添加预览图片的逻辑
+  console.log('📸 API返回的图片URL:', imageUrl)
+}
+
+// 保存自动背景配置
+const saveAutoBackgroundConfig = async () => {
+  try {
+    await setSetting({
+      key: 'auto_background_api_url',
+      value: autoBackgroundApiUrl.value
+    })
+    console.log('✅ 自动背景API配置已保存:', autoBackgroundApiUrl.value)
+  } catch (error) {
+    console.error('❌ 保存自动背景API配置失败:', error)
+  }
+}
+
+// 加载自动背景配置
+const loadAutoBackgroundConfig = async () => {
+  try {
+    const apiUrl = await getSetting('auto_background_api_url')
+    if (apiUrl) {
+      autoBackgroundApiUrl.value = apiUrl
+      console.log('✅ 已加载自动背景API配置:', apiUrl)
+    } else {
+      // 设置默认API地址
+      autoBackgroundApiUrl.value = 'https://bing.img.run/rand_uhd.php'
+    }
+  } catch (error) {
+    console.error('❌ 加载自动背景API配置失败:', error)
+    // 使用默认配置
+    autoBackgroundApiUrl.value = 'https://bing.img.run/rand_uhd.php'
+  }
+}
+
 onMounted(async () => {
   // 先加载所有可用图片
   await loadAvailableImages()
   
   // 然后加载当前背景配置
   await loadCurrentBackground()
+  
+  // 加载自动背景API配置
+  await loadAutoBackgroundConfig()
 })
 </script>
 
@@ -383,6 +539,52 @@ onMounted(async () => {
   opacity: 0.6;
 }
 
+/* 自动背景样式 */
+.auto-background-thumbnail {
+  background: linear-gradient(135deg, 
+    #667eea 0%, 
+    #764ba2 25%, 
+    #f093fb 50%, 
+    #f5576c 75%, 
+    #4facfe 100%);
+  background-size: 300% 300%;
+  animation: autoBackgroundAnimation 6s ease infinite;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+@keyframes autoBackgroundAnimation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.auto-background-icon {
+  font-size: 28px;
+  margin-bottom: 4px;
+  opacity: 0.9;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.auto-background-text {
+  font-size: 11px;
+  color: white;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.5px;
+}
+
+.auto-badge {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-weight: 600;
+}
+
 @media (max-width: 768px) {
   .gallery-grid {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -394,5 +596,60 @@ onMounted(async () => {
     gap: 12px;
     align-items: stretch;
   }
+  
+  .auto-background-icon {
+    font-size: 20px;
+  }
+  
+  .auto-background-text {
+    font-size: 9px;
+  }
+}
+
+/* 自动背景配置区域样式 */
+.auto-background-config {
+  border: 1px solid var(--n-border-color);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.config-header {
+  margin-bottom: 16px;
+}
+
+.config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-item label {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.config-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tip-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.test-section {
+  text-align: right;
+}
+
+.test-notice {
+  margin-top: 8px;
 }
 </style> 

@@ -22,12 +22,81 @@ import java.util.stream.Collectors;
  * - 桥接模式：使用 Docker Compose 默认网络（不设置 networks 配置）
  * - 其他网络：统一处理为桥接模式，避免自定义网络不存在导致的启动失败
  * - 移除了复杂的外部网络定义，确保导出的 compose 文件能够正常导入和启动
+ * 
+ * 🔥 路径处理策略（新增）：
+ * - Docker专用目录：标准化到 ${DOCKER_BASE}/service_name/container_path
+ * - 共享资源目录：智能分组抽取为 ${BASE_X} 环境变量
+ * - 系统目录：保持原样不动
  */
 @Component
 public class ComposeGenerator {
 
     @Autowired
     private com.dockpilot.api.DockerService dockerService;
+    
+    // 🔥 新增：注入AppConfig获取docker_base_dir配置
+    @Autowired
+    private com.dockpilot.common.config.AppConfig appConfig;
+
+    // 🔥 新增：Docker专用路径模式
+    private static final Set<String> DOCKER_SPECIFIC_PATTERNS = Set.of(
+        "/config", "/configuration", "/settings",
+        "/data", "/database", "/storage", 
+        "/logs", "/log",
+        "/cache", "/tmp", "/temp",
+        "/app", "/application", "/workspace",
+        "/plugins", "/extensions", "/themes",
+        "/uploads", "/scripts",
+        "/var/lib", "/opt"
+    );
+    
+    // 🔥 新增：系统路径模式（补充更完整的系统路径）
+    private static final Set<String> SYSTEM_PATTERNS = Set.of(
+        "/var/run", "/dev", "/sys", "/proc", "/run",
+        "/etc/timezone", "/etc/localtime", "/etc/passwd", "/etc/group", 
+        "/etc/hosts", "/etc/hostname", "/etc/resolv.conf", "/etc/nsswitch.conf",
+        "/lib", "/lib64", "/usr/lib", "/usr/share/zoneinfo",
+        "/bin", "/sbin", "/usr/bin", "/usr/sbin"
+    );
+
+    /**
+     * 🔥 新增：获取Docker基础目录
+     */
+    private String getDockerBaseDir() {
+        try {
+            if (appConfig == null) {
+                throw new IllegalStateException("系统配置未初始化，请重启应用");
+            }
+            if (!appConfig.isDockerBaseDirConfigured()) {
+                throw new IllegalStateException("Docker运行目录未配置，请在系统设置中配置Docker运行目录");
+            }
+            return appConfig.getDockerBaseDirOrThrow();
+        } catch (Exception e) {
+            throw new IllegalStateException("获取Docker运行目录失败：" + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 🔥 新增：判断是否为Docker专用路径
+     */
+    private boolean isDockerSpecific(String containerPath) {
+        if (containerPath == null || containerPath.trim().isEmpty()) {
+            return false;
+        }
+        return DOCKER_SPECIFIC_PATTERNS.stream()
+                .anyMatch(containerPath::startsWith);
+    }
+    
+    /**
+     * 🔥 新增：判断是否为系统路径
+     */
+    private boolean isSystemPath(String hostPath) {
+        if (hostPath == null || hostPath.trim().isEmpty()) {
+            return false;
+        }
+        return SYSTEM_PATTERNS.stream()
+                .anyMatch(hostPath::startsWith);
+    }
 
     /**
      * 生成 Docker Compose 文件
@@ -163,22 +232,28 @@ public class ComposeGenerator {
         projectMeta.put("author", "System");
         projectMeta.put("category", "container");  // 添加到顶级配置
 
-        // 配置环境变量 - 改为支持描述的对象结构
+        // 🔥 配置环境变量 - 只添加基础环境变量，不添加具体路径映射
         Map<String, Object> envVars = new LinkedHashMap<>();
         
-        // 添加端口环境变量
-        for (Map.Entry<String, String> entry : portMappings.entrySet()) {
-            Map<String, Object> envObj = new LinkedHashMap<>();
-            envObj.put("value", entry.getValue());
-            envObj.put("description", "");
-            envVars.put(entry.getKey(), envObj);
-        }
+        // 🔥 优先添加Docker基础目录环境变量
+        Map<String, Object> dockerBaseEnv = new LinkedHashMap<>();
+        dockerBaseEnv.put("value", getDockerBaseDir());
+        dockerBaseEnv.put("description", "Docker容器基础目录");
+        envVars.put("DOCKER_BASE", dockerBaseEnv);
         
-        // 添加路径环境变量
+        // 🔥 添加语义化的基础目录环境变量（只添加BASE类型的变量）
         for (Map.Entry<String, String> entry : baseEnv.entrySet()) {
             Map<String, Object> envObj = new LinkedHashMap<>();
             envObj.put("value", entry.getValue());
-            envObj.put("description", "");
+            envObj.put("description", getEnvDescription(entry.getKey()));
+            envVars.put(entry.getKey(), envObj);
+        }
+        
+        // 🔥 添加端口环境变量
+        for (Map.Entry<String, String> entry : portMappings.entrySet()) {
+            Map<String, Object> envObj = new LinkedHashMap<>();
+            envObj.put("value", entry.getValue());
+            envObj.put("description", getEnvDescription(entry.getKey()));
             envVars.put(entry.getKey(), envObj);
         }
         
@@ -246,112 +321,230 @@ public class ComposeGenerator {
     }
 
     /**
-     * 生成 Docker Compose YAML 内容
+     * 生成 Docker Compose YAML 内容，使用自定义项目信息
      *
      * @param containers    容器信息列表
      * @param excludeFields 需要排除的字段集合
+     * @param projectName 项目名称
+     * @param projectDescription 项目描述
      * @return YAML 格式的字符串
      */
-    public String generateComposeContent(List<InspectContainerResponse> containers, Set<String> excludeFields) {
-        return generateComposeContent(containers, excludeFields, "Docker容器项目", "Docker容器管理项目");
+    public String generateComposeContent(List<InspectContainerResponse> containers, Set<String> excludeFields, String projectName, String projectDescription) {
+        
+        // 🔥 检查Docker基础目录配置
+        String dockerBaseDir;
+        try {
+            dockerBaseDir = getDockerBaseDir();
+        } catch (IllegalStateException e) {
+            throw new RuntimeException("无法生成配置：" + e.getMessage());
+        }
+        
+        Map<String, Object> compose = new LinkedHashMap<>();
+        Map<String, Object> services = new LinkedHashMap<>();
+        
+        // 🔥 使用语义分组和收集端口
+        Map<String, String> pathToEnvMapping = analyzePathsByContainerSemantics(containers);
+        Map<String, String> portMappings = new HashMap<>();
+
+        // 处理每个容器
+        for (InspectContainerResponse container : containers) {
+            String serviceName = getServiceName(container);
+            Map<String, Object> service = convertContainerToService(container, excludeFields);
+            service.put("container_name", serviceName);
+            
+            // 🔥 处理端口映射
+            processPortMappings(container, service, portMappings);
+            
+            // 🔥 处理volumes路径映射
+            processVolumeMappings(container, service, serviceName, dockerBaseDir, pathToEnvMapping);
+            
+            // 添加服务元数据
+            Map<String, Object> serviceMeta = new LinkedHashMap<>();
+            serviceMeta.put("name", serviceName);
+            serviceMeta.put("description", "容器服务");
+            serviceMeta.put("configUrl", "");
+            service.put("x-meta", serviceMeta);
+
+            services.put(serviceName, service);
+        }
+        
+        compose.put("services", services);
+
+        // 🔥 添加项目元数据和环境变量
+        addProjectMetadata(compose, projectName, projectDescription, dockerBaseDir, portMappings);
+
+        return generateYamlString(compose);
     }
-
+    
     /**
-     * 将多服务的 compose 内容拆分成多个单服务的 compose 内容
-     *
-     * @param composeContent 原始的 compose 内容
-     * @return 拆分后的 compose 内容列表，key 为服务名，value 为对应的 compose 内容
+     * 🔥 简化：处理端口映射
      */
-    public Map<String, String> splitComposeContent(String composeContent) {
-        Yaml yaml = new Yaml();
-        Map<String, Object> originalCompose = yaml.load(composeContent);
-        Map<String, String> result = new LinkedHashMap<>();
-
-        // 获取所有服务
+    private void processPortMappings(InspectContainerResponse container, Map<String, Object> service, Map<String, String> portMappings) {
+        if (!service.containsKey("ports")) return;
+        
         @SuppressWarnings("unchecked")
-        Map<String, Object> services = (Map<String, Object>) originalCompose.get("services");
-        if (services == null || services.isEmpty()) {
-            return result;
+        List<String> ports = (List<String>) service.get("ports");
+        List<String> newPorts = new ArrayList<>();
+        
+        String imageName = container.getConfig().getImage();
+        String shortName = extractImageName(imageName);
+        
+        for (String portMapping : ports) {
+            String[] parts = portMapping.split(":");
+            if (parts.length == 2) {
+                String hostPort = parts[0];
+                String containerPort = parts[1];
+                String portKey = shortName.toUpperCase() + "_PORT_" + containerPort;
+                portMappings.put(portKey, hostPort);
+                newPorts.add("${" + portKey + "}:" + containerPort);
+            }
         }
-
-        // 获取原始环境变量
+        service.put("ports", newPorts);
+    }
+    
+    /**
+     * 🔥 简化：处理卷映射
+     */
+    private void processVolumeMappings(InspectContainerResponse container, Map<String, Object> service, 
+                                     String serviceName, String dockerBaseDir, Map<String, String> pathToEnvMapping) {
+        if (!service.containsKey("volumes")) return;
+        
         @SuppressWarnings("unchecked")
-        Map<String, Object> xMeta = (Map<String, Object>) originalCompose.get("x-meta");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> originalEnv = xMeta != null ? (Map<String, Object>) xMeta.get("env") : new LinkedHashMap<>();
-
-        // 为每个服务创建独立的 compose 内容
-        for (Map.Entry<String, Object> serviceEntry : services.entrySet()) {
-            String serviceName = serviceEntry.getKey();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> serviceConfig = (Map<String, Object>) serviceEntry.getValue();
-
-            // 创建新的 compose 配置
-            Map<String, Object> newCompose = new LinkedHashMap<>(originalCompose);
-            Map<String, Object> newServices = new LinkedHashMap<>();
-            newServices.put(serviceName, serviceConfig);
-            newCompose.put("services", newServices);
-
-            // 收集服务使用的环境变量
-            Set<String> usedEnvVars = new HashSet<>();
-
-            // 检查端口映射
-            if (serviceConfig.containsKey("ports")) {
-                @SuppressWarnings("unchecked")
-                List<String> ports = (List<String>) serviceConfig.get("ports");
-                for (String port : ports) {
-                    if (port.startsWith("${") && port.contains("}")) {
-                        String envVar = port.substring(2, port.indexOf("}"));
-                        usedEnvVars.add(envVar);
-                    }
+        List<String> volumes = (List<String>) service.get("volumes");
+        List<String> newVolumes = new ArrayList<>();
+        
+        for (String volume : volumes) {
+            String[] parts = volume.split(":");
+            if (parts.length >= 2) {
+                String hostPath = parts[0];
+                String containerPath = parts[1];
+                String newHostPath = transformPath(hostPath, containerPath, serviceName, dockerBaseDir, pathToEnvMapping);
+                
+                if (parts.length == 3) {
+                    newVolumes.add(newHostPath + ":" + containerPath + ":" + parts[2]);
+                } else {
+                    newVolumes.add(newHostPath + ":" + containerPath);
                 }
+            } else {
+                newVolumes.add(volume);
             }
-
-            // 检查卷挂载
-            if (serviceConfig.containsKey("volumes")) {
-                @SuppressWarnings("unchecked")
-                List<String> volumes = (List<String>) serviceConfig.get("volumes");
-                for (String volume : volumes) {
-                    if (volume.startsWith("${") && volume.contains("}")) {
-                        String envVar = volume.substring(2, volume.indexOf("}"));
-                        usedEnvVars.add(envVar);
-                    }
-                }
-            }
-
-            // 过滤环境变量
-            Map<String, Object> filteredEnv = new LinkedHashMap<>();
-            for (Map.Entry<String, Object> envEntry : originalEnv.entrySet()) {
-                if (usedEnvVars.contains(envEntry.getKey())) {
-                    filteredEnv.put(envEntry.getKey(), envEntry.getValue());
-                }
-            }
-
-            // 更新 x-meta 中的环境变量
-            @SuppressWarnings("unchecked")
-            Map<String, Object> newXMeta = (Map<String, Object>) newCompose.get("x-meta");
-            if (newXMeta != null) {
-                newXMeta.put("env", filteredEnv);
-            }
-
-            // 配置 YAML 输出选项
-            DumperOptions options = new DumperOptions();
-            options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-            options.setPrettyFlow(true);
-            options.setIndent(2);
-            options.setIndicatorIndent(2);
-            options.setWidth(120);
-            options.setLineBreak(DumperOptions.LineBreak.UNIX);
-            options.setDefaultScalarStyle(DumperOptions.ScalarStyle.PLAIN);
-            options.setIndentWithIndicator(true);
-            options.setNonPrintableStyle(DumperOptions.NonPrintableStyle.BINARY);
-
-            // 生成 YAML 字符串
-            Yaml newYaml = new Yaml(options);
-            result.put(serviceName, newYaml.dump(newCompose));
         }
+        service.put("volumes", newVolumes);
+    }
+    
+    /**
+     * 🔥 简化：路径转换逻辑
+     */
+    private String transformPath(String hostPath, String containerPath, String serviceName, 
+                                String dockerBaseDir, Map<String, String> pathToEnvMapping) {
+        if (isSystemPath(hostPath)) {
+            return hostPath; // 系统路径保持原样
+        } else if (isDockerSpecific(containerPath)) {
+            return "${DOCKER_BASE}/" + serviceName + "/" + containerPath.substring(1); // Docker专用路径
+        } else {
+            return pathToEnvMapping.getOrDefault(hostPath, hostPath); // 其他路径使用语义映射
+        }
+    }
+    
+    /**
+     * 🔥 简化：提取镜像名称
+     */
+    private String extractImageName(String imageName) {
+        String shortName = imageName;
+        if (imageName.contains("/")) {
+            String[] parts = imageName.split("/");
+            shortName = parts[parts.length - 1];
+        }
+        if (shortName.contains(":")) {
+            shortName = shortName.split(":")[0];
+        }
+        return shortName.replace("-", "_");
+    }
+    
+    /**
+     * 🔥 简化：添加项目元数据
+     */
+    private void addProjectMetadata(Map<String, Object> compose, String projectName, String projectDescription, 
+                                   String dockerBaseDir, Map<String, String> portMappings) {
+        Map<String, Object> projectMeta = new LinkedHashMap<>();
+        projectMeta.put("name", projectName != null && !projectName.trim().isEmpty() ? projectName.trim() : "Docker容器项目");
+        projectMeta.put("description", projectDescription != null && !projectDescription.trim().isEmpty() ? projectDescription.trim() : "Docker容器管理项目");
+        projectMeta.put("version", "1.0.0");
+        projectMeta.put("author", "System");
+        projectMeta.put("category", "container");
 
-        return result;
+        // 🔥 简化环境变量处理
+        Map<String, Object> envVars = new LinkedHashMap<>();
+        
+        // Docker基础目录
+        Map<String, Object> dockerBaseEnv = new LinkedHashMap<>();
+        dockerBaseEnv.put("value", dockerBaseDir);
+        dockerBaseEnv.put("description", "Docker容器基础目录");
+        envVars.put("DOCKER_BASE", dockerBaseEnv);
+        
+        // 语义化基础目录
+        for (Map.Entry<String, String> entry : semanticBaseEnvs.entrySet()) {
+            Map<String, Object> envObj = new LinkedHashMap<>();
+            envObj.put("value", entry.getValue());
+            envObj.put("description", getEnvDescription(entry.getKey()));
+            envVars.put(entry.getKey(), envObj);
+        }
+        
+        // 端口环境变量
+        for (Map.Entry<String, String> entry : portMappings.entrySet()) {
+            Map<String, Object> envObj = new LinkedHashMap<>();
+            envObj.put("value", entry.getValue());
+            envObj.put("description", "服务端口映射");
+            envVars.put(entry.getKey(), envObj);
+        }
+        
+        projectMeta.put("env", envVars);
+        compose.put("x-meta", projectMeta);
+    }
+    
+    /**
+     * 🔥 简化：生成YAML字符串
+     */
+    private String generateYamlString(Map<String, Object> compose) {
+        DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setPrettyFlow(true);
+        options.setIndent(2);
+        options.setWidth(120);
+        options.setLineBreak(DumperOptions.LineBreak.UNIX);
+
+        Yaml yaml = new Yaml(options);
+        String yamlContent = yaml.dump(compose);
+        
+        // 格式化输出
+        yamlContent = yamlContent.replace("\nx-meta:", "\n\nx-meta:")
+                .replace("\nservices:", "\n\nservices:");
+
+        return formatServiceBlocks(yamlContent);
+    }
+    
+    /**
+     * 🔥 简化：格式化服务块
+     */
+    private String formatServiceBlocks(String yamlContent) {
+        StringBuilder formatted = new StringBuilder();
+        String[] lines = yamlContent.split("\n");
+        boolean firstService = true;
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+            int indent = line.length() - line.replaceAll("^\\s+", "").length();
+
+            if (indent == 2 && trimmed.endsWith(":") && 
+                !trimmed.startsWith("x-meta") && !trimmed.startsWith("services")) {
+                if (!firstService) {
+                    formatted.append("\n");
+                }
+                firstService = false;
+            }
+            formatted.append(line).append("\n");
+        }
+        return formatted.toString();
     }
 
     /**
@@ -419,8 +612,8 @@ public class ComposeGenerator {
         // command, entrypoint
         addFieldIfNotExcluded(service, "command", arrayToList(config.getCmd()), excludeFields);
         // addFieldIfNotExcluded(service, "entrypoint", arrayToList(config.getEntrypoint()), excludeFields);
-        // env
-        addFieldIfNotExcluded(service, "environment", arrayToList(config.getEnv()), excludeFields);
+        // 🔥 使用过滤后的环境变量
+        addFieldIfNotExcluded(service, "environment", filterContainerEnvironment(config.getEnv()), excludeFields);
 
         // ports
         if (shouldIncludeField("ports", excludeFields)) {
@@ -445,7 +638,7 @@ public class ComposeGenerator {
             if (container.getMounts() != null) {
                 for (InspectContainerResponse.Mount mount : container.getMounts()) {
                     if (mount.getSource() != null && mount.getDestination() != null) {
-                        volumes.add(mount.getSource() + ":" + mount.getDestination());
+                        volumes.add(mount.getSource() + ":" + mount.getDestination().getPath());
                     }
                 }
             }
@@ -542,349 +735,334 @@ public class ComposeGenerator {
     }
 
     /**
-     * 生成 Docker Compose YAML 内容，使用自定义项目信息
-     *
-     * @param containers    容器信息列表
-     * @param excludeFields 需要排除的字段集合
-     * @param projectName 项目名称
-     * @param projectDescription 项目描述
-     * @return YAML 格式的字符串
+     * 🔥 新增：过滤容器环境变量，移除Docker Compose级别的变量
      */
-    public String generateComposeContent(List<InspectContainerResponse> containers, Set<String> excludeFields, String projectName, String projectDescription) {
-        Map<String, Object> compose = new LinkedHashMap<>();
-        Map<String, Object> services = new LinkedHashMap<>();
-
-        // 收集所有容器的端口映射和路径
-        Map<String, String> portMappings = new LinkedHashMap<>();
-        Set<String> allPaths = new HashSet<>();
-
-        // 第一遍处理：收集所有信息
-        for (InspectContainerResponse container : containers) {
-            String serviceName = getServiceName(container);
-            Map<String, Object> service = convertContainerToService(container, excludeFields);
-            service.put("container_name", serviceName);
-
-            // 收集端口映射并替换为环境变量引用
-            if (service.containsKey("ports")) {
-                @SuppressWarnings("unchecked")
-                List<String> ports = (List<String>) service.get("ports");
-                List<String> newPorts = new ArrayList<>();
-                for (String portMapping : ports) {
-                    String[] parts = portMapping.split(":");
-                    if (parts.length == 2) {
-                        String hostPort = parts[0];
-                        String containerPort = parts[1];
-                        // 从镜像名称中提取最后一个部分
-                        String imageName = container.getConfig().getImage();
-                        String shortName = imageName;
-                        if (imageName.contains("/")) {
-                            String[] imageParts = imageName.split("/");
-                            shortName = imageParts[imageParts.length - 1];
-                        }
-                        // 移除版本标签
-                        if (shortName.contains(":")) {
-                            shortName = shortName.split(":")[0];
-                        }
-                        // 标准化服务名（替换 - 为 _ 并转大写）
-                        String normalizedName = shortName.replace("-", "_").toUpperCase();
-                        String portKey = normalizedName + "_PORT_" + containerPort;
-                        portMappings.put(portKey, hostPort);
-                        // 替换为环境变量引用
-                        newPorts.add("${" + portKey + "}:" + containerPort);
-                    }
-                }
-                service.put("ports", newPorts);
-            }
-
-            // 收集路径
-            if (service.containsKey("volumes")) {
-                @SuppressWarnings("unchecked")
-                List<String> volumes = (List<String>) service.get("volumes");
-                for (String volume : volumes) {
-                    String[] parts = volume.split(":");
-                    if (parts.length >= 1) {
-                        allPaths.add(parts[0]);
-                    }
-                }
-            }
-
-            // 添加服务级元数据配置
-            Map<String, Object> serviceMeta = new LinkedHashMap<>();
-            serviceMeta.put("name", serviceName);
-            serviceMeta.put("description", "容器服务");
-            serviceMeta.put("configUrl", "");  // 直接的一级配置
-            service.put("x-meta", serviceMeta);
-
-            services.put(serviceName, service);
-        }
-
-        // 处理路径映射 - 使用智能分组算法
-        Map<String, List<String>> basePathGroups = analyzePathGroups(allPaths);
-        Map<String, String> baseEnv = new LinkedHashMap<>();
-        Map<String, String> pathToEnv = new LinkedHashMap<>();
-        int baseCount = 1;
-
-        // 根据分组结果生成BASE环境变量
-        for (Map.Entry<String, List<String>> entry : basePathGroups.entrySet()) {
-            String basePath = entry.getKey();
-            List<String> pathsInGroup = entry.getValue();
-            
-            String envName = "BASE_" + baseCount++;
-            baseEnv.put(envName, basePath);
-            
-            // 为组内每个路径生成环境变量引用
-            for (String path : pathsInGroup) {
-                String relative = path.substring(basePath.length());
-                if (relative.startsWith("/")) {
-                    relative = relative.substring(1);
-                }
-                // 如果相对路径为空，直接使用环境变量，不添加斜杠
-                pathToEnv.put(path, relative.isEmpty() ? "${" + envName + "}" : "${" + envName + "}/" + relative);
-            }
-        }
-
-        // 更新服务的卷映射
-        for (Map.Entry<String, Object> serviceEntry : services.entrySet()) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> service = (Map<String, Object>) serviceEntry.getValue();
-            if (service.containsKey("volumes")) {
-                @SuppressWarnings("unchecked")
-                List<String> volumes = (List<String>) service.get("volumes");
-                List<String> newVolumes = new ArrayList<>();
-                for (String volume : volumes) {
-                    String[] parts = volume.split(":");
-                    if (parts.length >= 1) {
-                        String hostPath = parts[0];
-                        String containerPath = parts.length > 1 ? parts[1] : "";
-                        String newHostPath = pathToEnv.getOrDefault(hostPath, hostPath);
-                        newVolumes.add(newHostPath + (containerPath.isEmpty() ? "" : ":" + containerPath));
-                    }
-                }
-                service.put("volumes", newVolumes);
-            }
-        }
-
-        // 添加项目级元数据配置 - 使用用户提供的项目信息
-        Map<String, Object> projectMeta = new LinkedHashMap<>();
-        // 使用用户提供的项目名称，如果为空则使用默认值
-        String finalProjectName = (projectName != null && !projectName.trim().isEmpty()) ? projectName.trim() : "Docker容器项目";
-        String finalProjectDescription = (projectDescription != null && !projectDescription.trim().isEmpty()) ? projectDescription.trim() : "Docker容器管理项目";
-        
-        projectMeta.put("name", finalProjectName);
-        projectMeta.put("description", finalProjectDescription);
-        projectMeta.put("version", "1.0.0");
-        projectMeta.put("author", "System");
-        projectMeta.put("category", "container");
-
-        // 配置环境变量 - 改为支持描述的对象结构
-        Map<String, Object> envVars = new LinkedHashMap<>();
-        
-        // 添加端口环境变量
-        for (Map.Entry<String, String> entry : portMappings.entrySet()) {
-            Map<String, Object> envObj = new LinkedHashMap<>();
-            envObj.put("value", entry.getValue());
-            envObj.put("description", "");
-            envVars.put(entry.getKey(), envObj);
+    private List<String> filterContainerEnvironment(String[] envArray) {
+        if (envArray == null) {
+            return null;
         }
         
-        // 添加路径环境变量
-        for (Map.Entry<String, String> entry : baseEnv.entrySet()) {
-            Map<String, Object> envObj = new LinkedHashMap<>();
-            envObj.put("value", entry.getValue());
-            envObj.put("description", "");
-            envVars.put(entry.getKey(), envObj);
+        List<String> filteredEnv = new ArrayList<>();
+        for (String env : envArray) {
+            // 🚫 过滤掉Docker Compose级别的环境变量
+            if (shouldExcludeFromContainerEnv(env)) {
+                continue;
+            }
+            filteredEnv.add(env);
         }
         
-        projectMeta.put("env", envVars);
-
-        compose.put("x-meta", projectMeta);
-        compose.put("services", services);
-
-        // 配置 YAML 输出选项
-        DumperOptions options = new DumperOptions();
-        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-        options.setPrettyFlow(true);
-        options.setIndent(2);
-        options.setIndicatorIndent(2);
-        options.setWidth(120);
-        options.setLineBreak(DumperOptions.LineBreak.UNIX);
-        options.setDefaultScalarStyle(DumperOptions.ScalarStyle.PLAIN);
-        options.setIndentWithIndicator(true);
-        options.setNonPrintableStyle(DumperOptions.NonPrintableStyle.BINARY);
-
-        // 生成 YAML 字符串
-        Yaml yaml = new Yaml(options);
-        String yamlContent = yaml.dump(compose);
-        // 在根节点之间添加双换行
-        yamlContent = yamlContent.replace("\nx-meta:", "\n\nx-meta:")
-                .replace("\nservices:", "\n\nservices:")
-                .replace("\nnetworks:", "\n\nnetworks:");
-
-        // 在每个服务配置块之间添加换行
-        StringBuilder formattedContent = new StringBuilder();
-        String[] lines = yamlContent.split("\n");
-        boolean inService = false;
-        boolean firstService = true;
-        int currentIndent = 0;
-
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
-            String trimmedLine = line.trim();
-
-            // 计算当前行的缩进级别
-            int indent = line.length() - line.replaceAll("^\\s+", "").length();
-
-            // 检查是否是新服务的开始（缩进为2且以冒号结尾）
-            if (indent == 2 && trimmedLine.endsWith(":") && !trimmedLine.startsWith("x-meta") && !trimmedLine.startsWith("services") && !trimmedLine.startsWith("networks")) {
-                if (inService && !firstService) {
-                    formattedContent.append("\n");  // 在服务之间添加空行
-                }
-                inService = true;
-                firstService = false;
-            }
-
-            formattedContent.append(line).append("\n");
+        return filteredEnv.isEmpty() ? null : filteredEnv;
+    }
+    
+    /**
+     * 🔥 新增：判断环境变量是否应该从容器环境中排除
+     */
+    private boolean shouldExcludeFromContainerEnv(String env) {
+        if (env == null || env.trim().isEmpty()) {
+            return true;
         }
-
-        return formattedContent.toString();
+        
+        String[] parts = env.split("=", 2);
+        if (parts.length < 1) {
+            return true;
+        }
+        
+        String varName = parts[0].trim();
+        
+        // 🚫 排除BASE类型的变量
+        if (varName.startsWith("BASE_")) {
+            return true;
+        }
+        
+        // 🚫 排除端口类型的变量（格式：*_PORT_*）
+        if (varName.contains("_PORT_")) {
+            return true;
+        }
+        
+        // 🚫 排除Docker基础目录变量
+        if ("DOCKER_BASE".equals(varName)) {
+            return true;
+        }
+        
+        return false;
     }
 
     /**
-     * 路径分组类，用于递归分析路径的公共前缀
+     * 🔥 新增：基于容器路径语义的智能分组
      */
-    private static class PathGroup {
-        String commonPrefix;
-        List<String> paths;
-        List<PathGroup> subGroups;
+    private Map<String, String> analyzePathsByContainerSemantics(List<InspectContainerResponse> containers) {
+        // 按容器路径语义分组收集宿主机路径
+        List<String> mediaHosts = new ArrayList<>();
+        List<String> downloadHosts = new ArrayList<>();
+        List<String> documentHosts = new ArrayList<>();
+        List<String> otherHosts = new ArrayList<>();
         
-        PathGroup(String prefix, List<String> paths) {
-            this.commonPrefix = prefix;
-            this.paths = new ArrayList<>(paths);
-            this.subGroups = new ArrayList<>();
-        }
-        
-        /**
-         * 递归分析路径组，找出所有有意义的公共前缀
-         */
-        void analyze() {
-            if (paths.size() < 2) return;
+        for (InspectContainerResponse container : containers) {
+            if (container.getMounts() == null) continue;
             
-            // 按下一层路径段分组
-            Map<String, List<String>> nextLevelGroups = new HashMap<>();
-            
-            for (String path : paths) {
-                String remaining = path.substring(commonPrefix.length());
-                if (remaining.startsWith("/")) {
-                    remaining = remaining.substring(1);
+            for (InspectContainerResponse.Mount mount : container.getMounts()) {
+                // 🔥 增强空值检查
+                if (mount.getSource() == null || mount.getDestination() == null) {
+                    continue;
                 }
                 
-                if (remaining.isEmpty()) continue;
+                String hostPath = mount.getSource();
+                String containerPath = mount.getDestination().getPath();
                 
-                // 找到下一个路径段
-                String nextSegment = remaining.split("/")[0];
-                String nextPrefix = commonPrefix + "/" + nextSegment;
+                // 🔥 检查路径是否有效
+                if (hostPath.trim().isEmpty() || containerPath.trim().isEmpty()) {
+                    continue;
+                }
                 
-                nextLevelGroups.computeIfAbsent(nextPrefix, k -> new ArrayList<>()).add(path);
-            }
-            
-            // 创建子组并递归分析
-            for (Map.Entry<String, List<String>> entry : nextLevelGroups.entrySet()) {
-                if (entry.getValue().size() >= 2) { // 只处理有重复的组
-                    PathGroup subGroup = new PathGroup(entry.getKey(), entry.getValue());
-                    subGroup.analyze(); // 递归分析
-                    subGroups.add(subGroup);
+                // 跳过系统路径和Docker专用路径
+                if (isSystemPath(hostPath) || isDockerSpecific(containerPath)) {
+                    continue;
+                }
+                
+                // 🎯 按容器路径语义分类
+                if (isMediaPath(containerPath)) {
+                    mediaHosts.add(hostPath);
+                } else if (isDownloadPath(containerPath)) {
+                    downloadHosts.add(hostPath);
+                } else if (isDocumentPath(containerPath)) {
+                    documentHosts.add(hostPath);
+                } else {
+                    otherHosts.add(hostPath);
                 }
             }
         }
         
-        /**
-         * 收集所有有效的BASE路径
-         */
-        void collectBasePaths(Map<String, List<String>> baseToPathsMap, int minPaths) {
-            // 如果当前组有足够多的路径，添加为BASE
-            if (paths.size() >= minPaths) {
-                baseToPathsMap.put(commonPrefix, new ArrayList<>(paths));
+        // 🔥 生成语义化环境变量映射
+        Map<String, String> pathToEnv = new HashMap<>();
+        Map<String, String> baseEnvs = new HashMap<>();
+        
+        // 处理媒体路径
+        if (!mediaHosts.isEmpty()) {
+            String mediaBase = findCommonBase(mediaHosts);
+            baseEnvs.put("MEDIA_BASE", mediaBase);
+            for (String hostPath : mediaHosts) {
+                String relative = getRelativePath(hostPath, mediaBase);
+                pathToEnv.put(hostPath, relative.isEmpty() ? "${MEDIA_BASE}" : "${MEDIA_BASE}/" + relative);
             }
-            
-            // 递归收集子组的BASE
-            for (PathGroup subGroup : subGroups) {
-                subGroup.collectBasePaths(baseToPathsMap, minPaths);
+        }
+        
+        // 处理下载路径
+        if (!downloadHosts.isEmpty()) {
+            String downloadBase = findCommonBase(downloadHosts);
+            baseEnvs.put("DOWNLOAD_BASE", downloadBase);
+            for (String hostPath : downloadHosts) {
+                String relative = getRelativePath(hostPath, downloadBase);
+                pathToEnv.put(hostPath, relative.isEmpty() ? "${DOWNLOAD_BASE}" : "${DOWNLOAD_BASE}/" + relative);
             }
+        }
+        
+        // 处理文档路径
+        if (!documentHosts.isEmpty()) {
+            String documentBase = findCommonBase(documentHosts);
+            baseEnvs.put("DOCUMENT_BASE", documentBase);
+            for (String hostPath : documentHosts) {
+                String relative = getRelativePath(hostPath, documentBase);
+                pathToEnv.put(hostPath, relative.isEmpty() ? "${DOCUMENT_BASE}" : "${DOCUMENT_BASE}/" + relative);
+            }
+        }
+        
+        // 处理其他路径（使用原有的智能分组）
+        if (!otherHosts.isEmpty()) {
+            Map<String, List<String>> otherGroups = analyzePathGroups(new HashSet<>(otherHosts));
+            int baseCount = 1;
+            for (Map.Entry<String, List<String>> entry : otherGroups.entrySet()) {
+                String basePath = entry.getKey();
+                List<String> pathsInGroup = entry.getValue();
+                
+                String envName = "BASE_" + baseCount++;
+                baseEnvs.put(envName, basePath);
+                
+                for (String path : pathsInGroup) {
+                    String relative = getRelativePath(path, basePath);
+                    pathToEnv.put(path, relative.isEmpty() ? "${" + envName + "}" : "${" + envName + "}/" + relative);
+                }
+            }
+        }
+        
+        // 将baseEnvs信息存储，供后续使用
+        this.semanticBaseEnvs = baseEnvs;
+        
+        return pathToEnv;
+    }
+    
+    /**
+     * 🔥 新增：判断是否为媒体路径
+     */
+    private boolean isMediaPath(String containerPath) {
+        return containerPath.contains("/media") || 
+               containerPath.contains("/movies") || 
+               containerPath.contains("/tv") ||
+               containerPath.contains("/music") ||
+               containerPath.contains("/video") ||
+               containerPath.contains("/photos") ||
+               containerPath.contains("/pictures");
+    }
+    
+    /**
+     * 🔥 新增：判断是否为下载路径
+     */
+    private boolean isDownloadPath(String containerPath) {
+        return containerPath.contains("/downloads") || 
+               containerPath.contains("/download") ||
+               containerPath.contains("/torrents");
+    }
+    
+    /**
+     * 🔥 新增：判断是否为文档路径
+     */
+    private boolean isDocumentPath(String containerPath) {
+        return containerPath.contains("/documents") || 
+               containerPath.contains("/books") ||
+               containerPath.contains("/ebooks") ||
+               containerPath.contains("/files");
+    }
+    
+    /**
+     * 🔥 新增：找到路径列表的公共基础路径
+     */
+    private String findCommonBase(List<String> paths) {
+        if (paths.isEmpty()) {
+            return "";
+        }
+        
+        if (paths.size() == 1) {
+            return findReasonableBase(paths.get(0));
+        }
+        
+        // 找到所有路径的公共前缀
+        String commonPrefix = paths.get(0);
+        for (int i = 1; i < paths.size(); i++) {
+            commonPrefix = getCommonPrefix(commonPrefix, paths.get(i));
+        }
+        
+        // 确保公共前缀以完整的目录结束
+        if (commonPrefix.isEmpty() || commonPrefix.equals("/")) {
+            // 如果没有公共前缀，使用第一个路径的合理基础
+            return findReasonableBase(paths.get(0));
+        }
+        
+        // 确保不以/结尾，除非是根目录
+        if (commonPrefix.endsWith("/") && !commonPrefix.equals("/")) {
+            commonPrefix = commonPrefix.substring(0, commonPrefix.length() - 1);
+        }
+        
+        return commonPrefix;
+    }
+    
+    /**
+     * 🔥 新增：获取两个路径的公共前缀
+     */
+    private String getCommonPrefix(String path1, String path2) {
+        int minLength = Math.min(path1.length(), path2.length());
+        int commonLength = 0;
+        
+        for (int i = 0; i < minLength; i++) {
+            if (path1.charAt(i) == path2.charAt(i)) {
+                commonLength = i + 1;
+            } else {
+                break;
+            }
+        }
+        
+        if (commonLength == 0) {
+            return "";
+        }
+        
+        String common = path1.substring(0, commonLength);
+        
+        // 确保公共前缀在路径分隔符处结束
+        int lastSlash = common.lastIndexOf('/');
+        if (lastSlash > 0) {
+            return common.substring(0, lastSlash);
+        } else if (lastSlash == 0) {
+            return "/";
+        }
+        
+        return common;
+    }
+    
+    /**
+     * 🔥 新增：获取相对路径
+     */
+    private String getRelativePath(String fullPath, String basePath) {
+        if (!fullPath.startsWith(basePath)) {
+            return "";
+        }
+        
+        String relative = fullPath.substring(basePath.length());
+        if (relative.startsWith("/")) {
+            relative = relative.substring(1);
+        }
+        
+        return relative;
+    }
+    
+    /**
+     * 🔥 新增：获取环境变量描述
+     */
+    private String getEnvDescription(String envKey) {
+        if (envKey == null) return "";
+        
+        if (envKey.equals("DOCKER_BASE")) {
+            return "Docker容器基础目录";
+        } else if (envKey.equals("MEDIA_BASE")) {
+            return "媒体文件存储目录";
+        } else if (envKey.equals("DOWNLOAD_BASE")) {
+            return "下载文件存储目录";
+        } else if (envKey.equals("DOCUMENT_BASE")) {
+            return "文档文件存储目录";
+        } else if (envKey.startsWith("BASE_")) {
+            return "通用存储目录";
+        } else if (envKey.contains("_PORT_")) {
+            return "服务端口映射";
+        } else {
+            return "配置目录";
         }
     }
     
     /**
-     * 智能分析路径，提取最优的公共前缀
-     * @param allPaths 所有路径的集合
-     * @return BASE路径到对应路径列表的映射
+     * 🔥 简化：智能分析路径分组
      */
     private Map<String, List<String>> analyzePathGroups(Set<String> allPaths) {
-        if (allPaths.isEmpty()) {
-            return new HashMap<>();
-        }
+        Map<String, List<String>> groups = new HashMap<>();
         
-        // 按顶级目录分组
-        Map<String, List<String>> topLevelGroups = new HashMap<>();
-        
+        // 简单分组：按父目录分组
+        Map<String, List<String>> parentGroups = new HashMap<>();
         for (String path : allPaths) {
-            if (path.startsWith("/")) {
-                String[] segments = path.split("/");
-                if (segments.length >= 2) {
-                    String topLevel = "/" + segments[1];
-                    topLevelGroups.computeIfAbsent(topLevel, k -> new ArrayList<>()).add(path);
-                } else {
-                    // 根路径特殊处理
-                    topLevelGroups.computeIfAbsent("/", k -> new ArrayList<>()).add(path);
-                }
+            String parent = findReasonableBase(path);
+            parentGroups.computeIfAbsent(parent, k -> new ArrayList<>()).add(path);
+        }
+        
+        // 只保留有多个路径的分组
+        for (Map.Entry<String, List<String>> entry : parentGroups.entrySet()) {
+            if (entry.getValue().size() >= 1) { // 简化：保留所有分组
+                groups.put(entry.getKey(), entry.getValue());
             }
         }
         
-        // 对每个顶级组进行递归分析
-        Map<String, List<String>> finalBasePaths = new HashMap<>();
-        
-        for (Map.Entry<String, List<String>> entry : topLevelGroups.entrySet()) {
-            List<String> groupPaths = entry.getValue();
-            
-            if (groupPaths.size() == 1) {
-                // 单独的路径，找一个合理的BASE
-                String path = groupPaths.get(0);
-                String reasonableBase = findReasonableBase(path);
-                finalBasePaths.put(reasonableBase, groupPaths);
-            } else {
-                // 多个路径，递归分析
-                PathGroup group = new PathGroup(entry.getKey(), groupPaths);
-                group.analyze();
-                
-                Map<String, List<String>> groupBasePaths = new HashMap<>();
-                group.collectBasePaths(groupBasePaths, 2); // 至少2个路径才成为BASE
-                
-                // 如果没有找到子组，使用顶级组
-                if (groupBasePaths.isEmpty()) {
-                    String reasonableBase = findReasonableBase(groupPaths.get(0));
-                    finalBasePaths.put(reasonableBase, groupPaths);
-                } else {
-                    // 处理层级冲突，选择最优的BASE
-                    resolveBaseConflicts(groupBasePaths, finalBasePaths);
-                }
-            }
-        }
-        
-        return finalBasePaths;
+        return groups;
     }
     
     /**
-     * 为单个路径找到合理的BASE
+     * 🔥 简化：找到合理的基础路径
      */
     private String findReasonableBase(String path) {
         String[] segments = path.split("/");
         
-        // 限制BASE深度在2-4层之间
-        int targetDepth = Math.min(4, Math.max(2, segments.length - 2));
+        // 简化逻辑：取前3-4层目录
+        int targetDepth = Math.min(4, Math.max(2, segments.length - 1));
         
         if (segments.length > targetDepth) {
             StringBuilder base = new StringBuilder();
             for (int i = 1; i <= targetDepth; i++) {
-                base.append("/").append(segments[i]);
+                if (i < segments.length) {
+                    base.append("/").append(segments[i]);
+                }
             }
             return base.toString();
         }
@@ -892,47 +1070,49 @@ public class ComposeGenerator {
         return path;
     }
     
+    // 🔥 新增：存储语义化的基础环境变量
+    private Map<String, String> semanticBaseEnvs = new HashMap<>();
+
     /**
-     * 解决BASE路径之间的层级冲突
+     * 生成 Docker Compose YAML 内容（使用默认项目信息）
+     *
+     * @param containers    容器信息列表
+     * @param excludeFields 需要排除的字段集合
+     * @return YAML 格式的字符串
      */
-    private void resolveBaseConflicts(Map<String, List<String>> candidateBases, Map<String, List<String>> finalBases) {
-        // 按路径长度排序，优先处理更深层的BASE
-        List<Map.Entry<String, List<String>>> sortedBases = candidateBases.entrySet()
-            .stream()
-            .sorted((a, b) -> Integer.compare(b.getKey().length(), a.getKey().length()))
-            .collect(Collectors.toList());
-            
-        Set<String> usedPaths = new HashSet<>();
-        
-        for (Map.Entry<String, List<String>> entry : sortedBases) {
-            String basePath = entry.getKey();
-            List<String> paths = entry.getValue();
-            
-            // 检查这些路径是否已经被其他BASE覆盖
-            List<String> unusedPaths = paths.stream()
-                .filter(path -> !usedPaths.contains(path))
-                .collect(Collectors.toList());
-                
-            if (unusedPaths.size() >= 2) { // 至少要覆盖2个路径才有意义
-                finalBases.put(basePath, unusedPaths);
-                usedPaths.addAll(unusedPaths);
-            }
+    public String generateComposeContent(List<InspectContainerResponse> containers, Set<String> excludeFields) {
+        return generateComposeContent(containers, excludeFields, "Docker容器项目", "Docker容器管理项目");
+    }
+
+    /**
+     * 🔥 简化：拆分compose内容为单服务
+     */
+    public Map<String, String> splitComposeContent(String composeContent) {
+        Yaml yaml = new Yaml();
+        Map<String, Object> originalCompose = yaml.load(composeContent);
+        Map<String, String> result = new LinkedHashMap<>();
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> services = (Map<String, Object>) originalCompose.get("services");
+        if (services == null || services.isEmpty()) {
+            return result;
         }
-        
-        // 处理剩余的未覆盖路径
-        Set<String> allPaths = candidateBases.values().stream()
-            .flatMap(List::stream)
-            .collect(Collectors.toSet());
+
+        for (Map.Entry<String, Object> serviceEntry : services.entrySet()) {
+            String serviceName = serviceEntry.getKey();
             
-        Set<String> uncoveredPaths = allPaths.stream()
-            .filter(path -> !usedPaths.contains(path))
-            .collect(Collectors.toSet());
-            
-        // 为未覆盖的路径创建BASE
-        for (String uncoveredPath : uncoveredPaths) {
-            String reasonableBase = findReasonableBase(uncoveredPath);
-            finalBases.computeIfAbsent(reasonableBase, k -> new ArrayList<>()).add(uncoveredPath);
+            Map<String, Object> singleServiceCompose = new LinkedHashMap<>(originalCompose);
+            Map<String, Object> singleService = new LinkedHashMap<>();
+            singleService.put(serviceName, serviceEntry.getValue());
+            singleServiceCompose.put("services", singleService);
+
+            DumperOptions options = new DumperOptions();
+            options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+            Yaml singleYaml = new Yaml(options);
+            result.put(serviceName, singleYaml.dump(singleServiceCompose));
         }
+
+        return result;
     }
 
 }

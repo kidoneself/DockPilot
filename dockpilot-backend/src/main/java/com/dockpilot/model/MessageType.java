@@ -231,5 +231,10 @@ public enum MessageType {
     /**
      * 系统状态
      */
-    SYSTEM_STATUS
+    SYSTEM_STATUS,
+
+    /**
+     * Docker事件通知
+     */
+    DOCKER_EVENT_NOTIFICATION
 } 

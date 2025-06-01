@@ -936,12 +936,12 @@ onMounted(async () => {
   margin: 0;
   font-size: 28px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-color-1);
 }
 
 .template-count {
   margin-left: 12px;
-  color: #7f8c8d;
+  color: var(--text-color-3);
   font-size: 14px;
 }
 
@@ -961,22 +961,38 @@ onMounted(async () => {
 .template-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .template-item {
   display: flex;
   align-items: center;
   padding: 20px;
-  background: white;
+  background: var(--card-color);
   border-radius: 12px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-color);
   transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .template-item:hover {
   border-color: #18a058;
   box-shadow: 0 4px 12px rgba(24, 160, 88, 0.1);
+  transform: translateY(-1px);
+}
+
+/* 深色模式下的增强效果 */
+[data-theme="dark"] .template-item {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .template-item:hover {
+  box-shadow: 0 4px 16px rgba(24, 160, 88, 0.15), 0 2px 12px rgba(0, 0, 0, 0.4);
+  border-color: #18a058;
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
 }
 
 .template-icon {
@@ -1008,7 +1024,7 @@ onMounted(async () => {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-color-1);
 }
 
 .template-badges {
@@ -1018,7 +1034,7 @@ onMounted(async () => {
 
 .template-description {
   margin: 0 0 12px 0;
-  color: #5a6c7d;
+  color: var(--text-color-2);
   line-height: 1.5;
   font-size: 14px;
 }
@@ -1027,7 +1043,7 @@ onMounted(async () => {
   display: flex;
   gap: 20px;
   font-size: 13px;
-  color: #8492a6;
+  color: var(--text-color-3);
 }
 
 .meta-item {
@@ -1119,12 +1135,12 @@ onMounted(async () => {
   margin: 0 0 8px 0;
   font-size: 24px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-color-1);
 }
 
 .detail-desc {
   margin: 0 0 12px 0;
-  color: #5a6c7d;
+  color: var(--text-color-2);
   line-height: 1.5;
   font-size: 14px;
 }
@@ -1135,7 +1151,7 @@ onMounted(async () => {
 }
 
 .meta-text {
-  color: #7f8c8d;
+  color: var(--text-color-3);
   font-size: 14px;
 }
 
@@ -1151,7 +1167,7 @@ onMounted(async () => {
   margin: 0 0 8px 0;
   font-size: 18px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-color-1);
 }
 
 .services-list {
@@ -1165,7 +1181,7 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: #f8f9fa;
+  background: var(--card-color-hover);
   border-radius: 8px;
   border-left: 3px solid #36ad6a;
 }
@@ -1186,13 +1202,13 @@ onMounted(async () => {
 }
 
 .service-name {
-  color: #2c3e50;
+  color: var(--text-color-1);
   font-size: 14px;
   font-weight: 600;
 }
 
 .service-image {
-  color: #7f8c8d;
+  color: var(--text-color-3);
   font-size: 12px;
   font-family: monospace;
 }
@@ -1208,7 +1224,7 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: #f8f9fa;
+  background: var(--card-color-hover);
   border-radius: 8px;
   border-left: 3px solid #18a058;
 }
@@ -1220,13 +1236,13 @@ onMounted(async () => {
 }
 
 .port-service {
-  color: #2c3e50;
+  color: var(--text-color-1);
   font-weight: 500;
   min-width: 80px;
 }
 
 .port-desc {
-  color: #7f8c8d;
+  color: var(--text-color-3);
   font-size: 12px;
   flex: 1;
 }
@@ -1242,7 +1258,7 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: #f8f9fa;
+  background: var(--card-color-hover);
   border-radius: 8px;
   border-left: 3px solid #2080f0;
 }
@@ -1254,7 +1270,7 @@ onMounted(async () => {
 }
 
 .env-default {
-  color: #7f8c8d;
+  color: var(--text-color-3);
   font-size: 12px;
   flex: 1;
 }
@@ -1270,7 +1286,7 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: #f8f9fa;
+  background: var(--card-color-hover);
   border-radius: 8px;
   border-left: 3px solid #f0a020;
 }
@@ -1283,7 +1299,7 @@ onMounted(async () => {
 }
 
 .volume-desc {
-  color: #7f8c8d;
+  color: var(--text-color-3);
   font-size: 12px;
   flex: 1;
 }

@@ -189,4 +189,13 @@ public class WebSocketSessionManager {
             return false;
         });
     }
+
+    /**
+     * 获取所有活跃的WebSocket会话
+     *
+     * @return 所有活跃的WebSocket会话集合
+     */
+    public Iterable<WebSocketSession> getAllActiveSessions() {
+        return activeSessions.values();
+    }
 } 
