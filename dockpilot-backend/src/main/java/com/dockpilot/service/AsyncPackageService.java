@@ -5,6 +5,7 @@ import com.dockpilot.utils.ComposeGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +25,9 @@ public class AsyncPackageService {
     
     @Autowired
     private ComposeGenerator composeGenerator;
+    
+    @Autowired
+    private ApplicationContext applicationContext;
     
     // 🔥 从配置文件读取包存储路径
     @Value("${file.package.path}")
@@ -51,8 +55,9 @@ public class AsyncPackageService {
         
         taskMap.put(taskId, task);
         
-        // 异步执行打包
-        executePackageAsync(taskId);
+        // 🔥 修复：通过Spring代理调用异步方法
+        AsyncPackageService asyncService = applicationContext.getBean(AsyncPackageService.class);
+        asyncService.executePackageAsync(taskId);
         
         log.info("📦 启动异步打包任务: {} (项目: {})", taskId, projectName);
         return taskId;
