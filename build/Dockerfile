@@ -75,8 +75,8 @@ RUN mkdir -p /dockpilot/data && \
     echo "$VERSION" > /dockpilot/data/current_version && \
     echo "✅ 版本已设置为: $VERSION"
 
-# 🔥 设置目录权限（允许PUID用户访问）
-RUN chown -R dockpilot:dockpilot /app /usr/share/html /dockpilot && \
+# 🔥 设置目录权限（使用root权限）
+RUN chown -R root:root /app /usr/share/html /dockpilot && \
     chmod -R 755 /app /usr/share/html && \
     chmod -R 777 /dockpilot
 
