@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -97,9 +99,14 @@ public class FileUploadController {
                 // 根据文件扩展名设置Content-Type
                 String contentType = getContentType(filename);
                 
+                // 🔥 修复可能的中文文件名编码问题
+                String encodedFilename = encodeFilename(filename);
+                
                 return ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType(contentType))
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                        .header(HttpHeaders.CONTENT_DISPOSITION, 
+                                "inline; filename=\"" + sanitizeFilename(filename) + "\"; " +
+                                "filename*=UTF-8''" + encodedFilename)
                         .body(resource);
             } else {
                 return ResponseEntity.notFound().build();
@@ -337,13 +344,38 @@ public class FileUploadController {
     }
 
     /**
+     * 🔥 新增：URL编码文件名（RFC 5987标准）
+     */
+    private String encodeFilename(String filename) {
+        try {
+            return URLEncoder.encode(filename, StandardCharsets.UTF_8.toString())
+                    .replace("+", "%20");  // 空格编码为%20而不是+
+        } catch (Exception e) {
+            log.warn("文件名编码失败，使用原始文件名: {}", filename, e);
+            return filename;
+        }
+    }
+
+    /**
      * 清理文件名，移除不安全字符
      */
     private String sanitizeFilename(String filename) {
-        // 移除或替换不安全的字符
-        return filename.replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fa5._-]", "_")
-                       .replaceAll("_{2,}", "_")
-                       .trim();
+        // 🔥 改进：移除或替换不安全的字符，包括中文字符的处理
+        if (filename == null) {
+            return "file";
+        }
+        
+        // 替换中文和特殊字符为安全字符
+        String sanitized = filename
+                .replaceAll("[^a-zA-Z0-9._-]", "_")  // 替换非安全字符为下划线
+                .replaceAll("_{2,}", "_");          // 多个连续下划线合并为一个
+        
+        // 确保文件名不为空且不以点或下划线开头
+        if (sanitized.isEmpty() || sanitized.startsWith(".") || sanitized.startsWith("_")) {
+            sanitized = "file_" + sanitized;
+        }
+        
+        return sanitized;
     }
 
     /**

@@ -1,86 +1,23 @@
 services:
-  cloud-media-sync:
-    container_name: cloud-media-sync
-    image: imaliang/cloud-media-sync:latest
+  naspt-mpv2:
+    container_name: naspt-mpv2
+    image: jxxghp/moviepilot-v2:latest
     environment:
-      - EMBY_HOST_PORT=http://172.17.0.1:38096
-      - PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      - PYTHONPATH=/cms/cms-api
-      - PYTHON_SHA256=24887b92e2afd4a2ac602419ad4b596372f67ac9b077190f459aba390faf5550
-      - EMBY_API_KEY=d5d013c65e86428ea537006b3926737a
-      - PUID=0
+      - LEAVES_UID=10971
+      - LEAVES_PASSKEY=e0405a9d0de9e3b112ef78ac3d9c7975
       - TZ=Asia/Shanghai
-      - TERM=xterm
-      - GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305
-      - LANG=C.UTF-8
-      - DONATE_CODE=CMS_HQFO2BSD_EE104D0293B84F668F7CC0B518F3AAD2
-      - UMASK=022
-      - ADMIN_PASSWORD=admin
-      - EMBY_PROXY_PORT=9096
-      - IMAGE_CACHE_POLICY=3
-      - PGID=0
-      - CMS_API_TOKEN=cloud_media_sync
-      - PYTHON_VERSION=3.12.7
-      - RUN_ENV=online
-      - ADMIN_USERNAME=admin
-      - HOME=/cms
-    ports:
-      - ${CLOUD_MEDIA_SYNC_PORT_9096}:9096
-      - ${CLOUD_MEDIA_SYNC_PORT_9527}:9527
-    volumes:
-      - ${DOCKER_BASE}/cloud-media-sync/config:/config
-      - ${DOCKER_BASE}/cloud-media-sync/logs:/logs
-      - ${MEDIA_BASE}/media:/media
-      - ${BASE_1}/docker/115/naspt-115-cms/cache:/var/cache/nginx/emby
-    restart: always
-    x-meta:
-      name: cloud-media-sync
-      description: 容器服务
-      configUrl: ''
-
-  buildx_buildkit_mybuilder0:
-    container_name: buildx_buildkit_mybuilder0
-    image: moby/buildkit:buildx-stable-1
-    command:
-      - --allow-insecure-entitlement=network.host
-    environment:
-      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      - BUILDKIT_SETUP_CGROUPV2_ROOT=1
-    volumes:
-      - ${DOCKER_BASE}/buildx_buildkit_mybuilder0/var/lib/buildkit:/var/lib/buildkit
-    restart: unless-stopped
-    x-meta:
-      name: buildx_buildkit_mybuilder0
-      description: 容器服务
-      configUrl: ''
-
-  naspt-allinone-v2:
-    container_name: naspt-allinone-v2
-    image: ccr.ccs.tencentyun.com/naspt/allinone:latest
-    command:
-      - -tv=true
-      - -aesKey=swj6pnb4h6xyvhpq69fgae2bbpjlb8y2
-      - -userid=5892131247
-      - -token=9209187973c38fb7ee461017e1147ebe43ef7d73779840ba57447aaa439bac301b02ad7189d2f1b58d3de8064ba9d52f46ec2de6a834d1373071246ac0eed55bb3ff4ccd79d137
-    environment:
-      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-    network_mode: host
-    restart: always
-    x-meta:
-      name: naspt-allinone-v2
-      description: 容器服务
-      configUrl: ''
-
-  moviepilot-v2-23:
-    container_name: moviepilot-v2-23
-    image: ccr.ccs.tencentyun.com/naspt/moviepilot-v2:latest
-    environment:
+      - SUPERUSER=admin
+      - API_TOKEN=nasptnasptnasptnasptnaspt
+      - AUTO_UPDATE_RESOURCE=false
+      - MOVIEPILOT_AUTO_UPDATE=false
+      - AUTH_SITE=icc2022,leaves
+      - ICC2022_UID=24730
+      - ICC2022_PASSKEY=49c421073514d4d981a0cbc4174f4b23
       - PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       - LANG=C.UTF-8
       - GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305
       - PYTHON_VERSION=3.12.8
       - PYTHON_SHA256=c909157bb25ec114e5869124cc2a9c4a4d4c1e957ca4ff553f1edc692101154e
-      - TZ=Asia/Shanghai
       - HOME=/moviepilot
       - CONFIG_DIR=/config
       - TERM=xterm
@@ -90,79 +27,144 @@ services:
       - UMASK=000
       - PORT=3001
       - NGINX_PORT=3000
-      - MOVIEPILOT_AUTO_UPDATE=release
     ports:
+      - ${MOVIEPILOT_V2_PORT_3001}:3001
       - ${MOVIEPILOT_V2_PORT_3000}:3000
     volumes:
-      - ${DOCKER_BASE}/moviepilot-v2-23/config:/config
+      - ${DOCKER_BASE}/naspt-qb/config/qBittorrent/BT_backup:/qbtr
+      - ${DOCKER_BASE}/naspt-mpv2/core:/moviepilot/.cache/ms-playwright
+      - ${DOCKER_BASE}/naspt-mpv2/config:/config
+      - ${MEDIA_BASE}:/media
     restart: always
     x-meta:
-      name: moviepilot-v2-23
+      name: naspt-mpv2
       description: 容器服务
       configUrl: ''
 
-  naspt-cloudsaver:
-    container_name: naspt-cloudsaver
-    image: jiangrui1994/cloudsaver:latest
+  naspt-csf:
+    container_name: naspt-csf
+    image: allanpk716/chinesesubfinder:latest
     environment:
+      - PGID=0
+      - UMASK=022
+      - PUID=0
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - TZ=Asia/Shanghai
+      - PERMS=true
+      - 'PS1=\u@\h:\w $ '
+    ports:
+      - ${CHINESESUBFINDER_PORT_19035}:19035
+    volumes:
+      - ${DOCKER_BASE}/naspt-csf/config:/config
+      - ${DOCKER_BASE}/naspt-csf/app/cache:/app/cache
+      - ${MEDIA_BASE}:/media
+    restart: always
+    x-meta:
+      name: naspt-csf
+      description: 容器服务
+      configUrl: ''
+
+  naspt-qb:
+    container_name: naspt-qb
+    image: linuxserver/qbittorrent:4.6.4
+    environment:
+      - SavePatch=/media/downloads
+      - TempPatch=/media/downloads
+      - WEBUI_PORT=9000
       - PUID=0
       - PGID=0
       - UMASK=022
-      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      - NODE_VERSION=18.20.8
-      - YARN_VERSION=1.22.22
-    ports:
-      - ${CLOUDSAVER_PORT_8008}:8008
-    volumes:
-      - ${DOCKER_BASE}/naspt-cloudsaver/app/config:/app/config
-      - ${DOCKER_BASE}/naspt-cloudsaver/app/data:/app/data
-      - ${DOCKER_BASE}/naspt-cloudsaver/config:/config
-      - ${DOCKER_BASE}/naspt-cloudsaver/data:/data
-    restart: always
-    x-meta:
-      name: naspt-cloudsaver
-      description: 容器服务
-      configUrl: ''
-
-  v2ray:
-    container_name: v2ray
-    image: mzz2017/v2raya:latest
-    environment:
-      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-    ports:
-      - ${V2RAYA_PORT_2017}:2017
-    volumes:
-      - ${BASE_1}/docker:/etc/v2raya
-    restart: always
-    x-meta:
-      name: v2ray
-      description: 容器服务
-      configUrl: ''
-
-  naspt-allinone-format:
-    container_name: naspt-allinone-format
-    image: ccr.ccs.tencentyun.com/naspt/allinone_format:latest
-    command:
-      - php
-      - -S
-      - '[::]:35456'
-      - -t
-      - public
-      - index.php
-    environment:
-      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       - TZ=Asia/Shanghai
+      - PATH=/lsiopy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - 'PS1=$(whoami)@$(hostname):$(pwd)\$ '
+      - HOME=/config
+      - TERM=xterm
+      - S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0
+      - S6_VERBOSITY=1
+      - S6_STAGE2_HOOK=/docker-mods
+      - VIRTUAL_ENV=/lsiopy
+      - LSIO_FIRST_PARTY=true
+      - XDG_CONFIG_HOME=/config
+      - XDG_DATA_HOME=/config
+    ports:
+      - ${QBITTORRENT_PORT_9000}:9000
     volumes:
-      - ${DOCKER_BASE}/naspt-allinone-format/app/config:/app/config
-    network_mode: host
+      - ${DOCKER_BASE}/naspt-qb/config:/config
+      - ${MEDIA_BASE}:/media
     restart: always
     x-meta:
-      name: naspt-allinone-format
+      name: naspt-qb
+      description: 容器服务
+      configUrl: ''
+
+  naspt-emby:
+    container_name: naspt-emby
+    image: amilys/embyserver:beta
+    environment:
+      - GID=0
+      - UMASK=022
+      - UID=0
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - LANG=en_US.UTF-8
+      - HOME=/tmp
+      - AMDGPU_IDS=/share/libdrm/amdgpu.ids
+      - FONTCONFIG_PATH=/etc/fonts
+      - LD_LIBRARY_PATH=/lib:/system
+      - LIBVA_DRIVERS_PATH=/lib/dri
+      - OCL_ICD_VENDORS=/etc/OpenCL/vendors
+      - PCI_IDS_PATH=/share/hwdata/pci.ids
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+      - GIDLIST=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+      - IGNORE_VAAPI_ENABLED_FLAG=false
+      - XDG_CACHE_HOME=/config/cache
+    ports:
+      - ${EMBYSERVER_PORT_8096}:8096
+    volumes:
+      - ${MEDIA_BASE}:/media
+      - ${DOCKER_BASE}/naspt-emby/config:/config
+    restart: always
+    devices:
+      - /dev/dri:/dev/dri
+    x-meta:
+      name: naspt-emby
+      description: 容器服务
+      configUrl: ''
+
+  naspt-tr:
+    container_name: naspt-tr
+    image: linuxserver/transmission:4.0.5
+    environment:
+      - PASS=a123456!@
+      - TRANSMISSION_WEB_HOME=/config/2/src
+      - PUID=0
+      - PGID=0
+      - UMASK=022
+      - TZ=Asia/Shanghai
+      - USER=admin
+      - PATH=/lsiopy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - 'PS1=$(whoami)@$(hostname):$(pwd)\$ '
+      - HOME=/root
+      - TERM=xterm
+      - S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0
+      - S6_VERBOSITY=1
+      - S6_STAGE2_HOOK=/docker-mods
+      - VIRTUAL_ENV=/lsiopy
+      - LSIO_FIRST_PARTY=true
+    ports:
+      - ${TRANSMISSION_PORT_9091}:9091
+    volumes:
+      - ${DOCKER_BASE}/naspt-tr/config:/config
+      - ${MEDIA_BASE}:/media
+    restart: always
+    x-meta:
+      name: naspt-tr
       description: 容器服务
       configUrl: ''
 
 x-meta:
-  name: 容器项目-1748802324095
+  name: 家庭影院
   description: Docker容器管理项目
   version: 1.0.0
   author: System
@@ -173,23 +175,23 @@ x-meta:
       value: /volume1/docker
       description: Docker容器基础目录
     MEDIA_BASE:
-      value: /Users/lizhiqiang/testDocker/new
+      value: /home/media
       description: 媒体文件存储目录
-    BASE_1:
-      value: /Users/lizhiqiang/testDocker/new
-      description: 通用存储目录
-    CLOUD_MEDIA_SYNC_PORT_9527:
-      value: '9527'
+    TRANSMISSION_PORT_9091:
+      value: '9091'
       description: 服务端口映射
-    V2RAYA_PORT_2017:
-      value: '2017'
+    EMBYSERVER_PORT_8096:
+      value: '8096'
+      description: 服务端口映射
+    MOVIEPILOT_V2_PORT_3001:
+      value: '3001'
+      description: 服务端口映射
+    QBITTORRENT_PORT_9000:
+      value: '9000'
       description: 服务端口映射
     MOVIEPILOT_V2_PORT_3000:
-      value: '4444'
+      value: '3000'
       description: 服务端口映射
-    CLOUD_MEDIA_SYNC_PORT_9096:
-      value: '9096'
-      description: 服务端口映射
-    CLOUDSAVER_PORT_8008:
-      value: '9009'
+    CHINESESUBFINDER_PORT_19035:
+      value: '19035'
       description: 服务端口映射

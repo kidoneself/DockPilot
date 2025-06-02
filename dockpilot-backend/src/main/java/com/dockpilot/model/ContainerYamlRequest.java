@@ -39,4 +39,9 @@ public class ContainerYamlRequest {
      * value: 用户配置的描述
      */
     private Map<String, String> envDescriptions;
+    
+    /**
+     * 是否包含配置包
+     */
+    private Boolean includeConfigPackages = false;
 } 

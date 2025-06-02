@@ -19,6 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -345,8 +347,9 @@ public class ApplicationWebSocketService implements BaseService {
             parsePortMappings(service.getPorts(), request, envVars, callback);
         }
         
-        // 数据卷挂载配置
-        parseVolumeMounts(service.getVolumes(), request, callback);
+        // 数据卷挂载配置 - 🔥 新增：传递configUrl参数
+        String configUrl = service.getConfigUrl();
+        parseVolumeMounts(service.getVolumes(), request, service.getName(), configUrl, callback);
         
         // 网络配置 - 从服务配置中读取
         String networkMode = service.getNetworkMode();
@@ -491,8 +494,11 @@ public class ApplicationWebSocketService implements BaseService {
     /**
      * 解析数据卷挂载
      */
-    private void parseVolumeMounts(List<String> serviceVolumes, ContainerCreateRequest request, InstallCallback callback) {
+    private void parseVolumeMounts(List<String> serviceVolumes, ContainerCreateRequest request, String serviceName, String configUrl, InstallCallback callback) {
         List<com.github.dockerjava.api.model.Bind> binds = new ArrayList<>();
+        
+        // 🔥 新增：处理配置包下载
+        handleConfigDownload(configUrl, serviceName, serviceVolumes, callback);
         
         // 处理服务定义的卷挂载
         if (serviceVolumes != null) {
@@ -892,12 +898,18 @@ public class ApplicationWebSocketService implements BaseService {
                     String containerDevice = parts[1].trim();
                     String permissions = parts.length > 2 ? parts[2].trim() : "rwm";
                     
+                    // 🔍 检查宿主机设备是否存在
+                    if (!checkHostDeviceExists(hostDevice, callback)) {
+                        callback.onLog("⚠️ 跳过设备映射: " + hostDevice + " (宿主机设备不存在，容器将使用软件渲染)");
+                        continue; // 跳过这个设备映射，继续处理下一个
+                    }
+                    
                     com.github.dockerjava.api.model.Device device = new com.github.dockerjava.api.model.Device(
                         permissions, containerDevice, hostDevice
                     );
                     deviceList.add(device);
                     
-                    callback.onLog("设置设备映射: " + hostDevice + " -> " + containerDevice + " (" + permissions + ")");
+                    callback.onLog("✅ 设置设备映射: " + hostDevice + " -> " + containerDevice + " (" + permissions + ")");
                 }
             } catch (Exception e) {
                 callback.onLog("⚠️ 设备映射配置解析失败: " + deviceMapping + ", 错误: " + e.getMessage());
@@ -906,6 +918,293 @@ public class ApplicationWebSocketService implements BaseService {
         
         if (!deviceList.isEmpty()) {
             request.setDevices(deviceList.toArray(new com.github.dockerjava.api.model.Device[0]));
+            callback.onLog("📱 成功配置 " + deviceList.size() + " 个设备映射");
+        } else {
+            callback.onLog("📱 未配置任何设备映射 (所有设备均不可用)");
+        }
+    }
+    
+    /**
+     * 检查宿主机设备是否存在
+     * 
+     * @param hostDevice 宿主机设备路径 (如 /dev/dri)
+     * @param callback 回调用于记录日志
+     * @return true-设备存在, false-设备不存在
+     */
+    private boolean checkHostDeviceExists(String hostDevice, InstallCallback callback) {
+        try {
+            // DockPilot 容器挂载了宿主机根目录到 /mnt/host
+            // 所以检查宿主机的 /dev/dri 就是检查容器内的 /mnt/host/dev/dri
+            String hostMountedPath = "/mnt/host" + hostDevice;
+            java.nio.file.Path devicePath = java.nio.file.Paths.get(hostMountedPath);
+            
+            boolean exists = java.nio.file.Files.exists(devicePath);
+            
+            if (exists) {
+                callback.onLog("🔍 设备检查: " + hostDevice + " ✅ 存在");
+                return true;
+            } else {
+                callback.onLog("🔍 设备检查: " + hostDevice + " ❌ 不存在");
+                return false;
+            }
+            
+        } catch (Exception e) {
+            // 如果检查过程中出现异常，为了安全起见，假设设备不存在
+            callback.onLog("⚠️ 设备检查异常: " + hostDevice + ", 错误: " + e.getMessage() + " (假设设备不存在)");
+            return false;
+        }
+    }
+
+    /**
+     * 🔥 新增：处理配置包下载
+     * 
+     * @param configUrl 配置包下载地址
+     * @param serviceName 服务名称
+     * @param volumeMappings 卷挂载配置
+     * @param callback 回调对象
+     */
+    private void handleConfigDownload(String configUrl, String serviceName, 
+                                    List<String> volumeMappings, InstallCallback callback) {
+        // 检查configUrl是否有值
+        if (configUrl == null || configUrl.trim().isEmpty()) {
+            callback.onLog("📁 服务 " + serviceName + " 无配置包，将创建空目录");
+            return;
+        }
+        
+        callback.onLog("📦 检测到配置包: " + configUrl);
+        
+        try {
+            // 下载配置包
+            String packagePath = downloadConfigPackage(configUrl, serviceName, callback);
+            if (packagePath == null) {
+                callback.onLog("⚠️ 配置包下载失败，将创建空目录");
+                return;
+            }
+            
+            // 解压配置包
+            extractConfigPackage(packagePath, serviceName, volumeMappings, callback);
+            
+            // 清理临时文件
+            deleteTemporaryFile(packagePath);
+            
+            callback.onLog("✅ 配置包部署完成: " + serviceName);
+            
+        } catch (Exception e) {
+            callback.onLog("❌ 配置包处理失败: " + e.getMessage() + "，将创建空目录");
+            log.error("处理配置包失败: {}", serviceName, e);
+        }
+    }
+    
+    /**
+     * 下载配置包到临时文件
+     */
+    private String downloadConfigPackage(String configUrl, String serviceName, InstallCallback callback) {
+        try {
+            callback.onLog("⬇️ 正在下载配置包...");
+            
+            // 创建临时文件
+            String tempFile = "/tmp/config-download-" + serviceName + "-" + System.currentTimeMillis() + ".tar.gz";
+            
+            // 使用Java原生HTTP客户端下载
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                .connectTimeout(java.time.Duration.ofSeconds(30))
+                .build();
+            
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create(configUrl))
+                .timeout(java.time.Duration.ofSeconds(120))
+                .GET()
+                .build();
+            
+            java.net.http.HttpResponse<java.nio.file.Path> response = client.send(request, 
+                java.net.http.HttpResponse.BodyHandlers.ofFile(java.nio.file.Paths.get(tempFile)));
+            
+            if (response.statusCode() == 200) {
+                callback.onLog("✅ 配置包下载成功");
+                return tempFile;
+            } else {
+                callback.onLog("❌ 配置包下载失败: HTTP " + response.statusCode());
+                return null;
+            }
+            
+        } catch (Exception e) {
+            callback.onLog("❌ 配置包下载异常: " + e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * 解压配置包到目标目录
+     */
+    private void extractConfigPackage(String packagePath, String serviceName, 
+                                    List<String> volumeMappings, InstallCallback callback) throws Exception {
+        callback.onLog("📂 正在解压配置包...");
+        
+        // 创建临时解压目录
+        String tempExtractDir = "/tmp/config-extract-" + serviceName + "-" + System.currentTimeMillis();
+        java.nio.file.Files.createDirectories(java.nio.file.Paths.get(tempExtractDir));
+        
+        try {
+            // 解压tar.gz文件
+            extractTarGzFile(packagePath, tempExtractDir, callback);
+            
+            // 根据volumeMappings将解压的内容复制到目标目录
+            deployExtractedConfig(tempExtractDir, serviceName, volumeMappings, callback);
+            
+        } finally {
+            // 清理临时解压目录
+            deleteTemporaryDirectory(tempExtractDir);
+        }
+    }
+    
+    /**
+     * 解压tar.gz文件
+     */
+    private void extractTarGzFile(String packagePath, String extractDir, InstallCallback callback) throws Exception {
+        try (java.io.FileInputStream fis = new java.io.FileInputStream(packagePath);
+             java.io.BufferedInputStream bis = new java.io.BufferedInputStream(fis);
+             java.util.zip.GZIPInputStream gzis = new java.util.zip.GZIPInputStream(bis);
+             org.apache.commons.compress.archivers.tar.TarArchiveInputStream tais = 
+                     new org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gzis)) {
+            
+            org.apache.commons.compress.archivers.tar.TarArchiveEntry entry;
+            while ((entry = tais.getNextTarEntry()) != null) {
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                
+                String entryPath = extractDir + "/" + entry.getName();
+                java.nio.file.Path targetPath = java.nio.file.Paths.get(entryPath);
+                
+                // 创建父目录
+                java.nio.file.Files.createDirectories(targetPath.getParent());
+                
+                // 写入文件
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(targetPath.toFile())) {
+                    byte[] buffer = new byte[8192];
+                    int len;
+                    while ((len = tais.read(buffer)) != -1) {
+                        fos.write(buffer, 0, len);
+                    }
+                }
+                
+                callback.onLog("解压文件: " + entry.getName());
+            }
+        }
+    }
+    
+    /**
+     * 部署解压的配置到目标目录
+     */
+    private void deployExtractedConfig(String extractDir, String serviceName, 
+                                     List<String> volumeMappings, InstallCallback callback) throws Exception {
+        
+        if (volumeMappings == null || volumeMappings.isEmpty()) {
+            callback.onLog("⚠️ 无卷挂载配置，跳过配置部署");
+            return;
+        }
+        
+        for (String volumeMapping : volumeMappings) {
+            String[] parts = volumeMapping.split(":");
+            if (parts.length >= 2) {
+                String hostPath = parts[0].trim();
+                String containerPath = parts[1].trim();
+                
+                // 从容器路径推导配置包中的目录名
+                String containerDirName = getLastPathSegment(containerPath);
+                String sourceDir = extractDir + "/" + containerDirName;
+                
+                // 检查配置包中是否有对应的目录
+                if (java.nio.file.Files.exists(java.nio.file.Paths.get(sourceDir))) {
+                    // 获取宿主机实际路径
+                    String actualHostPath = getActualFilePath(hostPath, callback);
+                    
+                    // 创建宿主机目录
+                    java.nio.file.Files.createDirectories(java.nio.file.Paths.get(actualHostPath));
+                    
+                    // 复制配置文件
+                    copyConfigToTarget(sourceDir, actualHostPath, callback);
+                    
+                    callback.onLog("✅ 配置部署成功: " + containerDirName + " -> " + hostPath);
+                } else {
+                    callback.onLog("⚠️ 配置包中未找到目录: " + containerDirName);
+                }
+            }
+        }
+    }
+    
+    /**
+     * 获取路径的最后一段
+     */
+    private String getLastPathSegment(String path) {
+        if (path == null || path.trim().isEmpty()) {
+            return "";
+        }
+        
+        path = path.trim();
+        if (path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
+        
+        int lastSlash = path.lastIndexOf('/');
+        if (lastSlash >= 0) {
+            return path.substring(lastSlash + 1);
+        }
+        
+        return path;
+    }
+    
+    /**
+     * 复制配置到目标目录
+     */
+    private void copyConfigToTarget(String sourceDir, String targetDir, InstallCallback callback) throws Exception {
+        java.nio.file.Path source = java.nio.file.Paths.get(sourceDir);
+        java.nio.file.Path target = java.nio.file.Paths.get(targetDir);
+        
+        java.nio.file.Files.walkFileTree(source, new java.nio.file.SimpleFileVisitor<java.nio.file.Path>() {
+            @Override
+            public java.nio.file.FileVisitResult preVisitDirectory(java.nio.file.Path dir, 
+                    java.nio.file.attribute.BasicFileAttributes attrs) throws java.io.IOException {
+                java.nio.file.Path targetDir = target.resolve(source.relativize(dir));
+                java.nio.file.Files.createDirectories(targetDir);
+                return java.nio.file.FileVisitResult.CONTINUE;
+            }
+            
+            @Override
+            public java.nio.file.FileVisitResult visitFile(java.nio.file.Path file, 
+                    java.nio.file.attribute.BasicFileAttributes attrs) throws java.io.IOException {
+                java.nio.file.Path targetFile = target.resolve(source.relativize(file));
+                java.nio.file.Files.copy(file, targetFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                return java.nio.file.FileVisitResult.CONTINUE;
+            }
+        });
+    }
+    
+    /**
+     * 删除临时文件
+     */
+    private void deleteTemporaryFile(String filePath) {
+        try {
+            java.nio.file.Files.deleteIfExists(java.nio.file.Paths.get(filePath));
+        } catch (Exception e) {
+            log.warn("删除临时文件失败: {}", filePath, e);
+        }
+    }
+    
+    /**
+     * 删除临时目录
+     */
+    private void deleteTemporaryDirectory(String dirPath) {
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(dirPath);
+            if (java.nio.file.Files.exists(path)) {
+                java.nio.file.Files.walk(path)
+                    .sorted(java.util.Comparator.reverseOrder())
+                    .map(java.nio.file.Path::toFile)
+                    .forEach(java.io.File::delete);
+            }
+        } catch (Exception e) {
+            log.warn("删除临时目录失败: {}", dirPath, e);
         }
     }
 

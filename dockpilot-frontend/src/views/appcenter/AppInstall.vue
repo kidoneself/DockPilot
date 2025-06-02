@@ -46,89 +46,51 @@
           </n-icon>
         </div>
         <div v-show="servicesExpanded" class="services-content">
-          <div v-for="service in appServices" :key="service.name" class="service-item">
-            <div class="service-main">
-              <div class="service-icon">
-                <n-icon size="20" color="#059669">
-                  <SettingsOutline />
-                </n-icon>
+          <div v-for="service in appServices" :key="service.name" class="service-item-compact">
+            <div class="service-row">
+              <!-- 服务基本信息 -->
+              <div class="service-basic">
+                <span class="service-name">{{ service.name }}</span>
+                <span class="service-image">{{ service.image }}</span>
               </div>
-              <div class="service-info">
-                <div class="service-name">{{ service.name }}</div>
-              </div>
-              <div class="service-badges">
-                <n-tag v-if="service.configUrl" type="info" size="small">
-                  配置包
-                </n-tag>
-              </div>
-            </div>
-            
-            <!-- 服务使用的镜像 -->
-            <div class="service-image">
-              <div class="image-info">
-                <div class="image-icon">
-                  <n-icon size="16" color="#0ea5e9">
-                    <DownloadOutline />
+              
+              <!-- 状态和操作 -->
+              <div class="service-actions">
+                <!-- 镜像状态小图标 -->
+                <div class="image-status-mini">
+                  <n-icon 
+                    size="16" 
+                    :color="getImageStatusColor(getImageStatusByName(service.image))"
+                    :title="getImageStatusText(getImageStatusByName(service.image))"
+                  >
+                    <CheckmarkCircleOutline v-if="getImageStatusByName(service.image) === 'exists' || getImageStatusByName(service.image) === 'success'" />
+                    <DownloadOutline v-else-if="getImageStatusByName(service.image) === 'missing'" />
+                    <RefreshOutline v-else-if="getImageStatusByName(service.image) === 'pulling'" class="spin" />
+                    <CloseCircleOutline v-else />
                   </n-icon>
                 </div>
-                <div class="image-details">
-                  <div class="image-name">{{ service.image }}</div>
-                  <div class="image-size">{{ getImageSizeByName(service.image) }}</div>
-                </div>
-              </div>
-              <div class="image-status">
-                <n-tag :type="getImageStatusType(getImageStatusByName(service.image))" size="small">
-                  {{ getImageStatusText(getImageStatusByName(service.image)) }}
-                </n-tag>
-              </div>
-              <div class="image-actions">
+                
+                <!-- 操作按钮 -->
                 <n-button 
                   v-if="getImageStatusByName(service.image) === 'missing' || getImageStatusByName(service.image) === 'failed'"
-                  size="small"
+                  size="tiny"
                   type="primary"
                   @click="pullImageByName(service.image)"
                 >
-                  {{ getImageStatusByName(service.image) === 'failed' ? '重试' : '拉取' }}
-                </n-button>
-                <n-button 
-                  v-else-if="getImageStatusByName(service.image) === 'pulling'"
-                  size="small"
-                  loading
-                  disabled
-                >
-                  拉取中
+                  拉取
                 </n-button>
               </div>
             </div>
             
-            <!-- 拉取进度显示 -->
-            <div v-if="getImageStatusByName(service.image) === 'pulling'" class="image-progress">
-              <div class="progress-header">
-                <span class="progress-text">拉取进度</span>
-                <span class="progress-percent">{{ getImageProgressByName(service.image) }}%</span>
-              </div>
+            <!-- 简化的拉取进度（仅在拉取时显示） -->
+            <div v-if="getImageStatusByName(service.image) === 'pulling'" class="service-progress">
               <n-progress 
                 :percentage="getImageProgressByName(service.image)" 
-                :height="6"
+                :height="3"
                 :show-indicator="false"
                 type="line"
                 status="active"
-                :key="`progress-${service.image}-${getImageProgressByName(service.image)}`"
               />
-              
-              <!-- 拉取日志 -->
-              <div v-if="getImageLogsByName(service.image).length > 0" class="image-logs">
-                <div class="logs-header">拉取日志</div>
-                <div class="logs-content">
-                  <div 
-                    v-for="(log, index) in getImageLogsByName(service.image).slice(-3)" 
-                    :key="index" 
-                    class="log-item"
-                  >
-                    {{ log }}
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -518,6 +480,22 @@ const getImageStatusType = (status: string) => {
       return 'error'
     default:
       return 'default'
+  }
+}
+
+const getImageStatusColor = (status: string) => {
+  switch (status) {
+    case 'exists':
+    case 'success':
+      return '#18a058'
+    case 'missing':
+      return '#f0a020'
+    case 'pulling':
+      return '#2080f0'
+    case 'failed':
+      return '#d03050'
+    default:
+      return '#909399'
   }
 }
 
@@ -1207,54 +1185,78 @@ onUnmounted(() => {
   padding: 20px 24px;
 }
 
-.service-item {
+.service-item-compact {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: 8px;
+  padding: 12px 16px;
   background: var(--card-color-hover);
   border-radius: 8px;
   border: 1px solid var(--border-color);
   transition: all 0.2s ease;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   /* 增加阴影效果 */
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
-.service-item:hover {
+.service-item-compact:hover {
   border-color: #3b82f6;
   background: var(--bg-color-2);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
 }
 
-/* 深色模式下的服务项增强效果 */
-[data-theme="dark"] .service-item {
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
-  border-color: rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.03);
+/* 暗黑模式下的服务项增强效果 */
+[data-theme="dark"] .service-item-compact {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+  border: 2px solid #e2e8f0;
+  background: #e2e8f0 !important;
+  border-width: 2px;
+  margin-bottom: 16px !important;
 }
 
-[data-theme="dark"] .service-item:hover {
-  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.15), 0 1px 6px rgba(0, 0, 0, 0.3);
-  border-color: #3b82f6;
-  background: rgba(255, 255, 255, 0.06);
+[data-theme="dark"] .service-item-compact:hover {
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6), 0 4px 12px rgba(0, 0, 0, 0.8);
+  border: 2px solid #60a5fa;
+  background: #f7fafc !important;
   transform: translateY(-1px);
 }
 
-.service-main {
+/* 暗黑模式下的服务进度条 */
+[data-theme="dark"] .service-progress {
+  background: #cbd5e0 !important;
+  border-left: 4px solid #3b82f6;
+}
+
+/* 暗黑模式下的文字增强 */
+[data-theme="dark"] .service-name {
+  color: #1a202c !important;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .service-image {
+  color: #4a5568 !important;
+}
+
+/* 暗黑模式下的服务内容区域 */
+[data-theme="dark"] .services-content {
+  background: #1a202c !important;
+  padding: 24px !important;
+  border-radius: 8px;
+}
+
+.service-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
 }
 
-.service-icon {
-  flex-shrink: 0;
-}
-
-.service-info {
+.service-basic {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .service-name {
@@ -1264,118 +1266,50 @@ onUnmounted(() => {
   margin-bottom: 2px;
 }
 
-.service-badges {
-  flex-shrink: 0;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
 .service-image {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: var(--card-color-hover);
-  border-radius: 6px;
-  border-left: 3px solid #0ea5e9;
-}
-
-.image-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-
-.image-icon {
-  flex-shrink: 0;
-}
-
-.image-details {
-  flex: 1;
-  min-width: 0;
-}
-
-.image-name {
-  font-weight: 500;
-  color: var(--text-color-1);
+  font-weight: 400;
+  color: var(--text-color-2);
   font-size: 12px;
-  margin-bottom: 2px;
   font-family: 'Monaco', 'Consolas', monospace;
+  word-break: break-all;
 }
 
-.image-size {
-  color: var(--text-color-3);
-  font-size: 11px;
-}
-
-.image-status,
-.image-actions {
+.service-actions {
   flex-shrink: 0;
   display: flex;
   gap: 6px;
   align-items: center;
 }
 
-/* 镜像拉取进度样式 */
-.image-progress {
-  margin-top: 12px;
-  padding: 12px;
-  background: var(--card-color-hover);
-  border-radius: 6px;
-  border-left: 3px solid #3b82f6;
-}
-
-.progress-header {
+.image-status-mini {
+  flex-shrink: 0;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
 }
 
-.progress-text {
-  font-size: 12px;
-  color: var(--text-color-2);
-  font-weight: 500;
-}
-
-.progress-percent {
-  font-size: 12px;
-  color: #3b82f6;
-  font-weight: 600;
-}
-
-.image-logs {
-  margin-top: 12px;
-}
-
-.logs-header {
-  font-size: 11px;
-  color: var(--text-color-2);
-  font-weight: 500;
-  margin-bottom: 6px;
-}
-
-.logs-content {
-  background: var(--bg-color-3);
+.service-progress {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--card-color-hover);
   border-radius: 4px;
-  padding: 8px;
-  max-height: 120px;
-  overflow-y: auto;
+  border-left: 2px solid #3b82f6;
 }
 
-.log-item {
-  font-family: 'Monaco', 'Consolas', monospace;
-  font-size: 10px;
-  color: var(--text-color-1);
-  line-height: 1.4;
-  margin-bottom: 2px;
-  word-break: break-word;
+/* 旋转动画 */
+.spin {
+  animation: spin 1s linear infinite;
 }
 
-.log-item:last-child {
-  margin-bottom: 0;
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 配置网格 */

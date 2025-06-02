@@ -28,6 +28,69 @@ log_debug() {
     echo -e "${BLUE}[DEBUG]${NC} $1"
 }
 
+# 🔥 新增：处理PUID/PGID/UMASK环境变量
+setup_user_permissions() {
+    local puid="${PUID:-0}"
+    local pgid="${PGID:-0}"
+    local umask_val="${UMASK:-022}"
+    
+    log_info "🔧 设置用户权限 PUID=$puid PGID=$pgid UMASK=$umask_val"
+    
+    # 设置umask
+    umask "$umask_val"
+    
+    # 如果是root用户（0），直接使用
+    if [ "$puid" = "0" ] && [ "$pgid" = "0" ]; then
+        log_info "✅ 使用root权限运行 (PUID=0, PGID=0)"
+        export CURRENT_USER="root"
+        return 0
+    fi
+    
+    # 如果不是root，需要创建/修改用户
+    local existing_user=$(getent passwd "$puid" | cut -d: -f1 2>/dev/null || echo "")
+    local existing_group=$(getent group "$pgid" | cut -d: -f1 2>/dev/null || echo "")
+    
+    # 创建或使用现有组
+    if [ -z "$existing_group" ]; then
+        groupadd -g "$pgid" dockpilot-runtime
+        log_info "创建用户组: dockpilot-runtime (GID=$pgid)"
+        RUNTIME_GROUP="dockpilot-runtime"
+    else
+        RUNTIME_GROUP="$existing_group"
+        log_info "使用现有用户组: $RUNTIME_GROUP (GID=$pgid)"
+    fi
+    
+    # 创建或使用现有用户
+    if [ -z "$existing_user" ]; then
+        useradd -u "$puid" -g "$pgid" -s /bin/bash -M dockpilot-runtime
+        log_info "创建用户: dockpilot-runtime (UID=$puid)"
+        RUNTIME_USER="dockpilot-runtime"
+    else
+        RUNTIME_USER="$existing_user"
+        log_info "使用现有用户: $RUNTIME_USER (UID=$puid)"
+    fi
+    
+    # 确保关键目录的权限
+    chown -R "$puid:$pgid" /app /usr/share/html /dockpilot 2>/dev/null || true
+    
+    export CURRENT_USER="$RUNTIME_USER"
+    log_info "✅ 用户权限设置完成: $RUNTIME_USER:$RUNTIME_GROUP"
+}
+
+# 🔥 新增：使用正确用户执行命令
+exec_as_user() {
+    local puid="${PUID:-0}"
+    local pgid="${PGID:-0}"
+    
+    if [ "$puid" = "0" ] && [ "$pgid" = "0" ]; then
+        # root用户直接执行
+        exec "$@"
+    else
+        # 使用su-exec切换用户执行
+        exec su-exec "$puid:$pgid" "$@"
+    fi
+}
+
 # 版本号比较函数（支持语义化版本号）
 # 返回0表示第一个版本大于第二个版本，返回1表示小于等于
 version_compare() {
@@ -72,6 +135,9 @@ cleanup() {
 trap cleanup TERM INT
 
 log_info "🚀 DockPilot 热更新版本启动中..."
+
+# 🔥 首先设置用户权限
+setup_user_permissions
 
 # 创建必要的目录
 log_info "📁 创建应用目录结构..."
@@ -230,9 +296,21 @@ start_java() {
     export SPRING_PROFILES_ACTIVE=prod
     export LOG_PATH=/dockpilot/logs
     
-    # 启动Java应用
-    java -jar /app/app.jar &
-    JAVA_PID=$!
+    # 🔥 根据PUID/PGID启动Java应用
+    local puid="${PUID:-0}"
+    local pgid="${PGID:-0}"
+    
+    if [ "$puid" = "0" ] && [ "$pgid" = "0" ]; then
+        # root用户直接启动
+        log_info "🔑 以root权限启动Java应用"
+        java -jar /app/app.jar &
+        JAVA_PID=$!
+    else
+        # 使用su-exec以指定用户启动
+        log_info "🔑 以用户 $puid:$pgid 权限启动Java应用"
+        su-exec "$puid:$pgid" java -jar /app/app.jar &
+        JAVA_PID=$!
+    fi
     
     # 等待Java应用启动
     log_info "⏳ 等待Java应用启动..."
@@ -243,7 +321,7 @@ start_java() {
         if kill -0 "$JAVA_PID" 2>/dev/null; then
             # 尝试访问健康检查端点
             if curl -s http://localhost:8080/update/version >/dev/null 2>&1; then
-                log_info "✅ Java应用启动成功 (PID: $JAVA_PID)"
+                log_info "✅ Java应用启动成功 (PID: $JAVA_PID, 用户: $puid:$pgid)"
                 
                 # 显示完整的启动信息
                 show_startup_info

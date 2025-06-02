@@ -191,9 +191,6 @@
         <NButton type="primary" :loading="generatingYaml" @click="generateYamlContent">
           生成完整YAML
         </NButton>
-        <NButton :loading="generatingYaml" @click="generatePreviewYaml">
-          生成预览YAML（无敏感信息）
-        </NButton>
       </NSpace>
 
       <div v-if="yamlResult">
@@ -216,12 +213,18 @@
               </template>
               复制
             </NButton>
-            <NButton size="small" @click="downloadYamlFile">
-              <template #icon>
-                <n-icon><DownloadOutline /></n-icon>
-              </template>
-              下载
-            </NButton>
+            <NDropdown
+              trigger="click"
+              :options="downloadOptions"
+              @select="handleDownloadSelect"
+            >
+              <NButton size="small">
+                <template #icon>
+                  <n-icon><DownloadOutline /></n-icon>
+                </template>
+                下载 ▼
+              </NButton>
+            </NDropdown>
           </NSpace>
         </div>
         
@@ -335,7 +338,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, h } from 'vue'
-import { NButton, NSpace, useMessage, useDialog, NModal, NInput, NFormItem, NForm, NInputGroup, NCode, NText, NAlert, type FormInst } from 'naive-ui'
+import { NButton, NSpace, useMessage, useDialog, NModal, NInput, NFormItem, NForm, NInputGroup, NCode, NText, NAlert, type FormInst, NDropdown } from 'naive-ui'
 import {
   RefreshOutline,
   AddOutline,
@@ -360,7 +363,7 @@ import {
   restartContainer,
   updateContainerInfo
 } from '@/api/container'
-import { generateContainerYaml, previewContainerYaml, type ContainerYamlResponse } from '@/api/containerYaml'
+import { generateContainerYaml, previewContainerYaml, type ContainerYamlResponse, exportProject, exportYamlOnly, type ProjectExportRequest } from '@/api/containerYaml'
 import { sendWebSocketMessage } from '@/api/websocket/websocketService'
 import { useRouter } from 'vue-router'
 import { useWebSocketTask } from '@/hooks/useWebSocketTask'
@@ -632,42 +635,6 @@ async function generateYamlContent() {
     }
   } catch (error: any) {
     message.error('生成YAML失败: ' + (error.message || error))
-  } finally {
-    generatingYaml.value = false
-  }
-}
-
-// 生成预览YAML
-async function generatePreviewYaml() {
-  try {
-    generatingYaml.value = true
-    
-    // 收集用户配置的环境变量描述
-    const envDescriptions: Record<string, string> = {}
-    previewEnvVars.value.forEach(env => {
-      if (env.description && env.description.trim()) {
-        envDescriptions[env.name] = env.description
-      }
-    })
-    
-    const response = await previewContainerYaml({
-      containerIds: Array.from(selectedContainers.value),
-      projectName: yamlForm.projectName,
-      description: yamlForm.description,
-      excludeFields: ['environment'], // 排除敏感信息
-      envDescriptions: envDescriptions
-    })
-    
-    if (response.success) {
-      yamlResult.value = response
-      // 初始化编辑状态
-      originalYamlContent.value = response.yamlContent
-      message.success('预览YAML生成成功')
-    } else {
-      message.error(response.message || '预览YAML生成失败')
-    }
-  } catch (error: any) {
-    message.error('生成预览YAML失败: ' + (error.message || error))
   } finally {
     generatingYaml.value = false
   }
@@ -1376,6 +1343,57 @@ function insertTemplate() {
       )
     }
   })
+}
+
+// 下载选项
+const downloadOptions = [
+  {
+    label: '只下载YAML',
+    key: 'yaml'
+  },
+  {
+    label: '同时打包配置文件',
+    key: 'all'
+  }
+]
+
+// 处理下载选择
+function handleDownloadSelect(key: string) {
+  if (key === 'yaml') {
+    downloadYamlFile()
+  } else if (key === 'all') {
+    downloadProjectPackage()
+  }
+}
+
+// 下载项目包（YAML + 配置文件）
+async function downloadProjectPackage() {
+  if (!yamlResult.value) return
+
+  try {
+    const params: ProjectExportRequest = {
+      containerIds: Array.from(selectedContainers.value),
+      projectName: yamlResult.value.projectName,
+      description: yamlForm.description,
+      includeConfigPackages: true
+    }
+
+    const { blob, filename } = await exportProject(params)
+    
+    // 创建下载链接
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    message.success('项目包下载完成')
+  } catch (error: any) {
+    message.error('项目包下载失败: ' + (error.message || error))
+  }
 }
 </script>
 

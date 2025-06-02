@@ -2,10 +2,13 @@ package com.dockpilot.utils;
 
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.model.*;
+import lombok.extern.slf4j.Slf4j;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -29,6 +32,7 @@ import java.util.stream.Collectors;
  * - 系统目录：保持原样不动
  */
 @Component
+@Slf4j
 public class ComposeGenerator {
 
     @Autowired
@@ -96,6 +100,42 @@ public class ComposeGenerator {
         }
         return SYSTEM_PATTERNS.stream()
                 .anyMatch(hostPath::startsWith);
+    }
+
+    /**
+     * 🔥 新增：检测是否在生产环境（容器内）运行
+     */
+    private boolean isProductionEnvironment() {
+        try {
+            // 通过Spring Boot的active profile判断
+            String activeProfile = System.getProperty("spring.profiles.active");
+            if (activeProfile == null) {
+                activeProfile = System.getenv("SPRING_PROFILES_ACTIVE");
+            }
+            if (activeProfile == null) {
+                activeProfile = "dev"; // 默认为dev环境
+            }
+            
+            boolean isProd = "prod".equals(activeProfile);
+            log.info("当前运行环境: {} (profile: {})", isProd ? "生产环境(容器)" : "开发环境(本地)", activeProfile);
+            return isProd;
+        } catch (Exception e) {
+            log.warn("获取环境配置失败，默认为开发环境: {}", e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * 🔥 新增：获取实际的文件系统路径
+     */
+    private String getActualFilePath(String hostPath) {
+        if (isProductionEnvironment()) {
+            // 生产环境(容器内)，通过 /mnt/host 访问宿主机
+            return "/mnt/host" + hostPath;
+        } else {
+            // 开发环境(本地)，直接访问原路径
+            return hostPath;
+        }
     }
 
     /**
@@ -331,12 +371,13 @@ public class ComposeGenerator {
      */
     public String generateComposeContent(List<InspectContainerResponse> containers, Set<String> excludeFields, String projectName, String projectDescription) {
         
-        // 🔥 检查Docker基础目录配置
+        // 🔥 检查Docker基础目录配置 - 直接抛出原始异常，不添加额外前缀
         String dockerBaseDir;
         try {
             dockerBaseDir = getDockerBaseDir();
         } catch (IllegalStateException e) {
-            throw new RuntimeException("无法生成配置：" + e.getMessage());
+            // 直接重新抛出原始异常，不添加额外的包装
+            throw e;
         }
         
         Map<String, Object> compose = new LinkedHashMap<>();
@@ -719,8 +760,12 @@ public class ComposeGenerator {
                     .collect(Collectors.toList());
 
             return generateComposeContent(containers, new HashSet<>(), projectName, projectDescription);
+        } catch (IllegalStateException e) {
+            // 对于配置相关的异常，直接抛出原始错误信息
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("生成YAML配置失败: " + e.getMessage(), e);
+            // 对于其他异常，添加简洁的前缀
+            throw new RuntimeException("YAML生成失败: " + e.getMessage(), e);
         }
     }
 
@@ -1113,6 +1158,278 @@ public class ComposeGenerator {
         }
 
         return result;
+    }
+    
+    /**
+     * 🔥 新增：生成配置包
+     * 
+     * @param containerIds 容器ID列表
+     * @param outputDir 输出目录
+     * @return 配置包信息 Map<服务名, 包文件名>
+     */
+    public Map<String, String> generateConfigPackages(List<String> containerIds, String outputDir) {
+        Map<String, String> packageInfo = new HashMap<>();
+        
+        try {
+            String dockerBaseDir = getDockerBaseDir();
+            
+            // 获取容器详细信息
+            List<InspectContainerResponse> containers = dockerService.listContainers().stream()
+                    .filter(container -> containerIds.contains(container.getId()))
+                    .map(container -> dockerService.inspectContainerCmd(container.getId()))
+                    .collect(Collectors.toList());
+            
+            for (InspectContainerResponse container : containers) {
+                String serviceName = getServiceName(container);
+                
+                // 检查服务是否有配置需要打包
+                if (hasConfigurationToPackage(serviceName, dockerBaseDir)) {
+                    // 创建配置包到指定目录
+                    String packageFileName = serviceName + ".tar.gz";
+                    String packagePath = outputDir + "/" + packageFileName;
+                    
+                    boolean success = createServiceConfigPackage(serviceName, container, dockerBaseDir, packagePath);
+                    
+                    if (success) {
+                        packageInfo.put(serviceName, packageFileName);
+                        log.info("服务 {} 配置包创建成功: {}", serviceName, packageFileName);
+                    } else {
+                        log.info("服务 {} 无配置内容需要打包", serviceName);
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("生成配置包失败: {}", e.getMessage());
+        }
+        
+        return packageInfo;
+    }
+    
+    /**
+     * 检查服务是否有配置需要打包
+     */
+    private boolean hasConfigurationToPackage(String serviceName, String dockerBaseDir) {
+        try {
+            // 🔥 只检查Docker专用路径的卷映射
+            
+            // 获取容器信息
+            List<InspectContainerResponse> containers = dockerService.listContainers().stream()
+                    .filter(container -> {
+                        // 先获取容器详细信息，再比较服务名
+                        InspectContainerResponse inspected = dockerService.inspectContainerCmd(container.getId());
+                        return serviceName.equals(getServiceName(inspected));
+                    })
+                    .map(container -> dockerService.inspectContainerCmd(container.getId()))
+                    .collect(Collectors.toList());
+            
+            if (containers.isEmpty()) {
+                log.info("❌ 未找到服务对应的容器: {}", serviceName);
+                return false;
+            }
+            
+            InspectContainerResponse container = containers.get(0);
+            
+            // 检查是否有Docker专用路径的卷映射
+            if (container.getHostConfig() != null && container.getHostConfig().getBinds() != null) {
+                com.github.dockerjava.api.model.Bind[] binds = container.getHostConfig().getBinds();
+                int dockerSpecificCount = 0;
+                
+                for (com.github.dockerjava.api.model.Bind bind : binds) {
+                    String containerPath = bind.getVolume().getPath();
+                    if (isDockerSpecific(containerPath)) {
+                        dockerSpecificCount++;
+                        log.info("发现Docker专用路径: {} -> {}", bind.getPath(), containerPath);
+                    }
+                }
+                
+                if (dockerSpecificCount > 0) {
+                    log.info("✅ 服务 {} 有 {} 个Docker专用路径映射，准备打包", serviceName, dockerSpecificCount);
+                    return true;
+                }
+            }
+            
+            log.info("❌ 服务 {} 无Docker专用路径映射", serviceName);
+            return false;
+            
+        } catch (Exception e) {
+            log.warn("检查服务配置失败: {}", serviceName, e);
+            return false;
+        }
+    }
+    
+    /**
+     * 创建服务配置包
+     */
+    private boolean createServiceConfigPackage(String serviceName, InspectContainerResponse container, 
+                                             String dockerBaseDir, String outputPath) {
+        try {
+            // 创建临时打包目录
+            String tempPackageDir = "/tmp/temp-package-" + System.currentTimeMillis();
+            java.nio.file.Files.createDirectories(java.nio.file.Paths.get(tempPackageDir));
+            
+            boolean hasContent = false;
+            
+            log.info("运行环境: {}", isProductionEnvironment() ? "生产环境(容器)" : "开发环境(本地)");
+            
+            // 🔥 只打包Docker专用路径（会被转换为DOCKER_BASE格式的路径）
+            if (container.getHostConfig() != null && container.getHostConfig().getBinds() != null) {
+                for (com.github.dockerjava.api.model.Bind bind : container.getHostConfig().getBinds()) {
+                    String hostPath = bind.getPath();
+                    String containerPath = bind.getVolume().getPath();
+                    
+                    log.info("检查卷映射: {} -> {}", hostPath, containerPath);
+                    
+                    // 只处理Docker专用路径（这些路径在YAML中会被转换为DOCKER_BASE格式）
+                    if (isDockerSpecific(containerPath)) {
+                        // 🔥 根据运行环境选择正确的路径访问方式
+                        String sourcePath = getActualFilePath(hostPath);
+                        
+                        log.info("实际访问路径: {}", sourcePath);
+                        
+                        // 检查源路径是否存在
+                        if (java.nio.file.Files.exists(java.nio.file.Paths.get(sourcePath))) {
+                            if (!isDirectoryEmpty(sourcePath)) {
+                                // 使用容器路径作为相对路径（去掉开头的/）
+                                String relativePath = containerPath.startsWith("/") ? 
+                                    containerPath.substring(1) : containerPath;
+                                String targetPath = tempPackageDir + "/" + relativePath;
+                                
+                                // 复制目录内容
+                                copyDirectoryContents(sourcePath, targetPath);
+                                hasContent = true;
+                                log.info("✅ 已打包Docker专用路径: {} -> {} (宿主机: {})", 
+                                        containerPath, relativePath, hostPath);
+                            } else {
+                                log.info("⚠️ Docker专用目录为空，跳过: {}", sourcePath);
+                            }
+                        } else {
+                            log.info("⚠️ Docker专用路径不存在，跳过: {}", sourcePath);
+                        }
+                    } else {
+                        log.info("ℹ️ 非Docker专用路径，跳过打包: {} -> {}", hostPath, containerPath);
+                    }
+                }
+            }
+            
+            if (!hasContent) {
+                // 清理临时目录
+                deleteDirectory(tempPackageDir);
+                log.info("❌ 服务 {} 无Docker专用配置需要打包", serviceName);
+                return false;
+            }
+            
+            // 创建 tar.gz 包
+            createTarGzPackage(tempPackageDir, outputPath);
+            
+            // 清理临时目录
+            deleteDirectory(tempPackageDir);
+            
+            log.info("✅ 服务 {} 配置包创建成功: {}", serviceName, outputPath);
+            return true;
+            
+        } catch (Exception e) {
+            log.error("创建服务配置包失败: {}", serviceName, e);
+            return false;
+        }
+    }
+    
+    /**
+     * 检查目录是否为空
+     */
+    private boolean isDirectoryEmpty(String dirPath) {
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(dirPath);
+            if (!java.nio.file.Files.exists(path) || !java.nio.file.Files.isDirectory(path)) {
+                return true;
+            }
+            try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(path)) {
+                return !files.findAny().isPresent();
+            }
+        } catch (Exception e) {
+            return true;
+        }
+    }
+    
+    /**
+     * 复制目录内容
+     */
+    private void copyDirectoryContents(String sourcePath, String targetPath) throws Exception {
+        java.nio.file.Path source = java.nio.file.Paths.get(sourcePath);
+        java.nio.file.Path target = java.nio.file.Paths.get(targetPath);
+        
+        java.nio.file.Files.createDirectories(target.getParent());
+        
+        if (java.nio.file.Files.isDirectory(source)) {
+            java.nio.file.Files.walkFileTree(source, new java.nio.file.SimpleFileVisitor<java.nio.file.Path>() {
+                @Override
+                public java.nio.file.FileVisitResult preVisitDirectory(java.nio.file.Path dir, java.nio.file.attribute.BasicFileAttributes attrs) 
+                        throws java.io.IOException {
+                    java.nio.file.Path targetDir = target.resolve(source.relativize(dir));
+                    java.nio.file.Files.createDirectories(targetDir);
+                    return java.nio.file.FileVisitResult.CONTINUE;
+                }
+                
+                @Override
+                public java.nio.file.FileVisitResult visitFile(java.nio.file.Path file, java.nio.file.attribute.BasicFileAttributes attrs) 
+                        throws java.io.IOException {
+                    java.nio.file.Path targetFile = target.resolve(source.relativize(file));
+                    java.nio.file.Files.copy(file, targetFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    return java.nio.file.FileVisitResult.CONTINUE;
+                }
+            });
+        } else {
+            java.nio.file.Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+    
+    /**
+     * 创建tar.gz包
+     */
+    private void createTarGzPackage(String sourceDir, String outputPath) throws Exception {
+        try (java.io.FileOutputStream fos = new java.io.FileOutputStream(outputPath);
+             java.io.BufferedOutputStream bos = new java.io.BufferedOutputStream(fos);
+             java.util.zip.GZIPOutputStream gzos = new java.util.zip.GZIPOutputStream(bos);
+             org.apache.commons.compress.archivers.tar.TarArchiveOutputStream taos = 
+                     new org.apache.commons.compress.archivers.tar.TarArchiveOutputStream(gzos)) {
+            
+            java.nio.file.Path sourcePath = java.nio.file.Paths.get(sourceDir);
+            java.nio.file.Files.walk(sourcePath)
+                .filter(path -> !java.nio.file.Files.isDirectory(path))
+                .forEach(path -> {
+                    try {
+                        String entryName = sourcePath.relativize(path).toString();
+                        org.apache.commons.compress.archivers.tar.TarArchiveEntry tarEntry = 
+                                new org.apache.commons.compress.archivers.tar.TarArchiveEntry(path.toFile(), entryName);
+                        taos.putArchiveEntry(tarEntry);
+                        java.nio.file.Files.copy(path, taos);
+                        taos.closeArchiveEntry();
+                    } catch (Exception e) {
+                        throw new RuntimeException("添加文件到tar包失败: " + path, e);
+                    }
+                });
+        }
+    }
+    
+    /**
+     * 删除目录
+     */
+    private void deleteDirectory(String dirPath) {
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(dirPath);
+            if (java.nio.file.Files.exists(path)) {
+                if (java.nio.file.Files.isDirectory(path)) {
+                    java.nio.file.Files.walk(path)
+                        .sorted(java.util.Comparator.reverseOrder())
+                        .map(java.nio.file.Path::toFile)
+                        .forEach(java.io.File::delete);
+                } else {
+                    java.nio.file.Files.delete(path);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("删除目录失败: {}", dirPath, e);
+        }
     }
 
 }

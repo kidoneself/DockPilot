@@ -21,6 +21,8 @@ RUN apk add --no-cache \
     util-linux \
     tzdata \
     bash \
+    shadow \
+    su-exec \
     skopeo --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
 
 # 下载regctl
@@ -73,6 +75,11 @@ RUN mkdir -p /dockpilot/data && \
     echo "$VERSION" > /dockpilot/data/current_version && \
     echo "✅ 版本已设置为: $VERSION"
 
+# 🔥 设置目录权限（允许PUID用户访问）
+RUN chown -R dockpilot:dockpilot /app /usr/share/html /dockpilot && \
+    chmod -R 755 /app /usr/share/html && \
+    chmod -R 777 /dockpilot
+
 # 暴露端口
 EXPOSE 8888
 
@@ -82,7 +89,10 @@ VOLUME ["/var/run/docker.sock", "/mnt/host", "/dockpilot"]
 # 工作目录
 WORKDIR /app
 
-# 设置环境变量
+# 🔥 设置PUID/PGID/UMASK环境变量
+ENV PUID=0
+ENV PGID=0
+ENV UMASK=022
 ENV DOCKPILOT_VERSION=${VERSION}
 ENV DOWNLOAD_URL_BASE=https://github.com/kidoneself/DockPilot/releases/download
 ENV BUILTIN_FALLBACK=true
