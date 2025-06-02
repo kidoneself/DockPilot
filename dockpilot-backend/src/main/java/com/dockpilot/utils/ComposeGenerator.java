@@ -1500,19 +1500,40 @@ public class ComposeGenerator {
              org.apache.commons.compress.archivers.tar.TarArchiveOutputStream taos = 
                      new org.apache.commons.compress.archivers.tar.TarArchiveOutputStream(gzos)) {
             
+            // 🔥 设置长文件名支持，解决文件名超过100字节的问题
+            taos.setLongFileMode(org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.LONGFILE_POSIX);
+            
             java.nio.file.Path sourcePath = java.nio.file.Paths.get(sourceDir);
             java.nio.file.Files.walk(sourcePath)
                 .filter(path -> !java.nio.file.Files.isDirectory(path))
                 .forEach(path -> {
                     try {
                         String entryName = sourcePath.relativize(path).toString();
+                        
+                        // 🔥 添加文件名长度检查和处理
+                        if (entryName.length() > 255) {
+                            // 对于超过255字符的文件名，截断并添加时间戳保证唯一性
+                            String extension = "";
+                            int lastDotIndex = entryName.lastIndexOf('.');
+                            if (lastDotIndex > 0) {
+                                extension = entryName.substring(lastDotIndex);
+                            }
+                            String baseName = entryName.substring(0, Math.min(200, entryName.length()));
+                            entryName = baseName + "_" + System.currentTimeMillis() + extension;
+                            log.warn("⚠️ 文件名过长，已截断: 原名={} 字符，新名={}", 
+                                sourcePath.relativize(path).toString().length(), entryName);
+                        }
+                        
                         org.apache.commons.compress.archivers.tar.TarArchiveEntry tarEntry = 
                                 new org.apache.commons.compress.archivers.tar.TarArchiveEntry(path.toFile(), entryName);
                         taos.putArchiveEntry(tarEntry);
                         java.nio.file.Files.copy(path, taos);
                         taos.closeArchiveEntry();
+                        
                     } catch (Exception e) {
-                        throw new RuntimeException("添加文件到tar包失败: " + path, e);
+                        // 🔥 改进错误处理，记录但不中断整个打包过程
+                        log.error("❌ 添加文件到tar包失败，跳过此文件: {} - {}", path, e.getMessage());
+                        // 不抛出异常，继续处理其他文件
                     }
                 });
         }
