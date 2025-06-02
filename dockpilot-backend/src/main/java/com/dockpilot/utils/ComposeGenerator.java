@@ -1425,13 +1425,68 @@ public class ComposeGenerator {
                 @Override
                 public java.nio.file.FileVisitResult visitFile(java.nio.file.Path file, java.nio.file.attribute.BasicFileAttributes attrs) 
                         throws java.io.IOException {
-                    java.nio.file.Path targetFile = target.resolve(source.relativize(file));
-                    java.nio.file.Files.copy(file, targetFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    try {
+                        // 🔥 新增：检查文件类型，只复制普通文件
+                        if (!java.nio.file.Files.isRegularFile(file)) {
+                            // 跳过特殊文件类型：套接字、设备文件、符号链接等
+                            String fileName = file.getFileName().toString();
+                            if (fileName.contains("socket") || fileName.contains("pipe") || fileName.contains("fifo")) {
+                                log.info("⚠️ 跳过特殊文件 (套接字/管道): {}", file);
+                            } else {
+                                log.info("⚠️ 跳过非普通文件: {}", file);
+                            }
+                            return java.nio.file.FileVisitResult.CONTINUE;
+                        }
+                        
+                        // 🔥 新增：检查文件可读性
+                        if (!java.nio.file.Files.isReadable(file)) {
+                            log.warn("⚠️ 跳过不可读文件: {}", file);
+                            return java.nio.file.FileVisitResult.CONTINUE;
+                        }
+                        
+                        java.nio.file.Path targetFile = target.resolve(source.relativize(file));
+                        java.nio.file.Files.copy(file, targetFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        
+                    } catch (java.nio.file.FileSystemException e) {
+                        // 🔥 新增：特殊处理文件系统异常
+                        String fileName = file.getFileName().toString();
+                        if (e.getMessage().contains("No such device or address") || 
+                            fileName.contains("socket") || fileName.contains("pipe")) {
+                            log.warn("⚠️ 跳过特殊文件类型 (套接字/设备): {} - {}", file, e.getMessage());
+                        } else {
+                            log.warn("⚠️ 文件复制失败，跳过: {} - {}", file, e.getMessage());
+                        }
+                        // 继续处理其他文件，不中断整个流程
+                    } catch (Exception e) {
+                        // 🔥 新增：捕获其他异常，记录但不中断
+                        log.warn("⚠️ 复制文件时出现异常，跳过: {} - {}", file, e.getMessage());
+                    }
+                    
+                    return java.nio.file.FileVisitResult.CONTINUE;
+                }
+                
+                @Override
+                public java.nio.file.FileVisitResult visitFileFailed(java.nio.file.Path file, java.io.IOException exc) {
+                    // 🔥 新增：处理访问文件失败的情况
+                    log.warn("⚠️ 访问文件失败，跳过: {} - {}", file, exc.getMessage());
                     return java.nio.file.FileVisitResult.CONTINUE;
                 }
             });
         } else {
-            java.nio.file.Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            // 🔥 新增：对单个文件也进行类型检查
+            if (java.nio.file.Files.isRegularFile(source) && java.nio.file.Files.isReadable(source)) {
+                try {
+                    java.nio.file.Files.copy(source, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                } catch (java.nio.file.FileSystemException e) {
+                    if (e.getMessage().contains("No such device or address")) {
+                        log.warn("⚠️ 跳过特殊文件类型: {} - {}", source, e.getMessage());
+                        return; // 不抛出异常，优雅跳过
+                    }
+                    throw e; // 其他异常继续抛出
+                }
+            } else {
+                log.warn("⚠️ 跳过非普通文件或不可读文件: {}", source);
+            }
         }
     }
     
