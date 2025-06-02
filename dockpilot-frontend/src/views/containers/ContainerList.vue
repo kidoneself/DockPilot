@@ -1735,34 +1735,22 @@ async function confirmPathSelectionAndDownload() {
     
     console.log('🚀 异步打包任务已启动:', result)
     
-    // 关闭路径选择模态框
+    // 🔥 立即关闭路径选择弹窗
     showPathSelectionModal.value = false
     
-    // 显示进度模态框
-    showPackageProgressModal.value = true
-    packageTask.value = {
-      taskId: result.taskId,
-      status: 'pending',
-      progress: 0,
-      currentStep: '准备开始打包...',
-      projectName: yamlResult.value.projectName,
-      containerIds: Array.from(selectedContainers.value),
-      selectedPaths: selectedPaths,
-      createTime: new Date().toISOString()
-    }
+    // 🔥 显示简单的成功提示，不显示进度弹窗
+    message.success('打包任务已启动，完成后将自动下载')
     
-    // 开始轮询任务状态
-    startPollingTaskStatus(result.taskId)
-    
-    message.success('打包任务已启动，请稍候...')
+    // 🔥 后台静默轮询任务状态，不显示界面
+    startSilentPollingTaskStatus(result.taskId)
     
   } catch (error: any) {
     message.error('启动打包任务失败: ' + (error.message || error))
   }
 }
 
-// 开始轮询任务状态
-function startPollingTaskStatus(taskId: string) {
+// 🔥 新增：静默轮询任务状态（不显示进度界面）
+function startSilentPollingTaskStatus(taskId: string) {
   if (packageTimer.value) {
     clearInterval(packageTimer.value)
   }
@@ -1770,35 +1758,53 @@ function startPollingTaskStatus(taskId: string) {
   packageTimer.value = window.setInterval(async () => {
     try {
       const task = await getPackageTaskStatus(taskId)
-      packageTask.value = task
       
-      console.log('📊 任务状态更新:', task)
+      console.log('📊 后台任务状态:', task.status, `${task.progress}%`, task.currentStep)
       
       if (task.status === 'completed') {
         // 任务完成，停止轮询
         stopPollingTaskStatus()
         
-        // 自动下载文件
-        setTimeout(() => {
-          downloadCompletedPackage(taskId)
-        }, 1000)
+        // 🔥 直接下载文件，无需确认
+        downloadCompletedPackage(taskId)
+        
+        // 🔥 显示完成通知
+        message.success(`打包完成！文件正在下载... (${formatBytes(task.fileSize || 0, 1)})`)
         
       } else if (task.status === 'failed') {
         // 任务失败，停止轮询
         stopPollingTaskStatus()
+        
+        // 🔥 显示失败通知，提供重试选项
         message.error('打包失败: ' + (task.errorMessage || '未知错误'))
         
-        // 3秒后自动关闭弹窗
-        setTimeout(() => {
-          showPackageProgressModal.value = false
-        }, 3000)
+        // 可选：提供重试按钮
+        dialog.error({
+          title: '打包失败',
+          content: `打包过程中发生错误：${task.errorMessage || '未知错误'}`,
+          positiveText: '知道了',
+          negativeText: '重试',
+          onNegativeClick: () => {
+            // 重新开始打包流程
+            confirmPathSelectionAndDownload()
+          }
+        })
       }
       
     } catch (error: any) {
       console.error('查询任务状态失败:', error)
-      // 查询失败时继续轮询，避免因网络问题中断
+      // 🔥 网络错误时继续轮询，但减少频率
     }
-  }, 2000) // 每2秒查询一次
+  }, 3000) // 🔥 调整为3秒轮询一次，减少服务器压力
+}
+
+// 🔥 简化的文件大小格式化函数
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
 // 停止轮询任务状态
@@ -1822,13 +1828,7 @@ function downloadCompletedPackage(taskId: string) {
     a.click()
     document.body.removeChild(a)
     
-    message.success('打包完成，文件下载中...')
-    
-    // 下载开始后关闭进度弹窗
-    setTimeout(() => {
-      showPackageProgressModal.value = false
-      packageTask.value = null
-    }, 2000)
+    console.log('📥 文件下载已启动:', downloadUrl)
     
   } catch (error: any) {
     message.error('下载文件失败: ' + (error.message || error))
