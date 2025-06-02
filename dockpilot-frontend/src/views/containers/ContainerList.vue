@@ -333,12 +333,139 @@
         </NSpace>
       </template>
     </NModal>
+
+    <!-- 路径选择模态框 -->
+    <NModal
+      v-model:show="showPathSelectionModal"
+      preset="card"
+      title="选择要打包的配置文件"
+      class="path-selection-modal"
+      style="width: 90%; max-width: 1000px;"
+    >
+      <div v-if="loadingPaths" style="text-align: center; padding: 40px;">
+        <NSpin size="large" />
+        <div style="margin-top: 16px;">正在加载路径信息...</div>
+      </div>
+
+      <div v-else-if="containerPaths.length > 0">
+        <NAlert type="info" style="margin-bottom: 16px;">
+          选择需要打包的路径，YAML文件会包含所有路径，但只打包勾选的目录文件
+        </NAlert>
+        
+        <div class="service-path-list">
+          <div v-for="service in containerPaths" :key="service.containerId" class="service-section">
+            <!-- 服务头部 -->
+            <div class="service-header">
+              <div class="service-info">
+                <NTag type="primary">{{ service.serviceName }}</NTag>
+                <NText depth="3">{{ service.image }}</NText>
+                <NTag v-if="service.pathMappings.length === 0" type="warning" size="small">无挂载路径</NTag>
+                <NTag v-else-if="service.pathMappings.filter(p => !p.isSystemPath).length === 0" type="info" size="small">仅系统路径</NTag>
+              </div>
+              <div class="service-actions">
+                <NButton 
+                  size="small" 
+                  @click="toggleAllPaths(service, true)"
+                  :disabled="service.pathMappings.filter(p => !p.isSystemPath).length === 0"
+                >
+                  全选
+                </NButton>
+                <NButton 
+                  size="small" 
+                  @click="toggleAllPaths(service, false)"
+                  :disabled="service.pathMappings.filter(p => !p.isSystemPath).length === 0"
+                >
+                  全不选
+                </NButton>
+              </div>
+            </div>
+            
+            <!-- 路径列表 -->
+            <div class="path-list">
+              <div v-if="service.pathMappings.length === 0" class="empty-paths">
+                <NText depth="3" style="font-style: italic;">此容器没有任何路径挂载</NText>
+              </div>
+              <div v-else-if="service.pathMappings.filter(p => !p.isSystemPath).length === 0" class="system-only-paths">
+                <NText depth="3" style="font-style: italic;">
+                  此容器只有系统路径挂载（{{ service.pathMappings.length }}个），无用户数据需要打包
+                </NText>
+                <NCollapse style="margin-top: 8px;">
+                  <NCollapseItem title="查看系统路径" name="system">
+                    <div v-for="path in service.pathMappings" :key="path.id" class="path-item system-path">
+                      <div class="path-content">
+                        <div class="path-mapping">
+                          <NText depth="3">{{ path.hostPath }}</NText>
+                          <NIcon class="arrow-icon" style="margin: 0 8px;"><ArrowForwardOutline /></NIcon>
+                          <NText depth="3">{{ path.containerPath }}</NText>
+                        </div>
+                        <div class="path-meta">
+                          <NTag type="warning" size="small">系统路径</NTag>
+                          <NTag type="default" size="small">{{ path.mountType }}</NTag>
+                          <NText depth="3" style="margin-left: 8px;">{{ path.description }}</NText>
+                        </div>
+                      </div>
+                    </div>
+                  </NCollapseItem>
+                </NCollapse>
+              </div>
+              <div v-else>
+                <div v-for="path in service.pathMappings" :key="path.id" class="path-item">
+                  <NCheckbox 
+                    v-model:checked="path.selected"
+                    :disabled="path.isSystemPath"
+                  >
+                    <div class="path-content">
+                      <div class="path-mapping">
+                        <NText>{{ path.hostPath }}</NText>
+                        <NIcon class="arrow-icon" style="margin: 0 8px;"><ArrowForwardOutline /></NIcon>
+                        <NText>{{ path.containerPath }}</NText>
+                      </div>
+                      <div class="path-meta">
+                        <NTag v-if="path.isSystemPath" type="warning" size="small">系统路径</NTag>
+                        <NTag v-if="path.readOnly" type="info" size="small">只读</NTag>
+                        <NTag type="default" size="small">{{ path.mountType }}</NTag>
+                        <NText depth="3" style="margin-left: 8px;">{{ path.description }}</NText>
+                      </div>
+                    </div>
+                  </NCheckbox>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 打包统计 -->
+        <div class="package-summary" style="margin-top: 16px; padding: 12px; background: #f8f9fa; border-radius: 4px;">
+          <NText depth="3">
+            将打包 {{ selectedPathsCount }} 个路径的配置文件
+            <span v-if="systemPathsCount > 0">（已自动排除 {{ systemPathsCount }} 个系统路径）</span>
+          </NText>
+        </div>
+      </div>
+
+      <div v-else style="text-align: center; padding: 40px;">
+        <NText depth="3">没有找到可打包的路径</NText>
+      </div>
+
+      <template #action>
+        <NSpace>
+          <NButton @click="showPathSelectionModal = false">取消</NButton>
+          <NButton 
+            type="primary" 
+            :disabled="selectedPathsCount === 0"
+            @click="confirmPathSelectionAndDownload"
+          >
+            确认下载（{{ selectedPathsCount }} 个路径）
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, h } from 'vue'
-import { NButton, NSpace, useMessage, useDialog, NModal, NInput, NFormItem, NForm, NInputGroup, NCode, NText, NAlert, type FormInst, NDropdown } from 'naive-ui'
+import { NButton, NSpace, useMessage, useDialog, NModal, NInput, NFormItem, NForm, NInputGroup, NCode, NText, NAlert, type FormInst, NDropdown, NCollapse, NCollapseItem } from 'naive-ui'
 import {
   RefreshOutline,
   AddOutline,
@@ -350,7 +477,8 @@ import {
   CreateOutline,
   InformationCircleOutline,
   CheckmarkOutline,
-  CheckmarkCircleOutline
+  CheckmarkCircleOutline,
+  ArrowForwardOutline
 } from '@vicons/ionicons5'
 import ContainerItem from '@/components/container/ContainerItem.vue'
 import ContainerLogModal from '@/components/container/ContainerLogModal.vue'
@@ -363,7 +491,7 @@ import {
   restartContainer,
   updateContainerInfo
 } from '@/api/container'
-import { generateContainerYaml, previewContainerYaml, type ContainerYamlResponse, exportProject, exportYamlOnly, type ProjectExportRequest } from '@/api/containerYaml'
+import { generateContainerYaml, previewContainerYaml, type ContainerYamlResponse, exportProject, exportYamlOnly, type ProjectExportRequest, getContainerPaths, type ContainerPathInfo, type PathMapping } from '@/api/containerYaml'
 import { sendWebSocketMessage } from '@/api/websocket/websocketService'
 import { useRouter } from 'vue-router'
 import { useWebSocketTask } from '@/hooks/useWebSocketTask'
@@ -1366,16 +1494,131 @@ function handleDownloadSelect(key: string) {
   }
 }
 
-// 下载项目包（YAML + 配置文件）
+// 路径选择相关状态
+const showPathSelectionModal = ref(false)
+const containerPaths = ref<ContainerPathInfo[]>([])
+const loadingPaths = ref(false)
+
+// 计算属性
+const selectedPathsCount = computed(() => {
+  return containerPaths.value.reduce((total, service) => 
+    total + service.pathMappings.filter(path => path.selected && !path.isSystemPath).length, 0
+  )
+})
+
+const systemPathsCount = computed(() => {
+  return containerPaths.value.reduce((total, service) => 
+    total + service.pathMappings.filter(path => path.isSystemPath).length, 0
+  )
+})
+
+// 加载容器路径信息
+async function loadContainerPaths() {
+  try {
+    loadingPaths.value = true
+    console.log('🔍 开始加载容器路径信息，选中容器数量:', selectedContainers.value.size)
+    console.log('📦 选中的容器IDs:', Array.from(selectedContainers.value))
+    
+    const response = await getContainerPaths({
+      containerIds: Array.from(selectedContainers.value)
+    })
+    
+    console.log('📡 后端响应:', response)
+    
+    // 🔥 修复：response 现在直接是数组数据，不再有 success 字段
+    if (Array.isArray(response) && response.length > 0) {
+      console.log('✅ 获取到的容器路径数据:', response)
+      console.log('📊 容器数量:', response.length)
+      
+      // 统计路径信息
+      let totalPaths = 0
+      let systemPaths = 0
+      let userPaths = 0
+      
+      response.forEach((service: ContainerPathInfo, index: number) => {
+        console.log(`📁 容器 ${index + 1}: ${service.serviceName}`)
+        console.log(`   - 镜像: ${service.image}`)
+        console.log(`   - 路径数量: ${service.pathMappings.length}`)
+        
+        service.pathMappings.forEach((path: PathMapping, pathIndex: number) => {
+          totalPaths++
+          if (path.isSystemPath) {
+            systemPaths++
+          } else {
+            userPaths++
+          }
+          console.log(`   路径 ${pathIndex + 1}: ${path.hostPath} -> ${path.containerPath} (系统: ${path.isSystemPath}, 推荐: ${path.recommended})`)
+        })
+      })
+      
+      console.log(`📈 路径统计: 总计${totalPaths}个，系统路径${systemPaths}个，用户路径${userPaths}个`)
+      
+      containerPaths.value = response.map((service: ContainerPathInfo) => ({
+        ...service,
+        pathMappings: service.pathMappings.map((path: PathMapping) => ({
+          ...path,
+          selected: path.recommended && !path.isSystemPath  // 默认选择推荐的非系统路径
+        }))
+      }))
+      
+      console.log('🎯 最终设置的containerPaths数量:', containerPaths.value.length)
+    } else {
+      console.error('❌ 后端返回的数据为空或格式不正确:', response)
+      message.error('获取容器路径失败: 返回数据为空')
+    }
+  } catch (error: any) {
+    console.error('❌ 加载容器路径异常:', error)
+    message.error('加载容器路径失败: ' + (error.message || error))
+  } finally {
+    loadingPaths.value = false
+  }
+}
+
+// 全选/全不选路径
+function toggleAllPaths(service: ContainerPathInfo, selectAll: boolean) {
+  service.pathMappings.forEach((path: PathMapping) => {
+    if (!path.isSystemPath) {  // 只操作非系统路径
+      path.selected = selectAll
+    }
+  })
+}
+
+// 修改下载项目包函数，先弹出路径选择
 async function downloadProjectPackage() {
   if (!yamlResult.value) return
 
   try {
+    // 加载路径信息
+    await loadContainerPaths()
+    
+    // 弹出路径选择界面
+    showPathSelectionModal.value = true
+  } catch (error: any) {
+    message.error('加载路径信息失败: ' + (error.message || error))
+  }
+}
+
+// 确认路径选择后开始下载
+async function confirmPathSelectionAndDownload() {
+  if (!yamlResult.value) return
+
+  try {
+    // 收集用户选择的路径
+    const selectedPaths: string[] = []
+    containerPaths.value.forEach((service: ContainerPathInfo) => {
+      service.pathMappings.forEach((path: PathMapping) => {
+        if (path.selected && !path.isSystemPath) {
+          selectedPaths.push(path.id)  // hostPath:containerPath
+        }
+      })
+    })
+
     const params: ProjectExportRequest = {
       containerIds: Array.from(selectedContainers.value),
       projectName: yamlResult.value.projectName,
       description: yamlForm.description,
-      includeConfigPackages: true
+      includeConfigPackages: true,
+      selectedPaths: selectedPaths  // 🔥 传递用户选择的路径
     }
 
     const { blob, filename } = await exportProject(params)
@@ -1391,6 +1634,7 @@ async function downloadProjectPackage() {
     URL.revokeObjectURL(url)
     
     message.success('项目包下载完成')
+    showPathSelectionModal.value = false
   } catch (error: any) {
     message.error('项目包下载失败: ' + (error.message || error))
   }
@@ -1652,5 +1896,81 @@ async function downloadProjectPackage() {
   color: #2080f0;
   font-size: 12px;
   font-weight: 500;
+}
+
+/* 路径选择模态框样式 */
+.path-selection-modal {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.service-path-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.service-section {
+  border: 1px solid #e0e0e6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.service-header {
+  background: #f8f9fa;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e0e0e6;
+}
+
+.service-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.service-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.path-list {
+  padding: 8px;
+}
+
+.path-item {
+  padding: 8px 12px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.path-item:hover {
+  background: #f5f5f5;
+}
+
+.path-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.path-mapping {
+  display: flex;
+  align-items: center;
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 13px;
+}
+
+.path-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.arrow-icon {
+  color: #999;
 }
 </style> 

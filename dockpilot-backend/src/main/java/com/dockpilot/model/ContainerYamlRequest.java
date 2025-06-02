@@ -44,4 +44,10 @@ public class ContainerYamlRequest {
      * 是否包含配置包
      */
     private Boolean includeConfigPackages = false;
+    
+    /**
+     * 用户选择的要打包的路径列表（可选）
+     * 格式：hostPath:containerPath
+     */
+    private List<String> selectedPaths;
 } 

@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import com.dockpilot.model.ContainerPathInfo;
 
 /**
  * 容器YAML生成控制器
@@ -247,9 +249,9 @@ public class ContainerYamlController {
             java.nio.file.Files.write(java.nio.file.Paths.get(yamlFile), 
                 yamlContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             
-            // 2. 生成配置包
+            // 2. 生成配置包 - 传递用户选择的路径
             Map<String, String> configPackages = composeGenerator.generateConfigPackages(
-                request.getContainerIds(), exportDir
+                request.getContainerIds(), exportDir, request.getSelectedPaths()
             );
             
             // 3. 生成README
@@ -431,6 +433,30 @@ public class ContainerYamlController {
             }
         } catch (Exception e) {
             log.warn("删除目录失败: {}", dirPath, e);
+        }
+    }
+
+    /**
+     * 获取容器路径信息供用户选择打包
+     */
+    @PostMapping("/container-paths")
+    @Operation(summary = "获取容器路径信息", description = "获取指定容器的所有路径挂载信息，供用户选择要打包的路径")
+    public ApiResponse<List<ContainerPathInfo>> getContainerPaths(@Valid @RequestBody Map<String, Object> request) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<String> containerIds = (List<String>) request.get("containerIds");
+            
+            if (containerIds == null || containerIds.isEmpty()) {
+                return ApiResponse.error("容器ID列表不能为空");
+            }
+            
+            List<ContainerPathInfo> pathInfos = composeGenerator.getContainerPaths(containerIds);
+            
+            return ApiResponse.success(pathInfos);
+            
+        } catch (Exception e) {
+            log.error("获取容器路径信息失败: {}", e.getMessage(), e);
+            return ApiResponse.error("获取容器路径信息失败: " + e.getMessage());
         }
     }
 } 

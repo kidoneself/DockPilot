@@ -10,6 +10,7 @@ export interface ContainerYamlRequest {
   excludeFields?: string[]   // 排除字段列表（可选）
   envDescriptions?: Record<string, string>  // 环境变量描述配置（可选）
   includeConfigPackages?: boolean  // 是否包含配置包（可选）
+  selectedPaths?: string[]   // 用户选择的要打包的路径列表（可选）
 }
 
 /**
@@ -32,6 +33,31 @@ export interface ProjectExportRequest extends ContainerYamlRequest {
 }
 
 /**
+ * 容器路径信息
+ */
+export interface ContainerPathInfo {
+  serviceName: string       // 服务名称
+  containerId: string       // 容器ID
+  image: string            // 镜像名称
+  pathMappings: PathMapping[]  // 路径映射列表
+}
+
+/**
+ * 路径映射信息
+ */
+export interface PathMapping {
+  id: string               // 唯一标识：hostPath:containerPath
+  hostPath: string         // 宿主机路径
+  containerPath: string    // 容器内路径
+  mountType: string        // 挂载类型：bind, volume, tmpfs
+  readOnly: boolean        // 是否只读
+  description: string      // 路径描述
+  isSystemPath: boolean    // 是否为系统路径
+  recommended: boolean     // 是否推荐打包
+  selected?: boolean       // 是否被用户选择（前端使用）
+}
+
+/**
  * 根据容器ID列表生成YAML配置
  * @param params 请求参数
  * @returns YAML配置响应
@@ -47,6 +73,15 @@ export const generateContainerYaml = (params: ContainerYamlRequest): Promise<Con
  */
 export const previewContainerYaml = (params: ContainerYamlRequest): Promise<ContainerYamlResponse> => {
   return request.post('/api/containers/preview-yaml', params)
+}
+
+/**
+ * 获取容器路径信息
+ * @param params 请求参数
+ * @returns 容器路径信息列表
+ */
+export const getContainerPaths = (params: { containerIds: string[] }): Promise<{ success: boolean, data: ContainerPathInfo[], message: string }> => {
+  return request.post('/api/containers/container-paths', params)
 }
 
 /**

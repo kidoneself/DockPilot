@@ -15,6 +15,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.dockpilot.model.ContainerPathInfo;
+
 /**
  * Docker Compose 生成器
  * 用于将 Docker 容器配置转换为 Docker Compose 格式
@@ -1168,6 +1170,18 @@ public class ComposeGenerator {
      * @return 配置包信息 Map<服务名, 包文件名>
      */
     public Map<String, String> generateConfigPackages(List<String> containerIds, String outputDir) {
+        return generateConfigPackages(containerIds, outputDir, null);
+    }
+    
+    /**
+     * 🔥 新增：生成配置包（支持用户选择的路径）
+     * 
+     * @param containerIds 容器ID列表
+     * @param outputDir 输出目录
+     * @param selectedPaths 用户选择的路径列表，格式：hostPath:containerPath
+     * @return 配置包信息 Map<服务名, 包文件名>
+     */
+    public Map<String, String> generateConfigPackages(List<String> containerIds, String outputDir, List<String> selectedPaths) {
         Map<String, String> packageInfo = new HashMap<>();
         
         try {
@@ -1183,12 +1197,12 @@ public class ComposeGenerator {
                 String serviceName = getServiceName(container);
                 
                 // 检查服务是否有配置需要打包
-                if (hasConfigurationToPackage(serviceName, dockerBaseDir)) {
+                if (hasConfigurationToPackage(serviceName, dockerBaseDir, selectedPaths)) {
                     // 创建配置包到指定目录
                     String packageFileName = serviceName + ".tar.gz";
                     String packagePath = outputDir + "/" + packageFileName;
                     
-                    boolean success = createServiceConfigPackage(serviceName, container, dockerBaseDir, packagePath);
+                    boolean success = createServiceConfigPackage(serviceName, container, dockerBaseDir, packagePath, selectedPaths);
                     
                     if (success) {
                         packageInfo.put(serviceName, packageFileName);
@@ -1210,9 +1224,14 @@ public class ComposeGenerator {
      * 检查服务是否有配置需要打包
      */
     private boolean hasConfigurationToPackage(String serviceName, String dockerBaseDir) {
+        return hasConfigurationToPackage(serviceName, dockerBaseDir, null);
+    }
+    
+    /**
+     * 检查服务是否有配置需要打包（支持用户选择的路径）
+     */
+    private boolean hasConfigurationToPackage(String serviceName, String dockerBaseDir, List<String> selectedPaths) {
         try {
-            // 🔥 只检查Docker专用路径的卷映射
-            
             // 获取容器信息
             List<InspectContainerResponse> containers = dockerService.listContainers().stream()
                     .filter(container -> {
@@ -1230,7 +1249,22 @@ public class ComposeGenerator {
             
             InspectContainerResponse container = containers.get(0);
             
-            // 检查是否有Docker专用路径的卷映射
+            // 如果有用户选择的路径，检查该服务是否在选择列表中
+            if (selectedPaths != null && !selectedPaths.isEmpty()) {
+                if (container.getMounts() != null) {
+                    for (InspectContainerResponse.Mount mount : container.getMounts()) {
+                        String pathId = mount.getSource() + ":" + mount.getDestination().getPath();
+                        if (selectedPaths.contains(pathId)) {
+                            log.info("✅ 服务 {} 有用户选择的路径需要打包", serviceName);
+                            return true;
+                        }
+                    }
+                }
+                log.info("❌ 服务 {} 无用户选择的路径", serviceName);
+                return false;
+            }
+            
+            // 如果没有用户选择，使用原有逻辑检查Docker专用路径
             if (container.getHostConfig() != null && container.getHostConfig().getBinds() != null) {
                 com.github.dockerjava.api.model.Bind[] binds = container.getHostConfig().getBinds();
                 int dockerSpecificCount = 0;
@@ -1249,7 +1283,7 @@ public class ComposeGenerator {
                 }
             }
             
-            log.info("❌ 服务 {} 无Docker专用路径映射", serviceName);
+            log.info("❌ 服务 {} 无配置需要打包", serviceName);
             return false;
             
         } catch (Exception e) {
@@ -1263,51 +1297,69 @@ public class ComposeGenerator {
      */
     private boolean createServiceConfigPackage(String serviceName, InspectContainerResponse container, 
                                              String dockerBaseDir, String outputPath) {
+        return createServiceConfigPackage(serviceName, container, dockerBaseDir, outputPath, null);
+    }
+    
+    /**
+     * 创建服务配置包（支持用户选择的路径）
+     */
+    private boolean createServiceConfigPackage(String serviceName, InspectContainerResponse container, 
+                                             String dockerBaseDir, String outputPath, List<String> selectedPaths) {
         try {
-            // 创建临时打包目录
-            String tempPackageDir = "/tmp/temp-package-" + System.currentTimeMillis();
-            java.nio.file.Files.createDirectories(java.nio.file.Paths.get(tempPackageDir));
+            // 创建临时打包目录，添加服务名前缀
+            String tempPackageDir = "/tmp/temp-package-" + serviceName + "-" + System.currentTimeMillis();
+            String servicePackageDir = tempPackageDir + "/" + serviceName;
+            java.nio.file.Files.createDirectories(java.nio.file.Paths.get(servicePackageDir));
             
             boolean hasContent = false;
             
             log.info("运行环境: {}", isProductionEnvironment() ? "生产环境(容器)" : "开发环境(本地)");
             
-            // 🔥 只打包Docker专用路径（会被转换为DOCKER_BASE格式的路径）
-            if (container.getHostConfig() != null && container.getHostConfig().getBinds() != null) {
-                for (com.github.dockerjava.api.model.Bind bind : container.getHostConfig().getBinds()) {
-                    String hostPath = bind.getPath();
-                    String containerPath = bind.getVolume().getPath();
+            if (container.getMounts() != null) {
+                for (InspectContainerResponse.Mount mount : container.getMounts()) {
+                    String hostPath = mount.getSource();
+                    String containerPath = mount.getDestination().getPath();
+                    String pathId = hostPath + ":" + containerPath;
                     
                     log.info("检查卷映射: {} -> {}", hostPath, containerPath);
                     
-                    // 只处理Docker专用路径（这些路径在YAML中会被转换为DOCKER_BASE格式）
-                    if (isDockerSpecific(containerPath)) {
-                        // 🔥 根据运行环境选择正确的路径访问方式
-                        String sourcePath = getActualFilePath(hostPath);
-                        
-                        log.info("实际访问路径: {}", sourcePath);
-                        
-                        // 检查源路径是否存在
-                        if (java.nio.file.Files.exists(java.nio.file.Paths.get(sourcePath))) {
-                            if (!isDirectoryEmpty(sourcePath)) {
-                                // 使用容器路径作为相对路径（去掉开头的/）
-                                String relativePath = containerPath.startsWith("/") ? 
-                                    containerPath.substring(1) : containerPath;
-                                String targetPath = tempPackageDir + "/" + relativePath;
-                                
-                                // 复制目录内容
-                                copyDirectoryContents(sourcePath, targetPath);
-                                hasContent = true;
-                                log.info("✅ 已打包Docker专用路径: {} -> {} (宿主机: {})", 
-                                        containerPath, relativePath, hostPath);
-                            } else {
-                                log.info("⚠️ Docker专用目录为空，跳过: {}", sourcePath);
-                            }
-                        } else {
-                            log.info("⚠️ Docker专用路径不存在，跳过: {}", sourcePath);
+                    // 如果有用户选择，只处理选中的路径
+                    if (selectedPaths != null && !selectedPaths.isEmpty()) {
+                        if (!selectedPaths.contains(pathId)) {
+                            log.info("ℹ️ 路径未被用户选择，跳过: {} -> {}", hostPath, containerPath);
+                            continue;
                         }
                     } else {
-                        log.info("ℹ️ 非Docker专用路径，跳过打包: {} -> {}", hostPath, containerPath);
+                        // 如果没有用户选择，使用原有逻辑只处理Docker专用路径
+                        if (!isDockerSpecific(containerPath)) {
+                            log.info("ℹ️ 非Docker专用路径，跳过打包: {} -> {}", hostPath, containerPath);
+                            continue;
+                        }
+                    }
+                    
+                    // 🔥 根据运行环境选择正确的路径访问方式
+                    String sourcePath = getActualFilePath(hostPath);
+                    
+                    log.info("实际访问路径: {}", sourcePath);
+                    
+                    // 检查源路径是否存在
+                    if (java.nio.file.Files.exists(java.nio.file.Paths.get(sourcePath))) {
+                        if (!isDirectoryEmpty(sourcePath)) {
+                            // 按宿主机的目录结构组织，提取最后一层目录名
+                            String[] pathParts = hostPath.split("/");
+                            String lastDirName = pathParts[pathParts.length - 1];
+                            String targetPath = servicePackageDir + "/" + lastDirName;
+                            
+                            // 复制目录内容
+                            copyDirectoryContents(sourcePath, targetPath);
+                            hasContent = true;
+                            log.info("✅ 已打包路径: {} -> {} (宿主机: {})", 
+                                    containerPath, lastDirName, hostPath);
+                        } else {
+                            log.info("⚠️ 目录为空，跳过: {}", sourcePath);
+                        }
+                    } else {
+                        log.info("⚠️ 路径不存在，跳过: {}", sourcePath);
                     }
                 }
             }
@@ -1315,7 +1367,7 @@ public class ComposeGenerator {
             if (!hasContent) {
                 // 清理临时目录
                 deleteDirectory(tempPackageDir);
-                log.info("❌ 服务 {} 无Docker专用配置需要打包", serviceName);
+                log.info("❌ 服务 {} 无配置内容需要打包", serviceName);
                 return false;
             }
             
@@ -1430,6 +1482,96 @@ public class ComposeGenerator {
         } catch (Exception e) {
             log.warn("删除目录失败: {}", dirPath, e);
         }
+    }
+
+    /**
+     * 获取容器路径信息供用户选择打包
+     */
+    public List<ContainerPathInfo> getContainerPaths(List<String> containerIds) {
+        List<ContainerPathInfo> result = new ArrayList<>();
+        
+        log.info("🔍 开始获取容器路径信息，容器数量: {}", containerIds.size());
+        
+        for (String containerId : containerIds) {
+            try {
+                log.info("📦 处理容器: {}", containerId);
+                InspectContainerResponse container = dockerService.inspectContainerCmd(containerId);
+                String serviceName = getServiceName(container);
+                
+                ContainerPathInfo pathInfo = new ContainerPathInfo();
+                pathInfo.setServiceName(serviceName);
+                pathInfo.setContainerId(containerId);
+                pathInfo.setImage(container.getConfig().getImage());
+                
+                List<ContainerPathInfo.PathMapping> pathMappings = new ArrayList<>();
+                
+                // 🔥 添加详细的调试信息
+                if (container.getMounts() != null) {
+                    log.info("📁 容器 {} 的挂载数量: {}", serviceName, container.getMounts().size());
+                    
+                    for (InspectContainerResponse.Mount mount : container.getMounts()) {
+                        if (mount.getSource() == null || mount.getDestination() == null) {
+                            log.warn("⚠️ 容器 {} 存在无效挂载: source={}, destination={}", 
+                                serviceName, mount.getSource(), mount.getDestination());
+                            continue;
+                        }
+                        
+                        String hostPath = mount.getSource();
+                        String containerPath = mount.getDestination().getPath();
+                        
+                        ContainerPathInfo.PathMapping mapping = new ContainerPathInfo.PathMapping();
+                        mapping.setId(hostPath + ":" + containerPath);
+                        mapping.setHostPath(hostPath);
+                        mapping.setContainerPath(containerPath);
+                        mapping.setMountType("bind");  // 简化：统一设为bind类型
+                        mapping.setReadOnly(false);    // 简化：默认设为可写
+                        mapping.setSystemPath(isSystemPath(hostPath));
+                        mapping.setDescription(generatePathDescription(hostPath, containerPath));
+                        mapping.setRecommended(!isSystemPath(hostPath));  // 非系统路径默认推荐
+                        
+                        pathMappings.add(mapping);
+                        
+                        log.info("✅ 添加路径映射: {} -> {} (系统路径: {}, 推荐: {})", 
+                            hostPath, containerPath, mapping.isSystemPath(), mapping.isRecommended());
+                    }
+                } else {
+                    log.warn("❌ 容器 {} 没有任何挂载信息 (getMounts() == null)", serviceName);
+                }
+                
+                pathInfo.setPathMappings(pathMappings);
+                result.add(pathInfo);
+                
+                log.info("📊 容器 {} 最终路径数量: {}", serviceName, pathMappings.size());
+                
+            } catch (Exception e) {
+                log.error("❌ 处理容器 {} 失败: {}", containerId, e.getMessage(), e);
+                // 即使出错也添加一个空的路径信息，避免前端显示为空
+                ContainerPathInfo errorPathInfo = new ContainerPathInfo();
+                errorPathInfo.setServiceName("容器-" + containerId.substring(0, 8));
+                errorPathInfo.setContainerId(containerId);
+                errorPathInfo.setImage("未知");
+                errorPathInfo.setPathMappings(new ArrayList<>());
+                result.add(errorPathInfo);
+            }
+        }
+        
+        log.info("🎯 总共处理了 {} 个容器，返回 {} 个路径信息", containerIds.size(), result.size());
+        
+        return result;
+    }
+    
+    /**
+     * 生成路径描述
+     */
+    private String generatePathDescription(String hostPath, String containerPath) {
+        if (containerPath.equals("/config")) return "配置文件目录";
+        if (containerPath.equals("/data")) return "数据存储目录";
+        if (containerPath.equals("/media")) return "媒体文件目录";
+        if (containerPath.contains("cache")) return "缓存目录";
+        if (containerPath.contains("log")) return "日志目录";
+        if (hostPath.contains("config")) return "应用配置";
+        if (isSystemPath(hostPath)) return "系统挂载";
+        return "自定义挂载";
     }
 
 }
