@@ -134,424 +134,26 @@
     </NModal>
 
     <!-- YAML生成模态框 -->
-    <NModal
+    <YamlGeneratorModal
       v-model:show="showYamlModal"
-      preset="card"
-      title="生成YAML配置"
-      class="yaml-modal"
-      style="width: 90%; max-width: 1000px;"
-    >
-      <!-- 基础信息配置 -->
-      <NForm
-        ref="yamlFormRef"
-        :model="yamlForm"
-        label-placement="left"
-        label-width="100px"
-        style="margin-bottom: 16px;"
-      >
-        <NFormItem label="项目名称">
-          <NInput
-            v-model:value="yamlForm.projectName"
-            placeholder="容器项目名称"
-            style="width: 300px;"
-          />
-        </NFormItem>
-        <NFormItem label="项目描述">
-          <NInput
-            v-model:value="yamlForm.description"
-            placeholder="项目描述（可选）"
-            style="width: 300px;"
-          />
-        </NFormItem>
-      </NForm>
-
-      <!-- 环境变量配置 -->
-      <div v-if="previewEnvVars.length > 0" style="margin-bottom: 20px;">
-        <h3>📝 环境变量说明配置</h3>
-        <NAlert type="info" style="margin-bottom: 16px;">
-          为环境变量添加说明，方便以后使用时理解每个配置的作用（可选）
-        </NAlert>
-        <div class="env-config-list">
-          <div v-for="env in previewEnvVars" :key="env.name" class="env-config-item">
-            <div class="env-config-info">
-              <code class="env-name">{{ env.name }}</code>
-              <span class="env-value">{{ env.value }}</span>
-            </div>
-            <NInput
-              v-model:value="env.description"
-              placeholder="可选：添加说明，例如'Emby访问端口'、'数据存储目录'等"
-              style="flex: 1; margin-left: 12px;"
-              size="small"
-            />
-          </div>
-        </div>
-      </div>
-
-      <NSpace style="margin-bottom: 16px;">
-        <NButton type="primary" :loading="generatingYaml" @click="generateYamlContent">
-          生成完整YAML
-        </NButton>
-      </NSpace>
-
-      <div v-if="yamlResult">
-        <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-          <NText strong>YAML 配置内容：</NText>
-          <NSpace>
-            <NButton 
-              size="small" 
-              @click="editableMode = !editableMode"
-              :type="editableMode ? 'warning' : 'default'"
-            >
-              <template #icon>
-                <n-icon><CreateOutline /></n-icon>
-              </template>
-              {{ editableMode ? '退出编辑' : '编辑YAML' }}
-            </NButton>
-            <NButton size="small" @click="copyYamlContent">
-              <template #icon>
-                <n-icon><CopyOutline /></n-icon>
-              </template>
-              复制
-            </NButton>
-            <NDropdown
-              trigger="click"
-              :options="downloadOptions"
-              @select="handleDownloadSelect"
-            >
-              <NButton size="small">
-                <template #icon>
-                  <n-icon><DownloadOutline /></n-icon>
-                </template>
-                下载 ▼
-              </NButton>
-            </NDropdown>
-          </NSpace>
-        </div>
-        
-        <!-- 可编辑模式 -->
-        <div v-if="editableMode" style="margin-bottom: 16px;">
-          <NAlert type="info" style="margin-bottom: 12px;">
-            <template #icon>
-              <n-icon><InformationCircleOutline /></n-icon>
-            </template>
-            编辑模式：您可以直接修改YAML内容。请注意保持正确的YAML语法格式。
-          </NAlert>
-          
-          <!-- 编辑状态指示 -->
-          <div 
-            class="yaml-edit-status" 
-            :class="hasUnsavedChanges ? 'has-changes' : 'no-changes'"
-          >
-            <n-icon v-if="hasUnsavedChanges">
-              <RefreshOutline />
-            </n-icon>
-            <n-icon v-else>
-              <CheckmarkCircleOutline />
-            </n-icon>
-            <span>
-              {{ hasUnsavedChanges ? '有未保存的修改' : '内容已同步' }}
-            </span>
-            <span style="margin-left: auto; color: #999;">
-              字符数: {{ editableYamlContent.length }}
-            </span>
-          </div>
-          
-          <NInput
-            v-model:value="editableYamlContent"
-            type="textarea"
-            placeholder="请输入YAML内容..."
-            :rows="20"
-            style="font-family: 'Monaco', 'Consolas', monospace; font-size: 13px;"
-            show-count
-          />
-          
-          <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
-            <NButton size="small" type="primary" @click="applyYamlChanges" :disabled="!hasUnsavedChanges">
-              <template #icon>
-                <n-icon><CheckmarkOutline /></n-icon>
-              </template>
-              应用修改
-            </NButton>
-            <NButton size="small" @click="resetYamlChanges" :disabled="!hasUnsavedChanges">
-              <template #icon>
-                <n-icon><RefreshOutline /></n-icon>
-              </template>
-              重置修改
-            </NButton>
-            <NButton size="small" @click="validateYamlSyntax">
-              <template #icon>
-                <n-icon><CheckmarkCircleOutline /></n-icon>
-              </template>
-              验证语法
-            </NButton>
-            <NButton size="small" @click="insertTemplate" type="default">
-              <template #icon>
-                <n-icon><AddOutline /></n-icon>
-              </template>
-              插入模板
-            </NButton>
-          </div>
-          
-          <!-- 编辑提示 -->
-          <div class="yaml-edit-tips">
-            <h5>💡 编辑提示</h5>
-            <ul>
-              <li>使用2个空格进行缩进，不要使用Tab键</li>
-              <li>冒号后面必须有空格: <code>key: value</code></li>
-              <li>字符串值建议用双引号包围: <code>"值"</code></li>
-              <li>列表项前面用破折号和空格: <code>- item</code></li>
-              <li>可以使用Ctrl+Z撤销，Ctrl+Y重做</li>
-            </ul>
-          </div>
-        </div>
-        
-        <!-- 只读模式 -->
-        <NCode 
-          v-else
-          :code="yamlResult.yamlContent" 
-          language="yaml"
-          style="max-height: 400px; overflow-y: auto;"
-        />
-        
-        <div style="margin-top: 16px;">
-          <NText depth="3">
-            包含容器数量：{{ yamlResult.containerCount }} | 
-            生成时间：{{ yamlResult.generateTime }}
-            <span v-if="editableMode && hasUnsavedChanges" style="color: orange; margin-left: 8px;">
-              • 有未保存的修改
-            </span>
-          </NText>
-        </div>
-      </div>
-
-      <template #action>
-        <NSpace>
-          <NButton @click="handleCloseYamlModal">关闭</NButton>
-          <NButton v-if="yamlResult" type="primary" @click="saveAsApplication">
-            保存为应用
-          </NButton>
-        </NSpace>
-      </template>
-    </NModal>
+      :selected-containers="selectedContainers"
+      @download-project="downloadProjectPackage"
+    />
 
     <!-- 路径选择模态框 -->
-    <NModal
+    <PathSelectionModal
       v-model:show="showPathSelectionModal"
-      preset="card"
-      title="选择要打包的配置文件"
-      class="path-selection-modal"
-      style="width: 90%; max-width: 1000px;"
-    >
-      <div v-if="loadingPaths" style="text-align: center; padding: 40px;">
-        <NSpin size="large" />
-        <div style="margin-top: 16px;">正在加载路径信息...</div>
-      </div>
-
-      <div v-else-if="containerPaths.length > 0">
-        <NAlert type="info" style="margin-bottom: 16px;">
-          选择需要打包的路径，YAML文件会包含所有路径，但只打包勾选的目录文件
-        </NAlert>
-        
-        <div class="service-path-list">
-          <div v-for="service in containerPaths" :key="service.containerId" class="service-section">
-            <!-- 服务头部 -->
-            <div class="service-header">
-              <div class="service-info">
-                <NTag type="primary">{{ service.serviceName }}</NTag>
-                <NText depth="3">{{ service.image }}</NText>
-                <NTag v-if="service.pathMappings.length === 0" type="warning" size="small">无挂载路径</NTag>
-                <NTag v-else-if="service.pathMappings.filter(p => !p.isSystemPath).length === 0" type="info" size="small">仅系统路径</NTag>
-              </div>
-              <div class="service-actions">
-                <NButton 
-                  size="small" 
-                  @click="toggleAllPaths(service, true)"
-                  :disabled="service.pathMappings.filter(p => !p.isSystemPath).length === 0"
-                >
-                  全选
-                </NButton>
-                <NButton 
-                  size="small" 
-                  @click="toggleAllPaths(service, false)"
-                  :disabled="service.pathMappings.filter(p => !p.isSystemPath).length === 0"
-                >
-                  全不选
-                </NButton>
-              </div>
-            </div>
-            
-            <!-- 路径列表 -->
-            <div class="path-list">
-              <div v-if="service.pathMappings.length === 0" class="empty-paths">
-                <NText depth="3" style="font-style: italic;">此容器没有任何路径挂载</NText>
-              </div>
-              <div v-else-if="service.pathMappings.filter(p => !p.isSystemPath).length === 0" class="system-only-paths">
-                <NText depth="3" style="font-style: italic;">
-                  此容器只有系统路径挂载（{{ service.pathMappings.length }}个），无用户数据需要打包
-                </NText>
-                <NCollapse style="margin-top: 8px;">
-                  <NCollapseItem title="查看系统路径" name="system">
-                    <div v-for="path in service.pathMappings" :key="path.id" class="path-item system-path">
-                      <div class="path-content">
-                        <div class="path-mapping">
-                          <NText depth="3">{{ path.hostPath }}</NText>
-                          <NIcon class="arrow-icon" style="margin: 0 8px;"><ArrowForwardOutline /></NIcon>
-                          <NText depth="3">{{ path.containerPath }}</NText>
-                        </div>
-                        <div class="path-meta">
-                          <NTag type="warning" size="small">系统路径</NTag>
-                          <NTag type="default" size="small">{{ path.mountType }}</NTag>
-                          <NText depth="3" style="margin-left: 8px;">{{ path.description }}</NText>
-                        </div>
-                      </div>
-                    </div>
-                  </NCollapseItem>
-                </NCollapse>
-              </div>
-              <div v-else>
-                <div v-for="path in service.pathMappings" :key="path.id" class="path-item">
-                  <NCheckbox 
-                    v-model:checked="path.selected"
-                    :disabled="path.isSystemPath"
-                  >
-                    <div class="path-content">
-                      <div class="path-mapping">
-                        <NText>{{ path.hostPath }}</NText>
-                        <NIcon class="arrow-icon" style="margin: 0 8px;"><ArrowForwardOutline /></NIcon>
-                        <NText>{{ path.containerPath }}</NText>
-                      </div>
-                      <div class="path-meta">
-                        <NTag v-if="path.isSystemPath" type="warning" size="small">系统路径</NTag>
-                        <NTag v-if="path.readOnly" type="info" size="small">只读</NTag>
-                        <NTag type="default" size="small">{{ path.mountType }}</NTag>
-                        <NText depth="3" style="margin-left: 8px;">{{ path.description }}</NText>
-                      </div>
-                    </div>
-                  </NCheckbox>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 打包统计 -->
-        <div class="package-summary" style="margin-top: 16px; padding: 12px; background: #f8f9fa; border-radius: 4px;">
-          <NText depth="3">
-            将打包 {{ selectedPathsCount }} 个路径的配置文件
-            <span v-if="systemPathsCount > 0">（已自动排除 {{ systemPathsCount }} 个系统路径）</span>
-          </NText>
-        </div>
-      </div>
-
-      <div v-else style="text-align: center; padding: 40px;">
-        <NText depth="3">没有找到可打包的路径</NText>
-      </div>
-
-      <template #action>
-        <NSpace>
-          <NButton @click="showPathSelectionModal = false">取消</NButton>
-          <NButton 
-            type="primary" 
-            :disabled="selectedPathsCount === 0"
-            @click="confirmPathSelectionAndDownload"
-          >
-            确认下载（{{ selectedPathsCount }} 个路径）
-          </NButton>
-        </NSpace>
-      </template>
-    </NModal>
+      :selected-containers="selectedContainers"
+      @confirm="confirmPathSelectionAndDownload"
+    />
 
     <!-- 打包进度模态框 -->
-    <NModal
+    <PackageProgressModal
       v-model:show="showPackageProgressModal"
-      preset="card"
-      title="打包进度"
-      class="package-progress-modal"
-      :mask-closable="false"
-      :close-on-esc="false"
-      style="width: 600px; max-width: 90vw;"
-    >
-      <div v-if="packageTask" class="package-progress-content">
-        <!-- 项目信息 -->
-        <div class="project-info">
-          <NText strong>{{ packageTask.projectName || '容器项目' }}</NText>
-          <NText depth="3">正在打包 {{ packageTask.containerIds.length }} 个容器</NText>
-        </div>
-        
-        <!-- 进度条 -->
-        <div class="progress-section">
-          <NProgress
-            type="line"
-            :percentage="packageProgress"
-            :status="packageTask.status === 'failed' ? 'error' : packageTask.status === 'completed' ? 'success' : 'info'"
-            indicator-placement="inside"
-            :show-indicator="true"
-            :stroke-width="20"
-          />
-          
-          <!-- 状态信息 -->
-          <div class="status-info">
-            <div class="current-step">
-              <NIcon v-if="packageTask.status === 'processing'" style="color: #18a058; margin-right: 8px;">
-                <RefreshOutline />
-              </NIcon>
-              <NIcon v-else-if="packageTask.status === 'completed'" style="color: #18a058; margin-right: 8px;">
-                <CheckmarkCircleOutline />
-              </NIcon>
-              <NIcon v-else-if="packageTask.status === 'failed'" style="color: #d03050; margin-right: 8px;">
-                <CloseCircleOutline />
-              </NIcon>
-              <NIcon v-else style="color: #0e7a0d; margin-right: 8px;">
-                <TimeOutline />
-              </NIcon>
-              <NText>{{ packageTask.currentStep }}</NText>
-            </div>
-            
-            <!-- 错误信息 -->
-            <div v-if="packageTask.status === 'failed' && packageTask.errorMessage" class="error-message">
-              <NAlert type="error" :show-icon="false">
-                {{ packageTask.errorMessage }}
-              </NAlert>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 任务详情 -->
-        <div class="task-details">
-          <div class="detail-row">
-            <span class="label">任务ID:</span>
-            <NText depth="3" style="font-family: monospace;">{{ packageTask.taskId.substring(0, 8) }}...</NText>
-          </div>
-          <div class="detail-row">
-            <span class="label">开始时间:</span>
-            <NText depth="3">{{ new Date(packageTask.createTime).toLocaleString() }}</NText>
-          </div>
-          <div v-if="packageTask.fileSize && packageTask.status === 'completed'" class="detail-row">
-            <span class="label">文件大小:</span>
-            <NText depth="3">{{ formatFileSize(packageTask.fileSize) }}</NText>
-          </div>
-        </div>
-      </div>
-      
-      <template #action>
-        <NSpace justify="end">
-          <NButton 
-            v-if="packageTask?.status === 'completed' || packageTask?.status === 'failed'"
-            @click="closePackageProgressModal"
-          >
-            关闭
-          </NButton>
-          <NButton 
-            v-if="packageTask?.status === 'processing' || packageTask?.status === 'pending'"
-            @click="closePackageProgressModal"
-            type="error"
-            ghost
-          >
-            取消打包
-          </NButton>
-        </NSpace>
-      </template>
-    </NModal>
+      :package-task="packageTask"
+      @retry="handlePackageRetry"
+      @manual-download="handleManualDownload"
+    />
   </div>
 </template>
 
@@ -591,10 +193,28 @@ import { useRouter } from 'vue-router'
 import { useWebSocketTask } from '@/hooks/useWebSocketTask'
 import { MessageType } from '@/api/websocket/types'
 import { getFavicon } from '@/api/http/system'
+import YamlGeneratorModal from '@/components/container/modals/YamlGeneratorModal.vue'
+import PathSelectionModal from '@/components/container/modals/PathSelectionModal.vue'
+import PackageProgressModal from '@/components/container/modals/PackageProgressModal.vue'
+import { usePackageTask } from '@/hooks/usePackageTask'
 
 const message = useMessage()
 const dialog = useDialog()
 const router = useRouter()
+
+// 🔥 使用打包任务管理hooks
+const {
+  packageTask,
+  showPackageProgressModal,
+  packageProgress,
+  startPackageTask,
+  checkAndRestoreTask,
+  closePackageProgressModal,
+  formatFileSize,
+  stopPollingTaskStatus,
+  saveTaskToStorage,
+  clearTaskFromStorage
+} = usePackageTask()
 
 // 后端原始类型
 interface BackendContainerItem {
@@ -664,26 +284,10 @@ const selectedContainers = ref<Set<string>>(new Set())
 
 // YAML生成相关状态
 const showYamlModal = ref(false)
-const generatingYaml = ref(false)
-const yamlResult = ref<ContainerYamlResponse | null>(null)
-const yamlForm = reactive({
-  projectName: '',
-  description: ''
-})
-const yamlFormRef = ref<FormInst | null>(null)
 
 // YAML编辑相关状态
-const editableMode = ref(false)
-const editableYamlContent = ref('')
-const hasUnsavedChanges = ref(false)
-const originalYamlContent = ref('')
 
 // 环境变量预览状态
-const previewEnvVars = ref<Array<{
-  name: string
-  value: string
-  description: string
-}>>([])
 
 let statsTimer: number | null = null
 const STATS_UPDATE_INTERVAL = 5000 // 5秒
@@ -755,53 +359,6 @@ function handleContainerSelect(containerId: string, selected: boolean) {
   }
 }
 
-// 获取环境变量预览数据
-async function loadPreviewEnvVars() {
-  try {
-    // 先生成一个预览YAML来获取环境变量
-    const response = await previewContainerYaml({
-      containerIds: Array.from(selectedContainers.value),
-      projectName: yamlForm.projectName,
-      description: yamlForm.description,
-      excludeFields: ['environment'] // 排除敏感信息但保留环境变量结构
-    })
-    
-    if (response.success) {
-      // 解析YAML内容，提取环境变量
-      const yamlLines = response.yamlContent.split('\n')
-      const envVars: Array<{name: string, value: string, description: string}> = []
-      let inEnvSection = false
-      
-      for (let i = 0; i < yamlLines.length; i++) {
-        const line = yamlLines[i].trim()
-        if (line === 'env:') {
-          inEnvSection = true
-          continue
-        }
-        if (inEnvSection && line && !line.startsWith(' ')) {
-          inEnvSection = false
-        }
-        if (inEnvSection && line.includes(':')) {
-          const envName = line.split(':')[0].trim()
-          const envValue = line.split(':')[1]?.trim()?.replace(/"/g, '') || ''
-          if (envName && !envVars.find(e => e.name === envName)) {
-            envVars.push({
-              name: envName,
-              value: envValue,
-              description: ''
-            })
-          }
-        }
-      }
-      
-      previewEnvVars.value = envVars
-    }
-  } catch (error) {
-    console.warn('预览环境变量失败:', error)
-    previewEnvVars.value = []
-  }
-}
-
 // 生成YAML处理
 async function handleGenerateYaml() {
   if (selectedContainers.value.size === 0) {
@@ -809,127 +366,7 @@ async function handleGenerateYaml() {
     return
   }
   
-  // 重置表单和结果
-  yamlForm.projectName = `容器项目-${new Date().getTime()}`
-  yamlForm.description = ''
-  yamlResult.value = null
-  previewEnvVars.value = []
-  
-  // 重置编辑模式状态
-  editableMode.value = false
-  editableYamlContent.value = ''
-  hasUnsavedChanges.value = false
-  originalYamlContent.value = ''
-  
   showYamlModal.value = true
-  
-  // 加载环境变量预览
-  await loadPreviewEnvVars()
-}
-
-// 生成完整YAML
-async function generateYamlContent() {
-  try {
-    generatingYaml.value = true
-    
-    // 收集用户配置的环境变量描述
-    const envDescriptions: Record<string, string> = {}
-    previewEnvVars.value.forEach(env => {
-      if (env.description && env.description.trim()) {
-        envDescriptions[env.name] = env.description
-      }
-    })
-    
-    const response = await generateContainerYaml({
-      containerIds: Array.from(selectedContainers.value),
-      projectName: yamlForm.projectName,
-      description: yamlForm.description,
-      envDescriptions: envDescriptions
-    })
-    
-    if (response.success) {
-      yamlResult.value = response
-      // 初始化编辑状态
-      originalYamlContent.value = response.yamlContent
-      message.success('YAML生成成功')
-    } else {
-      message.error(response.message || 'YAML生成失败')
-    }
-  } catch (error: any) {
-    message.error('生成YAML失败: ' + (error.message || error))
-  } finally {
-    generatingYaml.value = false
-  }
-}
-
-// 复制YAML内容
-function copyYamlContent() {
-  if (!yamlResult.value) return
-  
-  navigator.clipboard.writeText(yamlResult.value.yamlContent).then(() => {
-    message.success('YAML内容已复制到剪贴板')
-  }).catch(() => {
-    message.error('复制失败，请手动复制')
-  })
-}
-
-// 下载YAML文件
-function downloadYamlFile() {
-  if (!yamlResult.value) return
-  
-  const blob = new Blob([yamlResult.value.yamlContent], { type: 'text/yaml' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${yamlResult.value.projectName || 'docker-compose'}.yml`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-  message.success('YAML文件下载完成')
-}
-
-// 保存为应用（跳转到应用中心）
-function saveAsApplication() {
-  if (!yamlResult.value) return
-  
-  // 跳转到应用中心并预填充导入表单
-  router.push({
-    path: '/appcenter',
-    query: {
-      mode: 'import',
-      yaml: encodeURIComponent(yamlResult.value.yamlContent),
-      name: encodeURIComponent(yamlResult.value.projectName)
-    }
-  })
-  
-  // 关闭当前弹窗
-  showYamlModal.value = false
-  message.success('已跳转到应用中心，请完善应用信息后导入')
-}
-
-function formatBytes(bytes: number, decimals = 2) {
-  if (!bytes) return '0 Bytes'
-  const k = 1024
-  const dm = decimals < 0 ? 0 : decimals
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return (bytes / Math.pow(k, i)).toFixed(dm) + ' ' + sizes[i]
-}
-
-// 使用统一的文件大小格式化函数
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
-}
-
-function formatNetworkBytes(val: number) {
-  if (val > 1024 * 1024) return (val / 1024 / 1024).toFixed(2) + 'MB'
-  if (val > 1024) return (val / 1024).toFixed(2) + 'KB'
-  return val + 'B'
 }
 
 // 加载容器性能数据
@@ -1174,8 +611,8 @@ function handleContainerAction(action: string, container: DisplayContainer) {
         onComplete: () => {
           message.success(`重启容器成功: ${container.name}`)
           loadContainers() // 重新加载容器列表以更新状态
-      operatingContainers.value.delete(container.id) // 操作完成，移除容器ID
-      containerActions.value.delete(container.id) // 清除操作类型
+          operatingContainers.value.delete(container.id) // 操作完成，移除容器ID
+          containerActions.value.delete(container.id) // 清除操作类型
         },
         onError: (error) => {
           message.error(`重启容器失败: ${error}`)
@@ -1416,296 +853,10 @@ const webUIFormRules = {
   ]
 }
 
-// 监听编辑内容变化
-watch(editableYamlContent, (newValue) => {
-  if (originalYamlContent.value && newValue !== originalYamlContent.value) {
-    hasUnsavedChanges.value = true
-  } else {
-    hasUnsavedChanges.value = false
-  }
-})
-
-// 监听编辑模式切换
-watch(editableMode, (newMode) => {
-  if (newMode && yamlResult.value) {
-    // 进入编辑模式，初始化编辑内容
-    editableYamlContent.value = yamlResult.value.yamlContent
-    originalYamlContent.value = yamlResult.value.yamlContent
-    hasUnsavedChanges.value = false
-  }
-})
-
-// YAML编辑相关方法
-function applyYamlChanges() {
-  if (!yamlResult.value) return
-  
-  // 应用修改
-  yamlResult.value.yamlContent = editableYamlContent.value
-  originalYamlContent.value = editableYamlContent.value
-  hasUnsavedChanges.value = false
-  message.success('YAML修改已应用')
-}
-
-function resetYamlChanges() {
-  if (!originalYamlContent.value) return
-  
-  // 重置为原始内容
-  editableYamlContent.value = originalYamlContent.value
-  hasUnsavedChanges.value = false
-  message.success('YAML已重置为原始内容')
-}
-
-function validateYamlSyntax() {
-  if (!editableYamlContent.value) {
-    message.warning('请输入YAML内容')
-    return
-  }
-  
-  try {
-    // 基本的YAML语法检查
-    const lines = editableYamlContent.value.split('\n')
-    let hasErrors = false
-    const errors: string[] = []
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-      const lineNum = i + 1
-      
-      // 检查缩进（应该是2或4的倍数）
-      if (line.length > 0 && line[0] === ' ') {
-        const leadingSpaces = line.match(/^ */)?.[0].length || 0
-        if (leadingSpaces % 2 !== 0) {
-          errors.push(`第${lineNum}行: 缩进应该是2的倍数`)
-          hasErrors = true
-        }
-      }
-      
-      // 检查冒号后是否有空格
-      if (line.includes(':') && !line.includes(': ') && !line.endsWith(':')) {
-        const colonIndex = line.indexOf(':')
-        if (colonIndex < line.length - 1 && line[colonIndex + 1] !== ' ') {
-          errors.push(`第${lineNum}行: 冒号后应该有空格`)
-          hasErrors = true
-        }
-      }
-    }
-    
-    if (hasErrors) {
-      message.error('YAML语法检查发现问题:\n' + errors.join('\n'))
-    } else {
-      message.success('YAML语法验证通过')
-    }
-  } catch (error) {
-    message.error('YAML语法验证失败: ' + (error as Error).message)
-  }
-}
-
-function handleCloseYamlModal() {
-  if (hasUnsavedChanges.value) {
-    dialog.warning({
-      title: '未保存的修改',
-      content: '您有未保存的修改，确定要关闭吗？',
-      positiveText: '确定',
-      negativeText: '取消',
-      maskClosable: false,
-      closeOnEsc: false,
-      onClose: () => {
-        showYamlModal.value = false
-      },
-      onPositiveClick: () => {
-        showYamlModal.value = false
-      },
-      onNegativeClick: () => {
-        // 如果用户取消，不关闭模态框
-      }
-    })
-  } else {
-    showYamlModal.value = false
-  }
-}
-
-function insertTemplate() {
-  const templates = [
-    {
-      name: '新服务模板',
-      content: `
-  new-service:
-    image: nginx:latest
-    ports:
-      - "8080:80"
-    environment:
-      - ENV_VAR=value
-    volumes:
-      - ./data:/app/data
-    restart: unless-stopped`
-    },
-    {
-      name: '数据库服务',
-      content: `
-  database:
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: "password"
-      MYSQL_DATABASE: "app_db"
-    volumes:
-      - db_data:/var/lib/mysql
-    restart: unless-stopped`
-    },
-    {
-      name: '环境变量配置',
-      content: `
-    environment:
-      - NEW_VAR=value
-      - ANOTHER_VAR=another_value`
-    }
-  ]
-  
-  // 简化版本，使用字符串选择
-  const templateNames = templates.map(t => t.name).join('\n')
-  
-  dialog.info({
-    title: '插入YAML模板',
-    content: `可用的模板：\n\n${templateNames}\n\n请在下面的按钮中选择要插入的模板。`,
-    action: () => {
-      return h('div', { style: 'display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;' }, 
-        templates.map(template => 
-          h('button', {
-            style: 'padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; background: #f8f9fa; cursor: pointer;',
-            onClick: () => {
-              editableYamlContent.value += template.content
-              message.success(`已插入${template.name}模板`)
-            }
-          }, template.name)
-        )
-      )
-    }
-  })
-}
-
-// 下载选项
-const downloadOptions = [
-  {
-    label: '只下载YAML',
-    key: 'yaml'
-  },
-  {
-    label: '同时打包配置文件',
-    key: 'all'
-  }
-]
-
-// 处理下载选择
-function handleDownloadSelect(key: string) {
-  if (key === 'yaml') {
-    downloadYamlFile()
-  } else if (key === 'all') {
-    downloadProjectPackage()
-  }
-}
-
 // 路径选择相关状态
 const showPathSelectionModal = ref(false)
 const containerPaths = ref<ContainerPathInfo[]>([])
 const loadingPaths = ref(false)
-
-// 异步打包相关状态
-const showPackageProgressModal = ref(false)
-const packageTask = ref<PackageTask | null>(null)
-const packageTimer = ref<number | null>(null)
-
-// 🔥 新增：任务状态持久化相关
-const PACKAGE_TASK_KEY = 'dockpilot_package_task'
-
-// 🔥 新增：保存任务状态到localStorage
-function saveTaskToStorage(task: PackageTask) {
-  try {
-    const taskData = {
-      taskId: task.taskId,
-      projectName: task.projectName,
-      containerIds: task.containerIds,
-      status: task.status,
-      progress: task.progress,
-      currentStep: task.currentStep,
-      createTime: task.createTime,
-      timestamp: Date.now() // 添加时间戳用于过期检查
-    }
-    localStorage.setItem(PACKAGE_TASK_KEY, JSON.stringify(taskData))
-    console.log('💾 任务状态已保存到localStorage:', taskData)
-  } catch (error) {
-    console.warn('保存任务状态失败:', error)
-  }
-}
-
-// 🔥 新增：从localStorage恢复任务状态
-function loadTaskFromStorage(): any | null {
-  try {
-    const taskData = localStorage.getItem(PACKAGE_TASK_KEY)
-    if (!taskData) return null
-    
-    const parsed = JSON.parse(taskData)
-    
-    // 检查任务是否过期（超过1小时自动清除）
-    const maxAge = 60 * 60 * 1000 // 1小时
-    if (Date.now() - parsed.timestamp > maxAge) {
-      localStorage.removeItem(PACKAGE_TASK_KEY)
-      console.log('🗑️ 过期任务已清除')
-      return null
-    }
-    
-    // 只恢复进行中的任务
-    if (parsed.status === 'processing' || parsed.status === 'pending') {
-      console.log('🔄 发现进行中的任务:', parsed)
-      return parsed
-    } else {
-      // 已完成或失败的任务可以清除
-      localStorage.removeItem(PACKAGE_TASK_KEY)
-      return null
-    }
-  } catch (error) {
-    console.warn('恢复任务状态失败:', error)
-    localStorage.removeItem(PACKAGE_TASK_KEY)
-    return null
-  }
-}
-
-// 🔥 新增：清除任务状态
-function clearTaskFromStorage() {
-  localStorage.removeItem(PACKAGE_TASK_KEY)
-  console.log('🗑️ 任务状态已清除')
-}
-
-// 🔥 新增：页面加载时检查并恢复任务
-function checkAndRestoreTask() {
-  const savedTask = loadTaskFromStorage()
-  if (savedTask) {
-    console.log('🔄 正在恢复任务:', savedTask.taskId)
-    
-    // 显示恢复提示
-    message.info(`发现进行中的打包任务，正在恢复...（${savedTask.projectName || '容器项目'}）`)
-    
-    // 开始静默轮询，获取最新状态
-    startSilentPollingTaskStatus(savedTask.taskId, true)
-  }
-}
-
-// 计算属性
-const selectedPathsCount = computed(() => {
-  return containerPaths.value.reduce((total, service) => 
-    total + service.pathMappings.filter(path => path.selected && !path.isSystemPath).length, 0
-  )
-})
-
-const systemPathsCount = computed(() => {
-  return containerPaths.value.reduce((total, service) => 
-    total + service.pathMappings.filter(path => path.isSystemPath).length, 0
-  )
-})
-
-// 处理打包进度的计算属性
-const packageProgress = computed(() => {
-  if (!packageTask.value) return 0
-  return typeof packageTask.value.progress === 'number' ? packageTask.value.progress : Number(packageTask.value.progress) || 0
-})
 
 // 加载容器路径信息
 async function loadContainerPaths() {
@@ -1779,160 +930,42 @@ function toggleAllPaths(service: ContainerPathInfo, selectAll: boolean) {
 }
 
 // 修改下载项目包函数，先弹出路径选择
-async function downloadProjectPackage() {
-  if (!yamlResult.value) return
-
-  try {
-    // 加载路径信息
-    await loadContainerPaths()
-    
-    // 弹出路径选择界面
-    showPathSelectionModal.value = true
-  } catch (error: any) {
-    message.error('加载路径信息失败: ' + (error.message || error))
-  }
+function downloadProjectPackage() {
+  // 这个函数现在由YamlGeneratorModal组件处理
+  console.log('downloadProjectPackage called from YamlGeneratorModal')
 }
 
-// 确认路径选择后开始异步打包
-async function confirmPathSelectionAndDownload() {
-  if (!yamlResult.value) return
-
-  try {
-    // 收集用户选择的路径
-    const selectedPaths: string[] = []
-    containerPaths.value.forEach((service: ContainerPathInfo) => {
-      service.pathMappings.forEach((path: PathMapping) => {
-        if (path.selected && !path.isSystemPath) {
-          selectedPaths.push(path.id)  // hostPath:containerPath
-        }
-      })
-    })
-
-    const params: ProjectExportRequest = {
-      containerIds: Array.from(selectedContainers.value),
-      projectName: yamlResult.value.projectName,
-      description: yamlForm.description,
-      includeConfigPackages: true,
-      selectedPaths: selectedPaths
-    }
-
-    // 启动异步打包任务
-    const result = await startAsyncPackage(params)
-    
-    console.log('🚀 异步打包任务已启动:', result)
-    
-    // 🔥 立即关闭路径选择弹窗
-    showPathSelectionModal.value = false
-    
-    // 🔥 显示简单的成功提示，不显示进度弹窗
-    message.success('打包任务已启动，完成后将自动下载')
-    
-    // 🔥 后台静默轮询任务状态，不显示界面
-    startSilentPollingTaskStatus(result.taskId)
-    
-  } catch (error: any) {
-    message.error('启动打包任务失败: ' + (error.message || error))
-  }
+// 确认路径选择后开始异步打包  
+function confirmPathSelectionAndDownload() {
+  // 这个函数现在由PathSelectionModal组件处理
+  console.log('confirmPathSelectionAndDownload called from PathSelectionModal')
 }
 
-// 🔥 新增：静默轮询任务状态（不显示进度界面）
-function startSilentPollingTaskStatus(taskId: string, restore?: boolean) {
-  if (packageTimer.value) {
-    clearInterval(packageTimer.value)
-  }
-  
-  packageTimer.value = window.setInterval(async () => {
-    try {
-      const task = await getPackageTaskStatus(taskId)
-      
-      console.log('📊 后台任务状态:', task.status, `${task.progress}%`, task.currentStep)
-      
-      // 🔥 保存任务状态到localStorage
-      if (task.status === 'processing' || task.status === 'pending') {
-        saveTaskToStorage(task)
-      }
-      
-      if (task.status === 'completed') {
-        // 任务完成，停止轮询
-        stopPollingTaskStatus()
-        
-        // 🔥 清除保存的任务状态
-        clearTaskFromStorage()
-        
-        // 🔥 直接下载文件，无需确认
-        downloadCompletedPackage(taskId)
-        
-        // 🔥 显示完成通知
-        message.success(`打包完成！文件正在下载... (${formatBytes(task.fileSize || 0, 1)})`)
-        
-      } else if (task.status === 'failed') {
-        // 任务失败，停止轮询
-        stopPollingTaskStatus()
-        
-        // 🔥 清除保存的任务状态
-        clearTaskFromStorage()
-        
-        // 🔥 显示失败通知，提供重试选项
-        message.error('打包失败: ' + (task.errorMessage || '未知错误'))
-        
-        // 可选：提供重试按钮
-        dialog.error({
-          title: '打包失败',
-          content: `打包过程中发生错误：${task.errorMessage || '未知错误'}`,
-          positiveText: '知道了',
-          negativeText: '重试',
-          onNegativeClick: () => {
-            // 重新开始打包流程
-            confirmPathSelectionAndDownload()
-          }
-        })
-      }
-      
-    } catch (error: any) {
-      console.error('查询任务状态失败:', error)
-      // 🔥 网络错误时继续轮询，但减少频率
-    }
-  }, 3000) // 🔥 调整为3秒轮询一次，减少服务器压力
+// 处理下载失败的重试
+function handlePackageRetry() {
+  confirmPathSelectionAndDownload()
 }
 
-// 停止轮询任务状态
-function stopPollingTaskStatus() {
-  if (packageTimer.value) {
-    clearInterval(packageTimer.value)
-    packageTimer.value = null
-  }
+// 处理手动下载
+function handleManualDownload() {
+  // 实现手动下载的逻辑
+  console.log('手动下载')
 }
 
-// 下载完成的打包文件
-function downloadCompletedPackage(taskId: string) {
-  try {
-    const downloadUrl = downloadPackageFile(taskId)
-    
-    // 创建隐藏的下载链接
-    const a = document.createElement('a')
-    a.href = downloadUrl
-    a.style.display = 'none'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    
-    console.log('📥 文件下载已启动:', downloadUrl)
-    
-  } catch (error: any) {
-    message.error('下载文件失败: ' + (error.message || error))
-  }
+function formatBytes(bytes: number, decimals = 2) {
+  if (!bytes) return '0 Bytes'
+  const k = 1024
+  const dm = decimals < 0 ? 0 : decimals
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return (bytes / Math.pow(k, i)).toFixed(dm) + ' ' + sizes[i]
 }
 
-// 关闭打包进度弹窗
-function closePackageProgressModal() {
-  showPackageProgressModal.value = false
-  stopPollingTaskStatus()
-  packageTask.value = null
-  // 🔥 清除保存的任务状态
-  clearTaskFromStorage()
+function formatNetworkBytes(val: number) {
+  if (val > 1024 * 1024) return (val / 1024 / 1024).toFixed(2) + 'MB'
+  if (val > 1024) return (val / 1024).toFixed(2) + 'KB'
+  return val + 'B'
 }
-
-
 
 </script>
 
