@@ -1054,6 +1054,9 @@ function loadContainers() {
 // 页面加载时自动获取
 onMounted(() => {
   loadContainers()
+  
+  // 🔥 检查并恢复进行中的打包任务
+  checkAndRestoreTask()
 })
 
 // 在组件卸载时清除定时器
@@ -1062,6 +1065,9 @@ onUnmounted(() => {
     clearInterval(statsTimer)
     statsTimer = null
   }
+  
+  // 清理打包轮询定时器
+  stopPollingTaskStatus()
 })
 
 // 刷新按钮点击时重新加载
@@ -1607,6 +1613,81 @@ const showPackageProgressModal = ref(false)
 const packageTask = ref<PackageTask | null>(null)
 const packageTimer = ref<number | null>(null)
 
+// 🔥 新增：任务状态持久化相关
+const PACKAGE_TASK_KEY = 'dockpilot_package_task'
+
+// 🔥 新增：保存任务状态到localStorage
+function saveTaskToStorage(task: PackageTask) {
+  try {
+    const taskData = {
+      taskId: task.taskId,
+      projectName: task.projectName,
+      containerIds: task.containerIds,
+      status: task.status,
+      progress: task.progress,
+      currentStep: task.currentStep,
+      createTime: task.createTime,
+      timestamp: Date.now() // 添加时间戳用于过期检查
+    }
+    localStorage.setItem(PACKAGE_TASK_KEY, JSON.stringify(taskData))
+    console.log('💾 任务状态已保存到localStorage:', taskData)
+  } catch (error) {
+    console.warn('保存任务状态失败:', error)
+  }
+}
+
+// 🔥 新增：从localStorage恢复任务状态
+function loadTaskFromStorage(): any | null {
+  try {
+    const taskData = localStorage.getItem(PACKAGE_TASK_KEY)
+    if (!taskData) return null
+    
+    const parsed = JSON.parse(taskData)
+    
+    // 检查任务是否过期（超过1小时自动清除）
+    const maxAge = 60 * 60 * 1000 // 1小时
+    if (Date.now() - parsed.timestamp > maxAge) {
+      localStorage.removeItem(PACKAGE_TASK_KEY)
+      console.log('🗑️ 过期任务已清除')
+      return null
+    }
+    
+    // 只恢复进行中的任务
+    if (parsed.status === 'processing' || parsed.status === 'pending') {
+      console.log('🔄 发现进行中的任务:', parsed)
+      return parsed
+    } else {
+      // 已完成或失败的任务可以清除
+      localStorage.removeItem(PACKAGE_TASK_KEY)
+      return null
+    }
+  } catch (error) {
+    console.warn('恢复任务状态失败:', error)
+    localStorage.removeItem(PACKAGE_TASK_KEY)
+    return null
+  }
+}
+
+// 🔥 新增：清除任务状态
+function clearTaskFromStorage() {
+  localStorage.removeItem(PACKAGE_TASK_KEY)
+  console.log('🗑️ 任务状态已清除')
+}
+
+// 🔥 新增：页面加载时检查并恢复任务
+function checkAndRestoreTask() {
+  const savedTask = loadTaskFromStorage()
+  if (savedTask) {
+    console.log('🔄 正在恢复任务:', savedTask.taskId)
+    
+    // 显示恢复提示
+    message.info(`发现进行中的打包任务，正在恢复...（${savedTask.projectName || '容器项目'}）`)
+    
+    // 开始静默轮询，获取最新状态
+    startSilentPollingTaskStatus(savedTask.taskId, true)
+  }
+}
+
 // 计算属性
 const selectedPathsCount = computed(() => {
   return containerPaths.value.reduce((total, service) => 
@@ -1755,7 +1836,7 @@ async function confirmPathSelectionAndDownload() {
 }
 
 // 🔥 新增：静默轮询任务状态（不显示进度界面）
-function startSilentPollingTaskStatus(taskId: string) {
+function startSilentPollingTaskStatus(taskId: string, restore?: boolean) {
   if (packageTimer.value) {
     clearInterval(packageTimer.value)
   }
@@ -1766,9 +1847,17 @@ function startSilentPollingTaskStatus(taskId: string) {
       
       console.log('📊 后台任务状态:', task.status, `${task.progress}%`, task.currentStep)
       
+      // 🔥 保存任务状态到localStorage
+      if (task.status === 'processing' || task.status === 'pending') {
+        saveTaskToStorage(task)
+      }
+      
       if (task.status === 'completed') {
         // 任务完成，停止轮询
         stopPollingTaskStatus()
+        
+        // 🔥 清除保存的任务状态
+        clearTaskFromStorage()
         
         // 🔥 直接下载文件，无需确认
         downloadCompletedPackage(taskId)
@@ -1779,6 +1868,9 @@ function startSilentPollingTaskStatus(taskId: string) {
       } else if (task.status === 'failed') {
         // 任务失败，停止轮询
         stopPollingTaskStatus()
+        
+        // 🔥 清除保存的任务状态
+        clearTaskFromStorage()
         
         // 🔥 显示失败通知，提供重试选项
         message.error('打包失败: ' + (task.errorMessage || '未知错误'))
@@ -1836,18 +1928,12 @@ function closePackageProgressModal() {
   showPackageProgressModal.value = false
   stopPollingTaskStatus()
   packageTask.value = null
+  // 🔥 清除保存的任务状态
+  clearTaskFromStorage()
 }
 
-// 在组件卸载时清理定时器
-onUnmounted(() => {
-  if (statsTimer) {
-    clearInterval(statsTimer)
-    statsTimer = null
-  }
-  
-  // 清理打包轮询定时器
-  stopPollingTaskStatus()
-})
+
+
 </script>
 
 <style scoped>
