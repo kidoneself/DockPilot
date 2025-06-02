@@ -460,12 +460,104 @@
         </NSpace>
       </template>
     </NModal>
+
+    <!-- 打包进度模态框 -->
+    <NModal
+      v-model:show="showPackageProgressModal"
+      preset="card"
+      title="打包进度"
+      class="package-progress-modal"
+      :mask-closable="false"
+      :close-on-esc="false"
+      style="width: 600px; max-width: 90vw;"
+    >
+      <div v-if="packageTask" class="package-progress-content">
+        <!-- 项目信息 -->
+        <div class="project-info">
+          <NText strong>{{ packageTask.projectName || '容器项目' }}</NText>
+          <NText depth="3">正在打包 {{ packageTask.containerIds.length }} 个容器</NText>
+        </div>
+        
+        <!-- 进度条 -->
+        <div class="progress-section">
+          <NProgress
+            type="line"
+            :percentage="packageProgress"
+            :status="packageTask.status === 'failed' ? 'error' : packageTask.status === 'completed' ? 'success' : 'info'"
+            indicator-placement="inside"
+            :show-indicator="true"
+            stroke-width="20"
+          />
+          
+          <!-- 状态信息 -->
+          <div class="status-info">
+            <div class="current-step">
+              <NIcon v-if="packageTask.status === 'processing'" style="color: #18a058; margin-right: 8px;">
+                <RefreshOutline />
+              </NIcon>
+              <NIcon v-else-if="packageTask.status === 'completed'" style="color: #18a058; margin-right: 8px;">
+                <CheckmarkCircleOutline />
+              </NIcon>
+              <NIcon v-else-if="packageTask.status === 'failed'" style="color: #d03050; margin-right: 8px;">
+                <CloseCircleOutline />
+              </NIcon>
+              <NIcon v-else style="color: #0e7a0d; margin-right: 8px;">
+                <TimeOutline />
+              </NIcon>
+              <NText>{{ packageTask.currentStep }}</NText>
+            </div>
+            
+            <!-- 错误信息 -->
+            <div v-if="packageTask.status === 'failed' && packageTask.errorMessage" class="error-message">
+              <NAlert type="error" :show-icon="false">
+                {{ packageTask.errorMessage }}
+              </NAlert>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 任务详情 -->
+        <div class="task-details">
+          <div class="detail-row">
+            <span class="label">任务ID:</span>
+            <NText depth="3" style="font-family: monospace;">{{ packageTask.taskId.substring(0, 8) }}...</NText>
+          </div>
+          <div class="detail-row">
+            <span class="label">开始时间:</span>
+            <NText depth="3">{{ new Date(packageTask.createTime).toLocaleString() }}</NText>
+          </div>
+          <div v-if="packageTask.fileSize && packageTask.status === 'completed'" class="detail-row">
+            <span class="label">文件大小:</span>
+            <NText depth="3">{{ formatFileSize(packageTask.fileSize) }}</NText>
+          </div>
+        </div>
+      </div>
+      
+      <template #action>
+        <NSpace justify="end">
+          <NButton 
+            v-if="packageTask?.status === 'completed' || packageTask?.status === 'failed'"
+            @click="closePackageProgressModal"
+          >
+            关闭
+          </NButton>
+          <NButton 
+            v-if="packageTask?.status === 'processing' || packageTask?.status === 'pending'"
+            @click="closePackageProgressModal"
+            type="error"
+            ghost
+          >
+            取消打包
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, h } from 'vue'
-import { NButton, NSpace, useMessage, useDialog, NModal, NInput, NFormItem, NForm, NInputGroup, NCode, NText, NAlert, type FormInst, NDropdown, NCollapse, NCollapseItem } from 'naive-ui'
+import { NButton, NSpace, useMessage, useDialog, NModal, NInput, NFormItem, NForm, NInputGroup, NCode, NText, NAlert, type FormInst, NDropdown, NCollapse, NCollapseItem, NProgress } from 'naive-ui'
 import {
   RefreshOutline,
   AddOutline,
@@ -478,7 +570,9 @@ import {
   InformationCircleOutline,
   CheckmarkOutline,
   CheckmarkCircleOutline,
-  ArrowForwardOutline
+  ArrowForwardOutline,
+  CloseCircleOutline,
+  TimeOutline
 } from '@vicons/ionicons5'
 import ContainerItem from '@/components/container/ContainerItem.vue'
 import ContainerLogModal from '@/components/container/ContainerLogModal.vue'
@@ -491,7 +585,7 @@ import {
   restartContainer,
   updateContainerInfo
 } from '@/api/container'
-import { generateContainerYaml, previewContainerYaml, type ContainerYamlResponse, exportProject, exportYamlOnly, type ProjectExportRequest, getContainerPaths, type ContainerPathInfo, type PathMapping } from '@/api/containerYaml'
+import { generateContainerYaml, previewContainerYaml, type ContainerYamlResponse, exportProject, exportYamlOnly, type ProjectExportRequest, getContainerPaths, type ContainerPathInfo, type PathMapping, startAsyncPackage, getPackageTaskStatus, downloadPackageFile, type PackageTask } from '@/api/containerYaml'
 import { sendWebSocketMessage } from '@/api/websocket/websocketService'
 import { useRouter } from 'vue-router'
 import { useWebSocketTask } from '@/hooks/useWebSocketTask'
@@ -821,6 +915,10 @@ function formatBytes(bytes: number, decimals = 2) {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return (bytes / Math.pow(k, i)).toFixed(dm) + ' ' + sizes[i]
+}
+
+function formatFileSize(bytes: number) {
+  return formatBytes(bytes, 1)
 }
 
 function formatNetworkBytes(val: number) {
@@ -1499,6 +1597,11 @@ const showPathSelectionModal = ref(false)
 const containerPaths = ref<ContainerPathInfo[]>([])
 const loadingPaths = ref(false)
 
+// 异步打包相关状态
+const showPackageProgressModal = ref(false)
+const packageTask = ref<PackageTask | null>(null)
+const packageTimer = ref<number | null>(null)
+
 // 计算属性
 const selectedPathsCount = computed(() => {
   return containerPaths.value.reduce((total, service) => 
@@ -1510,6 +1613,12 @@ const systemPathsCount = computed(() => {
   return containerPaths.value.reduce((total, service) => 
     total + service.pathMappings.filter(path => path.isSystemPath).length, 0
   )
+})
+
+// 处理打包进度的计算属性
+const packageProgress = computed(() => {
+  if (!packageTask.value) return 0
+  return typeof packageTask.value.progress === 'number' ? packageTask.value.progress : Number(packageTask.value.progress) || 0
 })
 
 // 加载容器路径信息
@@ -1598,7 +1707,7 @@ async function downloadProjectPackage() {
   }
 }
 
-// 确认路径选择后开始下载
+// 确认路径选择后开始异步打包
 async function confirmPathSelectionAndDownload() {
   if (!yamlResult.value) return
 
@@ -1618,27 +1727,131 @@ async function confirmPathSelectionAndDownload() {
       projectName: yamlResult.value.projectName,
       description: yamlForm.description,
       includeConfigPackages: true,
-      selectedPaths: selectedPaths  // 🔥 传递用户选择的路径
+      selectedPaths: selectedPaths
     }
 
-    const { blob, filename } = await exportProject(params)
+    // 启动异步打包任务
+    const result = await startAsyncPackage(params)
     
-    // 创建下载链接
-    const url = URL.createObjectURL(blob)
+    console.log('🚀 异步打包任务已启动:', result)
+    
+    // 关闭路径选择模态框
+    showPathSelectionModal.value = false
+    
+    // 显示进度模态框
+    showPackageProgressModal.value = true
+    packageTask.value = {
+      taskId: result.taskId,
+      status: 'pending',
+      progress: 0,
+      currentStep: '准备开始打包...',
+      projectName: yamlResult.value.projectName,
+      containerIds: Array.from(selectedContainers.value),
+      selectedPaths: selectedPaths,
+      createTime: new Date().toISOString()
+    }
+    
+    // 开始轮询任务状态
+    startPollingTaskStatus(result.taskId)
+    
+    message.success('打包任务已启动，请稍候...')
+    
+  } catch (error: any) {
+    message.error('启动打包任务失败: ' + (error.message || error))
+  }
+}
+
+// 开始轮询任务状态
+function startPollingTaskStatus(taskId: string) {
+  if (packageTimer.value) {
+    clearInterval(packageTimer.value)
+  }
+  
+  packageTimer.value = window.setInterval(async () => {
+    try {
+      const task = await getPackageTaskStatus(taskId)
+      packageTask.value = task
+      
+      console.log('📊 任务状态更新:', task)
+      
+      if (task.status === 'completed') {
+        // 任务完成，停止轮询
+        stopPollingTaskStatus()
+        
+        // 自动下载文件
+        setTimeout(() => {
+          downloadCompletedPackage(taskId)
+        }, 1000)
+        
+      } else if (task.status === 'failed') {
+        // 任务失败，停止轮询
+        stopPollingTaskStatus()
+        message.error('打包失败: ' + (task.errorMessage || '未知错误'))
+        
+        // 3秒后自动关闭弹窗
+        setTimeout(() => {
+          showPackageProgressModal.value = false
+        }, 3000)
+      }
+      
+    } catch (error: any) {
+      console.error('查询任务状态失败:', error)
+      // 查询失败时继续轮询，避免因网络问题中断
+    }
+  }, 2000) // 每2秒查询一次
+}
+
+// 停止轮询任务状态
+function stopPollingTaskStatus() {
+  if (packageTimer.value) {
+    clearInterval(packageTimer.value)
+    packageTimer.value = null
+  }
+}
+
+// 下载完成的打包文件
+function downloadCompletedPackage(taskId: string) {
+  try {
+    const downloadUrl = downloadPackageFile(taskId)
+    
+    // 创建隐藏的下载链接
     const a = document.createElement('a')
-    a.href = url
-    a.download = filename
+    a.href = downloadUrl
+    a.style.display = 'none'
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    URL.revokeObjectURL(url)
     
-    message.success('项目包下载完成')
-    showPathSelectionModal.value = false
+    message.success('打包完成，文件下载中...')
+    
+    // 下载开始后关闭进度弹窗
+    setTimeout(() => {
+      showPackageProgressModal.value = false
+      packageTask.value = null
+    }, 2000)
+    
   } catch (error: any) {
-    message.error('项目包下载失败: ' + (error.message || error))
+    message.error('下载文件失败: ' + (error.message || error))
   }
 }
+
+// 关闭打包进度弹窗
+function closePackageProgressModal() {
+  showPackageProgressModal.value = false
+  stopPollingTaskStatus()
+  packageTask.value = null
+}
+
+// 在组件卸载时清理定时器
+onUnmounted(() => {
+  if (statsTimer) {
+    clearInterval(statsTimer)
+    statsTimer = null
+  }
+  
+  // 清理打包轮询定时器
+  stopPollingTaskStatus()
+})
 </script>
 
 <style scoped>
@@ -1972,5 +2185,50 @@ async function confirmPathSelectionAndDownload() {
 
 .arrow-icon {
   color: #999;
+}
+
+/* 打包进度模态框样式 */
+.package-progress-modal {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.package-progress-content {
+  padding: 20px;
+}
+
+.project-info {
+  margin-bottom: 16px;
+}
+
+.progress-section {
+  margin-bottom: 16px;
+}
+
+.status-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.current-step {
+  display: flex;
+  align-items: center;
+}
+
+.error-message {
+  margin-top: 8px;
+}
+
+.task-details {
+  margin-top: 16px;
+}
+
+.detail-row {
+  margin-bottom: 8px;
+}
+
+.label {
+  font-weight: 600;
 }
 </style> 

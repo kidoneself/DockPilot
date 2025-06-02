@@ -21,11 +21,14 @@ import org.springframework.core.io.FileSystemResource;
 import javax.validation.Valid;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import com.dockpilot.model.ContainerPathInfo;
+import com.dockpilot.model.PackageTask;
+import com.dockpilot.service.AsyncPackageService;
 
 /**
  * 容器YAML生成控制器
@@ -42,6 +45,9 @@ public class ContainerYamlController {
     
     @Autowired
     private DockerService dockerService;
+    
+    @Autowired
+    private AsyncPackageService asyncPackageService;
     
     /**
      * 根据容器ID列表生成YAML配置
@@ -457,6 +463,99 @@ public class ContainerYamlController {
         } catch (Exception e) {
             log.error("获取容器路径信息失败: {}", e.getMessage(), e);
             return ApiResponse.error("获取容器路径信息失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 启动异步打包任务
+     */
+    @PostMapping("/export-project-async")
+    @Operation(summary = "启动异步打包任务", description = "启动异步打包任务，立即返回任务ID，避免超时问题")
+    public ApiResponse<Map<String, Object>> startAsyncPackage(@Valid @RequestBody ContainerYamlRequest request) {
+        try {
+            String taskId = asyncPackageService.startPackageTask(
+                request.getContainerIds(),
+                request.getProjectName(),
+                request.getDescription(),
+                request.getSelectedPaths()
+            );
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("taskId", taskId);
+            result.put("message", "打包任务已启动，请稍候...");
+            
+            return ApiResponse.success(result);
+            
+        } catch (Exception e) {
+            log.error("启动异步打包任务失败: {}", e.getMessage(), e);
+            return ApiResponse.error("启动打包任务失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 查询打包任务状态
+     */
+    @GetMapping("/package-task/{taskId}")
+    @Operation(summary = "查询打包任务状态", description = "查询异步打包任务的当前状态和进度")
+    public ApiResponse<PackageTask> getPackageTaskStatus(@PathVariable String taskId) {
+        try {
+            PackageTask task = asyncPackageService.getTaskStatus(taskId);
+            
+            if (task == null) {
+                return ApiResponse.error("任务不存在或已过期");
+            }
+            
+            return ApiResponse.success(task);
+            
+        } catch (Exception e) {
+            log.error("查询打包任务状态失败: {}", e.getMessage(), e);
+            return ApiResponse.error("查询任务状态失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 下载打包完成的文件
+     */
+    @GetMapping("/download-package/{taskId}")
+    @Operation(summary = "下载打包文件", description = "下载已完成的打包文件")
+    public ResponseEntity<?> downloadPackageFile(@PathVariable String taskId) {
+        try {
+            PackageTask task = asyncPackageService.getTaskStatus(taskId);
+            
+            if (task == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error("任务不存在或已过期"));
+            }
+            
+            if (!"completed".equals(task.getStatus())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponse.error("任务未完成，当前状态: " + task.getStatus()));
+            }
+            
+            if (task.getFilePath() == null || !java.nio.file.Files.exists(java.nio.file.Paths.get(task.getFilePath()))) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error("文件不存在"));
+            }
+            
+            org.springframework.core.io.Resource resource = 
+                new org.springframework.core.io.FileSystemResource(new java.io.File(task.getFilePath()));
+            
+            // 🔥 修复中文文件名编码问题
+            String filename = task.getFileName();
+            String encodedFilename = encodeFilename(filename);
+            
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, 
+                            "attachment; filename=\"" + sanitizeFilename(filename) + "\"; " +
+                            "filename*=UTF-8''" + encodedFilename)
+                    .header(HttpHeaders.CONTENT_TYPE, "application/zip")
+                    .header(HttpHeaders.CONTENT_LENGTH, task.getFileSize().toString())
+                    .body(resource);
+                    
+        } catch (Exception e) {
+            log.error("下载打包文件失败: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("下载失败: " + e.getMessage()));
         }
     }
 } 

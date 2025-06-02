@@ -58,6 +58,25 @@ export interface PathMapping {
 }
 
 /**
+ * 打包任务信息
+ */
+export interface PackageTask {
+  taskId: string           // 任务ID
+  status: string           // 任务状态：pending, processing, completed, failed
+  progress: number         // 进度百分比 (0-100)
+  currentStep: string      // 当前处理步骤描述
+  projectName: string      // 项目名称
+  containerIds: string[]   // 容器ID列表
+  selectedPaths: string[]  // 选择的路径列表
+  filePath?: string        // 生成的文件路径（完成后）
+  fileName?: string        // 文件名
+  errorMessage?: string    // 错误信息（失败时）
+  createTime: string       // 任务创建时间
+  completeTime?: string    // 任务完成时间
+  fileSize?: number        // 文件大小（字节）
+}
+
+/**
  * 根据容器ID列表生成YAML配置
  * @param params 请求参数
  * @returns YAML配置响应
@@ -145,4 +164,31 @@ export const exportYamlOnly = async (params: ContainerYamlRequest): Promise<{ bl
   }
   
   return exportProject(exportParams)
+}
+
+/**
+ * 启动异步打包任务
+ * @param params 打包请求参数
+ * @returns 任务ID和消息
+ */
+export const startAsyncPackage = (params: ProjectExportRequest): Promise<{ taskId: string, message: string }> => {
+  return request.post('/api/containers/export-project-async', params)
+}
+
+/**
+ * 查询打包任务状态
+ * @param taskId 任务ID
+ * @returns 任务状态信息
+ */
+export const getPackageTaskStatus = (taskId: string): Promise<PackageTask> => {
+  return request.get(`/api/containers/package-task/${taskId}`)
+}
+
+/**
+ * 下载打包完成的文件
+ * @param taskId 任务ID
+ * @returns 下载链接
+ */
+export const downloadPackageFile = (taskId: string): string => {
+  return `/api/api/containers/download-package/${taskId}`
 } 
