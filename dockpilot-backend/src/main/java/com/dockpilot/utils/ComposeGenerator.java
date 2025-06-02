@@ -1293,14 +1293,6 @@ public class ComposeGenerator {
     }
     
     /**
-     * 创建服务配置包
-     */
-    private boolean createServiceConfigPackage(String serviceName, InspectContainerResponse container, 
-                                             String dockerBaseDir, String outputPath) {
-        return createServiceConfigPackage(serviceName, container, dockerBaseDir, outputPath, null);
-    }
-    
-    /**
      * 创建服务配置包（支持用户选择的路径）
      */
     private boolean createServiceConfigPackage(String serviceName, InspectContainerResponse container, 
@@ -1344,20 +1336,20 @@ public class ComposeGenerator {
                     
                     // 检查源路径是否存在
                     if (java.nio.file.Files.exists(java.nio.file.Paths.get(sourcePath))) {
-                        if (!isDirectoryEmpty(sourcePath)) {
-                            // 按宿主机的目录结构组织，提取最后一层目录名
-                            String[] pathParts = hostPath.split("/");
-                            String lastDirName = pathParts[pathParts.length - 1];
-                            String targetPath = servicePackageDir + "/" + lastDirName;
-                            
-                            // 复制目录内容
-                            copyDirectoryContents(sourcePath, targetPath);
-                            hasContent = true;
-                            log.info("✅ 已打包路径: {} -> {} (宿主机: {})", 
-                                    containerPath, lastDirName, hostPath);
-                        } else {
-                            log.info("⚠️ 目录为空，跳过: {}", sourcePath);
-                        }
+                        // 🔥 移除空目录检查 - 即使是空目录也要打包
+                        // 按宿主机的目录结构组织，提取最后一层目录名
+                        String[] pathParts = hostPath.split("/");
+                        String lastDirName = pathParts[pathParts.length - 1];
+                        String targetPath = servicePackageDir + "/" + lastDirName;
+                        
+                        // 🔥 确保目标目录存在
+                        java.nio.file.Files.createDirectories(java.nio.file.Paths.get(targetPath));
+                        
+                        // 复制目录内容（包括空目录）
+                        copyDirectoryContents(sourcePath, targetPath);
+                        hasContent = true;
+                        log.info("✅ 已打包路径: {} -> {} (宿主机: {})", 
+                                containerPath, lastDirName, hostPath);
                     } else {
                         log.info("⚠️ 路径不存在，跳过: {}", sourcePath);
                     }
@@ -1383,23 +1375,6 @@ public class ComposeGenerator {
         } catch (Exception e) {
             log.error("创建服务配置包失败: {}", serviceName, e);
             return false;
-        }
-    }
-    
-    /**
-     * 检查目录是否为空
-     */
-    private boolean isDirectoryEmpty(String dirPath) {
-        try {
-            java.nio.file.Path path = java.nio.file.Paths.get(dirPath);
-            if (!java.nio.file.Files.exists(path) || !java.nio.file.Files.isDirectory(path)) {
-                return true;
-            }
-            try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.list(path)) {
-                return !files.findAny().isPresent();
-            }
-        } catch (Exception e) {
-            return true;
         }
     }
     
