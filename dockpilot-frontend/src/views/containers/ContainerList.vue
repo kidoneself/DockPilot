@@ -486,7 +486,7 @@
             :status="packageTask.status === 'failed' ? 'error' : packageTask.status === 'completed' ? 'success' : 'info'"
             indicator-placement="inside"
             :show-indicator="true"
-            stroke-width="20"
+            :stroke-width="20"
           />
           
           <!-- 状态信息 -->
@@ -917,8 +917,13 @@ function formatBytes(bytes: number, decimals = 2) {
   return (bytes / Math.pow(k, i)).toFixed(dm) + ' ' + sizes[i]
 }
 
-function formatFileSize(bytes: number) {
-  return formatBytes(bytes, 1)
+// 使用统一的文件大小格式化函数
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
 function formatNetworkBytes(val: number) {
@@ -1796,15 +1801,6 @@ function startSilentPollingTaskStatus(taskId: string) {
       // 🔥 网络错误时继续轮询，但减少频率
     }
   }, 3000) // 🔥 调整为3秒轮询一次，减少服务器压力
-}
-
-// 🔥 简化的文件大小格式化函数
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
 // 停止轮询任务状态
