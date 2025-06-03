@@ -1149,9 +1149,9 @@ public class ApplicationWebSocketService implements BaseService {
                 String hostPath = parts[0].trim();
                 String containerPath = parts[1].trim();
                 
-                // 从容器路径推导配置包中的目录名
-                String containerDirName = getLastPathSegment(containerPath);
-                String sourceDir = extractDir + "/" + containerDirName;
+                // 🔧 修复：从宿主机路径推导配置包中的目录名（与打包逻辑保持一致）
+                String hostDirName = getLastPathSegment(hostPath);
+                String sourceDir = extractDir + "/" + hostDirName;
                 
                 // 检查配置包中是否有对应的目录
                 if (java.nio.file.Files.exists(java.nio.file.Paths.get(sourceDir))) {
@@ -1164,9 +1164,9 @@ public class ApplicationWebSocketService implements BaseService {
                     // 复制配置文件
                     copyConfigToTarget(sourceDir, actualHostPath, callback);
                     
-                    callback.onLog("✅ 配置部署成功: " + containerDirName + " -> " + hostPath);
+                    callback.onLog("✅ 配置部署成功: " + hostDirName + " -> " + hostPath);
                 } else {
-                    callback.onLog("⚠️ 配置包中未找到目录: " + containerDirName);
+                    callback.onLog("⚠️ 配置包中未找到目录: " + hostDirName + " (基于宿主机路径: " + hostPath + ")");
                 }
             }
         }
