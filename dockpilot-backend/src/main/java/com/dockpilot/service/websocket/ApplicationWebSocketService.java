@@ -50,6 +50,9 @@ public class ApplicationWebSocketService implements BaseService {
     
     @Autowired
     private com.dockpilot.common.config.AppConfig appConfig;
+    
+    @org.springframework.beans.factory.annotation.Value("${file.upload.path:uploads/}")
+    private String uploadBasePath;
 
     // 活跃的安装任务
     private final Map<String, CompletableFuture<Void>> activeTasks = new ConcurrentHashMap<>();
@@ -971,7 +974,14 @@ public class ApplicationWebSocketService implements BaseService {
             return;
         }
         
-        callback.onLog("📦 检测到配置包: " + configUrl);
+        // 🔥 新增：检测本地配置包
+        if (configUrl.startsWith("local://")) {
+            handleLocalConfigPackage(configUrl, serviceName, volumeMappings, callback);
+            return;
+        }
+        
+        // 原有逻辑：网络下载
+        callback.onLog("📦 检测到网络配置包: " + configUrl);
         
         try {
             // 下载配置包
@@ -992,6 +1002,35 @@ public class ApplicationWebSocketService implements BaseService {
         } catch (Exception e) {
             callback.onLog("❌ 配置包处理失败: " + e.getMessage() + "，将创建空目录");
             log.error("处理配置包失败: {}", serviceName, e);
+        }
+    }
+    
+    /**
+     * 🆕 处理本地配置包
+     */
+    private void handleLocalConfigPackage(String configUrl, String serviceName, 
+                                        List<String> volumeMappings, InstallCallback callback) {
+        try {
+            // 解析本地路径: local://项目名/服务名.tar.gz
+            String relativePath = configUrl.substring(8); // 移除 "local://"
+            String localPackagePath = uploadBasePath + relativePath;
+            
+            callback.onLog("📦 使用本地配置包: " + relativePath);
+            
+            // 检查文件是否存在
+            if (!java.nio.file.Files.exists(java.nio.file.Paths.get(localPackagePath))) {
+                callback.onLog("⚠️ 本地配置包不存在: " + localPackagePath + "，将创建空目录");
+                return;
+            }
+            
+            // 直接解压本地配置包（复用现有解压逻辑）
+            extractConfigPackage(localPackagePath, serviceName, volumeMappings, callback);
+            
+            callback.onLog("✅ 本地配置包部署完成: " + serviceName);
+            
+        } catch (Exception e) {
+            callback.onLog("❌ 本地配置包处理失败: " + e.getMessage() + "，将创建空目录");
+            log.error("处理本地配置包失败: {}", serviceName, e);
         }
     }
     

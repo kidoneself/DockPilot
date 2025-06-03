@@ -838,11 +838,13 @@ public class ComposeGenerator {
      * 🔥 新增：基于容器路径语义的智能分组
      */
     private Map<String, String> analyzePathsByContainerSemantics(List<InspectContainerResponse> containers) {
-        // 按容器路径语义分组收集宿主机路径
-        List<String> mediaHosts = new ArrayList<>();
-        List<String> downloadHosts = new ArrayList<>();
-        List<String> documentHosts = new ArrayList<>();
-        List<String> otherHosts = new ArrayList<>();
+        // 获取Docker基础目录
+        String dockerBaseDir = getDockerBaseDir();
+        
+        // 按用途分组收集宿主机路径
+        Set<String> mediaHosts = new HashSet<>();
+        Set<String> downloadHosts = new HashSet<>();
+        Set<String> documentHosts = new HashSet<>();
         
         for (InspectContainerResponse container : containers) {
             if (container.getMounts() == null) continue;
@@ -861,31 +863,31 @@ public class ComposeGenerator {
                     continue;
                 }
                 
-                // 跳过系统路径和Docker专用路径
-                if (isSystemPath(hostPath) || isDockerSpecific(containerPath)) {
+                // 跳过系统路径
+                if (isSystemPath(hostPath)) {
                     continue;
                 }
                 
-                // 🎯 按容器路径语义分类
-                if (isMediaPath(containerPath)) {
-                    mediaHosts.add(hostPath);
-                } else if (isDownloadPath(containerPath)) {
-                    downloadHosts.add(hostPath);
-                } else if (isDocumentPath(containerPath)) {
-                    documentHosts.add(hostPath);
-                } else {
-                    otherHosts.add(hostPath);
+                // 🎯 按容器路径语义分类 - 只收集非Docker基础目录的路径
+                if (!hostPath.startsWith(dockerBaseDir)) {
+                    if (isMediaPath(containerPath)) {
+                        mediaHosts.add(hostPath);
+                    } else if (isDownloadPath(containerPath)) {
+                        downloadHosts.add(hostPath);
+                    } else if (isDocumentPath(containerPath)) {
+                        documentHosts.add(hostPath);
+                    }
                 }
             }
         }
         
-        // 🔥 生成语义化环境变量映射
+        // 🔥 生成路径到环境变量的映射
         Map<String, String> pathToEnv = new HashMap<>();
         Map<String, String> baseEnvs = new HashMap<>();
         
         // 处理媒体路径
         if (!mediaHosts.isEmpty()) {
-            String mediaBase = findCommonBase(mediaHosts);
+            String mediaBase = findCommonBase(new ArrayList<>(mediaHosts));
             baseEnvs.put("MEDIA_BASE", mediaBase);
             for (String hostPath : mediaHosts) {
                 String relative = getRelativePath(hostPath, mediaBase);
@@ -895,7 +897,7 @@ public class ComposeGenerator {
         
         // 处理下载路径
         if (!downloadHosts.isEmpty()) {
-            String downloadBase = findCommonBase(downloadHosts);
+            String downloadBase = findCommonBase(new ArrayList<>(downloadHosts));
             baseEnvs.put("DOWNLOAD_BASE", downloadBase);
             for (String hostPath : downloadHosts) {
                 String relative = getRelativePath(hostPath, downloadBase);
@@ -905,7 +907,7 @@ public class ComposeGenerator {
         
         // 处理文档路径
         if (!documentHosts.isEmpty()) {
-            String documentBase = findCommonBase(documentHosts);
+            String documentBase = findCommonBase(new ArrayList<>(documentHosts));
             baseEnvs.put("DOCUMENT_BASE", documentBase);
             for (String hostPath : documentHosts) {
                 String relative = getRelativePath(hostPath, documentBase);
@@ -913,20 +915,21 @@ public class ComposeGenerator {
             }
         }
         
-        // 处理其他路径（使用原有的智能分组）
-        if (!otherHosts.isEmpty()) {
-            Map<String, List<String>> otherGroups = analyzePathGroups(new HashSet<>(otherHosts));
-            int baseCount = 1;
-            for (Map.Entry<String, List<String>> entry : otherGroups.entrySet()) {
-                String basePath = entry.getKey();
-                List<String> pathsInGroup = entry.getValue();
+        // 🔥 处理Docker基础目录下的路径 - 直接使用DOCKER_BASE变量
+        for (InspectContainerResponse container : containers) {
+            if (container.getMounts() == null) continue;
+            
+            for (InspectContainerResponse.Mount mount : container.getMounts()) {
+                if (mount.getSource() == null || mount.getDestination() == null) {
+                    continue;
+                }
                 
-                String envName = "BASE_" + baseCount++;
-                baseEnvs.put(envName, basePath);
+                String hostPath = mount.getSource();
                 
-                for (String path : pathsInGroup) {
-                    String relative = getRelativePath(path, basePath);
-                    pathToEnv.put(path, relative.isEmpty() ? "${" + envName + "}" : "${" + envName + "}/" + relative);
+                // 如果路径在Docker基础目录下，且还没有映射，直接使用DOCKER_BASE
+                if (hostPath.startsWith(dockerBaseDir) && !pathToEnv.containsKey(hostPath)) {
+                    String relative = getRelativePath(hostPath, dockerBaseDir);
+                    pathToEnv.put(hostPath, relative.isEmpty() ? "${DOCKER_BASE}" : "${DOCKER_BASE}/" + relative);
                 }
             }
         }

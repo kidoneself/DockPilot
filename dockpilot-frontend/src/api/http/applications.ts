@@ -127,6 +127,17 @@ export const parseApplication = (data: ParseRequest) => {
   return request.post<ApplicationParseResult>('/api/applications/parse', data)
 }
 
+/**
+ * 解析ZIP包并返回修改后的YAML内容
+ */
+export const parseZipPackage = (formData: FormData) => {
+  return request.post<string>('/api/applications/parse-zip', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}
+
 // 应用部署相关接口
 
 /**

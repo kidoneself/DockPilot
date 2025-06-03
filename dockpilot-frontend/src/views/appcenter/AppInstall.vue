@@ -82,14 +82,17 @@
               </div>
             </div>
             
-            <!-- 简化的拉取进度（仅在拉取时显示） -->
+            <!-- 镜像拉取进度条 -->
             <div v-if="getImageStatusByName(service.image) === 'pulling'" class="service-progress">
+              <div style="margin-bottom: 8px; font-size: 12px; color: #666;">
+                拉取进度: {{ getImageProgressByName(service.image) }}%
+              </div>
               <n-progress 
-                :percentage="getImageProgressByName(service.image)" 
-                :height="3"
-                :show-indicator="false"
+                :percentage="getImageProgressByName(service.image)"
                 type="line"
-                status="active"
+                status="success"
+                :show-indicator="true"
+                :height="8"
               />
             </div>
           </div>
@@ -399,10 +402,6 @@ let portCheckTimeout: number | null = null
 // 查找可用端口状态
 const findingPort = ref<Record<string, boolean>>({})
 
-// 镜像拉取进度和日志状态
-const imageProgress = ref<Record<string, number>>({})
-const imageLogs = ref<Record<string, string[]>>({})
-
 // 安装完成后的访问地址
 const installResult = ref<ApplicationDeployResult | null>(null)
 
@@ -520,61 +519,65 @@ const pullImage = async (image: any) => {
   console.log(`🚀 开始拉取镜像: ${image.name}`)
   image.status = 'pulling'
   
-  // 强制初始化进度和日志（确保响应式更新）
-  imageProgress.value = { ...imageProgress.value, [image.name]: 0 }
-  imageLogs.value = { ...imageLogs.value, [image.name]: [] }
-  
-  // 强制DOM更新
-  await nextTick()
-  console.log(`📊 初始化完成: ${image.name} 进度=0% 日志=[]`)
+  // 使用和镜像列表相同的方式 - pullStatus 对象
+  image.pullStatus = {
+    status: 'pulling',
+    percentage: 0,
+    message: '开始拉取...'
+  }
   
   try {
-    // 使用WebSocket API拉取镜像，支持实时进度和日志
     await pullImageWS(
       { imageName: image.name } as PullImageParams,
       {
         onProgress: (progress: number, taskId: string) => {
-          console.log(`镜像 ${image.name} 拉取进度: ${progress}%`)
-          // 使用展开操作符确保Vue能检测到对象变化
-          imageProgress.value = { ...imageProgress.value, [image.name]: progress }
-          // 强制Vue更新DOM
-          nextTick(() => {
-            console.log(`✅ 进度条已更新: ${image.name} - ${progress}%`)
-          })
+          console.log(`📈 镜像 ${image.name} 拉取进度: ${progress}%`)
+          image.pullStatus = {
+            status: 'pulling',
+            percentage: progress,
+            message: `拉取进度: ${progress}%`
+          }
         },
         onLog: (log: string, taskId: string) => {
-          console.log(`镜像 ${image.name} 拉取日志: ${log}`)
-          const currentLogs = imageLogs.value[image.name] || []
-          const newLogs = [...currentLogs, log]
-          // 限制日志数量，只保留最近20条
-          const trimmedLogs = newLogs.length > 20 ? newLogs.slice(-20) : newLogs
-          // 使用展开操作符确保Vue能检测到对象变化
-          imageLogs.value = { ...imageLogs.value, [image.name]: trimmedLogs }
-          // 强制Vue更新DOM
-          nextTick(() => {
-            console.log(`✅ 日志已更新: ${image.name}`)
-          })
+          console.log(`📝 镜像 ${image.name} 拉取日志: ${log}`)
+          image.pullStatus = {
+            status: 'pulling',
+            percentage: image.pullStatus?.percentage || 0,
+            message: log
+          }
         },
         onComplete: (data: any) => {
+          console.log(`✅ 镜像拉取完成: ${image.name}`)
           image.status = 'success'
-          // 使用展开操作符确保Vue能检测到对象变化
-          imageProgress.value = { ...imageProgress.value, [image.name]: 100 }
+          image.pullStatus = {
+            status: 'success',
+            percentage: 100,
+            message: '拉取完成'
+          }
           message.success(`${image.name} 拉取成功`)
         },
         onError: (error: string, taskId: string) => {
+          console.error(`❌ 镜像拉取失败: ${image.name} - ${error}`)
           image.status = 'failed'
-          const currentLogs = imageLogs.value[image.name] || []
-          // 使用展开操作符确保Vue能检测到对象变化
-          imageLogs.value = { ...imageLogs.value, [image.name]: [...currentLogs, `❌ 错误: ${error}`] }
+          image.pullStatus = {
+            status: 'failed',
+            percentage: 0,
+            message: '拉取失败',
+            error: error
+          }
           message.error(`${image.name} 拉取失败: ${error}`)
         }
       }
     )
   } catch (error) {
+    console.error(`💥 镜像拉取系统错误: ${image.name} - ${error}`)
     image.status = 'failed'
-    const currentLogs = imageLogs.value[image.name] || []
-    // 使用展开操作符确保Vue能检测到对象变化
-    imageLogs.value = { ...imageLogs.value, [image.name]: [...currentLogs, `❌ 系统错误: ${error}`] }
+    image.pullStatus = {
+      status: 'failed',
+      percentage: 0,
+      message: '系统错误',
+      error: String(error)
+    }
     message.error(`${image.name} 拉取失败`)
   }
 }
@@ -854,11 +857,12 @@ const getImageStatusByName = (imageName: string) => {
 }
 
 const getImageProgressByName = (imageName: string) => {
-  return imageProgress.value[imageName] || 0
+  const image = appImages.value.find(img => img.name === imageName) as any
+  return image?.pullStatus?.percentage || 0
 }
 
 const getImageLogsByName = (imageName: string) => {
-  return imageLogs.value[imageName] || []
+  return []  // 简化实现，不再显示详细日志
 }
 
 const pullImageByName = async (imageName: string) => {
@@ -934,39 +938,17 @@ const restoreActivePullTasks = () => {
       
       if (targetImage) {
         console.log(`✅ 应用安装页面更新镜像进度: ${targetImage.name} - ${progress}%`)
-        targetImage.status = 'pulling'
-        // 使用展开操作符确保Vue能检测到对象变化
-        imageProgress.value = { ...imageProgress.value, [targetImage.name]: progress }
-        // 强制Vue更新DOM
-        nextTick(() => {
-          console.log(`✅ 全局处理器进度条已更新: ${targetImage.name} - ${progress}%`)
-        })
+        targetImage.status = 'pulling';
+        (targetImage as any).pullStatus = {
+          status: 'pulling',
+          percentage: progress,
+          message: `拉取进度: ${progress}%`
+        }
       }
     },
     
     onLog: (log: string, taskId: string, imageName?: string) => {
       console.log(`📝 应用安装页面全局处理器收到日志更新: ${log} (taskId: ${taskId}, imageName: ${imageName})`)
-      
-      let targetImage = null
-      
-      if (imageName) {
-        targetImage = appImages.value.find(img => img.name === imageName)
-      } else {
-        const pullingImages = appImages.value.filter(img => img.status === 'pulling')
-        if (pullingImages.length > 0) {
-          targetImage = pullingImages[0]
-        }
-      }
-      
-      if (targetImage) {
-        console.log(`✅ 应用安装页面更新镜像日志: ${targetImage.name} - ${log}`)
-        const currentLogs = imageLogs.value[targetImage.name] || []
-        const newLogs = [...currentLogs, log]
-        // 限制日志数量
-        const trimmedLogs = newLogs.length > 20 ? newLogs.slice(-20) : newLogs
-        // 使用展开操作符确保Vue能检测到对象变化
-        imageLogs.value = { ...imageLogs.value, [targetImage.name]: trimmedLogs }
-      }
     },
     
     onComplete: (data: any, taskId: string) => {
@@ -975,13 +957,18 @@ const restoreActivePullTasks = () => {
       // 找到拉取中的镜像并标记完成
       const pullingImages = appImages.value.filter(img => img.status === 'pulling')
       for (const targetImage of pullingImages) {
-        targetImage.status = 'success'
-        // 使用展开操作符确保Vue能检测到对象变化
-        imageProgress.value = { ...imageProgress.value, [targetImage.name]: 100 }
+        targetImage.status = 'success';
+        (targetImage as any).pullStatus = {
+          status: 'success',
+          percentage: 100,
+          message: '拉取完成'
+        }
         console.log(`✅ 应用安装页面镜像拉取完成: ${targetImage.name}`)
       }
       
-      message.success('镜像拉取完成')
+      if (pullingImages.length > 0) {
+        message.success('镜像拉取完成')
+      }
     },
     
     onError: (error: string, taskId: string) => {
@@ -990,14 +977,19 @@ const restoreActivePullTasks = () => {
       // 找到拉取中的镜像并标记失败
       const pullingImages = appImages.value.filter(img => img.status === 'pulling')
       for (const targetImage of pullingImages) {
-        targetImage.status = 'failed'
-        const currentLogs = imageLogs.value[targetImage.name] || []
-        // 使用展开操作符确保Vue能检测到对象变化
-        imageLogs.value = { ...imageLogs.value, [targetImage.name]: [...currentLogs, `❌ 错误: ${error}`] }
+        targetImage.status = 'failed';
+        (targetImage as any).pullStatus = {
+          status: 'failed',
+          percentage: 0,
+          message: '拉取失败',
+          error: error
+        }
         console.log(`❌ 应用安装页面镜像拉取失败: ${targetImage.name}`)
       }
       
-      message.error('镜像拉取失败')
+      if (pullingImages.length > 0) {
+        message.error('镜像拉取失败')
+      }
     }
   })
   

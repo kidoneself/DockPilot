@@ -259,7 +259,8 @@
           <!-- 导入方式选择 -->
           <n-form-item label="导入方式">
             <n-radio-group v-model:value="importMethod">
-              <n-radio value="file">上传文件</n-radio>
+              <n-radio value="file">上传YAML文件</n-radio>
+              <n-radio value="zip">上传ZIP包</n-radio>
               <n-radio value="content">粘贴内容</n-radio>
             </n-radio-group>
           </n-form-item>
@@ -311,6 +312,57 @@
               <div v-else-if="!parsing && importData.yamlContent?.trim()" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fffbf0; border-radius: 6px; border-left: 3px solid #f0a020;">
                 <n-icon color="#f0a020"><WarningOutline /></n-icon>
                 <span style="color: #f0a020; font-size: 14px;">⚠ 配置解析失败，请手动填写应用信息</span>
+              </div>
+            </div>
+          </n-form-item>
+          
+          <!-- ZIP包上传方式 -->
+          <n-form-item v-if="importMethod === 'zip'" label="ZIP包" required>
+            <n-upload
+              :max="1"
+              accept=".zip"
+              :show-file-list="false"
+              :before-upload="handleZipBeforeUpload"
+              @change="handleZipFileChange"
+              @remove="handleZipFileRemove"
+            >
+              <n-button type="primary" dashed style="width: 100%; height: 80px; border-style: dashed; border-width: 2px;">
+                <template #icon>
+                  <n-icon size="24"><CloudUploadOutline /></n-icon>
+                </template>
+                <div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
+                  <span style="font-size: 16px; font-weight: 500;">选择ZIP包</span>
+                  <span style="font-size: 12px; color: #999;">导出的项目ZIP包</span>
+                </div>
+              </n-button>
+            </n-upload>
+            
+            <!-- ZIP文件状态显示 -->
+            <div v-if="uploadedZipName" style="margin-top: 12px;">
+              <n-alert type="success" style="margin-bottom: 8px;">
+                <template #header>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <n-icon><FolderOutline /></n-icon>
+                    <span>已选择ZIP包</span>
+                  </div>
+                </template>
+                <div style="font-family: monospace; color: #2080f0;">{{ uploadedZipName }}</div>
+              </n-alert>
+              
+              <!-- ZIP解析状态 -->
+              <div v-if="zipProcessing" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #2080f0;">
+                <n-spin size="small" />
+                <span style="color: #2080f0; font-size: 14px;">正在解析ZIP包和配置文件...</span>
+              </div>
+              
+              <div v-else-if="zipParseSuccess" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0fff4; border-radius: 6px; border-left: 3px solid #18a058;">
+                <n-icon color="#18a058"><CheckmarkCircleOutline /></n-icon>
+                <span style="color: #18a058; font-size: 14px; font-weight: 500;">✓ ZIP包解析成功，配置包已自动关联</span>
+              </div>
+              
+              <div v-else-if="!zipProcessing && uploadedZipName" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fffbf0; border-radius: 6px; border-left: 3px solid #f0a020;">
+                <n-icon color="#f0a020"><WarningOutline /></n-icon>
+                <span style="color: #f0a020; font-size: 14px;">⚠ ZIP包解析失败，请检查包格式</span>
               </div>
             </div>
           </n-form-item>
@@ -401,6 +453,7 @@ import {
   shareApplication,
   getCategories,
   parseApplication,
+  parseZipPackage,
   type Application,
   type ApplicationSaveRequest,
   type ApplicationParseResult
@@ -420,6 +473,11 @@ const importMethod = ref('file')
 const uploadedFileName = ref('')
 const parsing = ref(false)
 const parseSuccess = ref(false)
+
+// ZIP上传相关状态
+const uploadedZipName = ref('')
+const zipProcessing = ref(false)
+const zipParseSuccess = ref(false)
 
 // 真实数据
 const templates = ref<Application[]>([])
@@ -511,6 +569,11 @@ const handleImport = () => {
   parsing.value = false
   parseSuccess.value = false
   
+  // 重置ZIP状态
+  uploadedZipName.value = ''
+  zipProcessing.value = false
+  zipParseSuccess.value = false
+  
   showImportModal.value = true
 }
 
@@ -581,6 +644,11 @@ const handleImportSubmit = async () => {
     uploadedFileName.value = ''
     parsing.value = false
     parseSuccess.value = false
+    
+    // 重置ZIP状态
+    uploadedZipName.value = ''
+    zipProcessing.value = false
+    zipParseSuccess.value = false
     
     loadApplications()
   } catch (error) {
@@ -887,6 +955,88 @@ const parseYamlContent = async (yamlContent: string) => {
   }
 }
 
+// ZIP包处理功能
+const handleZipFileChange = async (data: { file: any; fileList: any[] }) => {
+  console.log('ZIP文件选择事件触发:', data)
+  
+  if (!data.file) {
+    console.log('没有选择ZIP文件')
+    return
+  }
+  
+  const file = data.file.file as File
+  console.log('选择的ZIP文件:', file?.name, file?.size, file?.type)
+  
+  if (!file) {
+    console.log('ZIP文件对象为空')
+    return
+  }
+  
+  await processSelectedZipFile(file)
+}
+
+const handleZipBeforeUpload = async (data: { file: any }) => {
+  console.log('ZIP before-upload触发:', data)
+  
+  const file = data.file.file as File
+  if (file) {
+    await processSelectedZipFile(file)
+  }
+  
+  return false // 阻止自动上传
+}
+
+const handleZipFileRemove = () => {
+  importData.value.yamlContent = ''
+  uploadedZipName.value = ''
+  zipProcessing.value = false
+  zipParseSuccess.value = false
+  message.info('已移除ZIP文件')
+}
+
+const processSelectedZipFile = async (file: File) => {
+  console.log('处理ZIP文件:', file.name, file.size, file.type)
+  
+  // 立即显示文件名反馈
+  uploadedZipName.value = file.name
+  message.info(`正在处理ZIP包: ${file.name}`)
+  
+  // 检查文件类型
+  if (!file.name.toLowerCase().endsWith('.zip')) {
+    message.error('请选择ZIP文件')
+    uploadedZipName.value = ''
+    return
+  }
+  
+  try {
+    zipProcessing.value = true
+    zipParseSuccess.value = false
+    
+    // 创建FormData
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    // 调用ZIP解析API
+    const modifiedYaml = await parseZipPackage(formData)
+    
+    // 设置YAML内容
+    importData.value.yamlContent = modifiedYaml
+    
+    // 解析修改后的YAML内容以填充表单
+    await parseYamlContent(modifiedYaml)
+    
+    zipParseSuccess.value = true
+    message.success('ZIP包解析成功，配置包已自动关联为本地路径')
+    
+  } catch (error: any) {
+    zipParseSuccess.value = false
+    console.error('ZIP包处理失败:', error)
+    message.error('ZIP包处理失败: ' + (error.message || '未知错误'))
+  } finally {
+    zipProcessing.value = false
+  }
+}
+
 // 页面挂载时的处理
 onMounted(async () => {
   loadApplications()
@@ -913,7 +1063,7 @@ onMounted(async () => {
       
       // 清除URL参数，避免刷新页面时重复触发
       router.replace({ path: '/appcenter' })
-}
+    }
   }
 })
 </script>
