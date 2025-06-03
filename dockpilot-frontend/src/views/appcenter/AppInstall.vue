@@ -220,7 +220,7 @@
     </div>
 
     <!-- 安装进度模态框 -->
-    <n-modal v-model:show="showInstallModal" :mask-closable="false" style="width: 600px;">
+    <n-modal v-model:show="showInstallModal" :mask-closable="true" style="width: 900px;">
       <n-card title="正在安装应用" :bordered="false" size="huge" role="dialog" aria-modal="true">
         <div class="install-modal-content">
           <div class="install-progress">
@@ -265,9 +265,14 @@
             <n-button 
               v-if="installStatus === 'active'"
               @click="cancelInstall"
-              :disabled="true"
             >
-              取消
+              关闭
+            </n-button>
+            <n-button 
+              v-if="installStatus === 'error'"
+              @click="cancelInstall"
+            >
+              关闭
             </n-button>
           </div>
         </template>
@@ -1496,13 +1501,13 @@ onUnmounted(() => {
 }
 
 .log-container {
-  max-height: 200px;
+  max-height: 400px;
   overflow-y: auto;
   background: var(--bg-color-3);
   border-radius: 6px;
   padding: 12px;
   font-family: 'Monaco', 'Consolas', monospace;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-color-1);
 }
 
@@ -1544,7 +1549,7 @@ onUnmounted(() => {
   flex: 1;
   min-width: 0;
   color: var(--text-color-1);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .modal-actions {
