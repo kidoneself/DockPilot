@@ -46,12 +46,12 @@
 
       <!-- 多选模式提示 -->
       <div v-if="isMultiSelectMode" class="multi-select-tip">
-        <n-alert type="info" :show-icon="false" style="margin-bottom: 16px;">
+        <NAlert type="info" :show-icon="false" style="margin-bottom: 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span>已选择 {{ selectedContainers.size }} 个容器</span>
             <NButton size="small" @click="clearSelection">清空选择</NButton>
           </div>
-        </n-alert>
+        </NAlert>
       </div>
 
       <NSpace vertical size="large">
@@ -158,23 +158,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, h } from 'vue'
-import { NButton, NSpace, useMessage, useDialog, NModal, NInput, NFormItem, NForm, NInputGroup, NCode, NText, NAlert, type FormInst, NDropdown, NCollapse, NCollapseItem, NProgress } from 'naive-ui'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import {
+  NButton,
+  NSpace,
+  useMessage,
+  useDialog,
+  NModal,
+  NInput,
+  NFormItem,
+  NForm,
+  NInputGroup,
+  NAlert,
+  type FormInst
+} from 'naive-ui'
 import {
   RefreshOutline,
   AddOutline,
   DocumentOutline,
   CheckboxOutline,
-  CloseOutline,
-  CopyOutline,
-  DownloadOutline,
-  CreateOutline,
-  InformationCircleOutline,
-  CheckmarkOutline,
-  CheckmarkCircleOutline,
-  ArrowForwardOutline,
-  CloseCircleOutline,
-  TimeOutline
+  CloseOutline
 } from '@vicons/ionicons5'
 import ContainerItem from '@/components/container/ContainerItem.vue'
 import ContainerLogModal from '@/components/container/ContainerLogModal.vue'
@@ -187,7 +190,11 @@ import {
   restartContainer,
   updateContainerInfo
 } from '@/api/container'
-import { generateContainerYaml, previewContainerYaml, type ContainerYamlResponse, exportProject, exportYamlOnly, type ProjectExportRequest, getContainerPaths, type ContainerPathInfo, type PathMapping, startAsyncPackage, getPackageTaskStatus, downloadPackageFile, type PackageTask } from '@/api/containerYaml'
+import {
+  getContainerPaths,
+  type ContainerPathInfo,
+  type PathMapping
+} from '@/api/containerYaml'
 import { sendWebSocketMessage } from '@/api/websocket/websocketService'
 import { useRouter } from 'vue-router'
 import { useWebSocketTask } from '@/hooks/useWebSocketTask'
@@ -206,14 +213,9 @@ const router = useRouter()
 const {
   packageTask,
   showPackageProgressModal,
-  packageProgress,
   startPackageTask,
   checkAndRestoreTask,
-  closePackageProgressModal,
-  formatFileSize,
-  stopPollingTaskStatus,
-  saveTaskToStorage,
-  clearTaskFromStorage
+  stopPollingTaskStatus
 } = usePackageTask()
 
 // 后端原始类型
@@ -428,7 +430,9 @@ function startStatsTimer() {
   // 设置定时器，智能请求容器性能数据
   statsTimer = window.setInterval(() => {
     // 🔥 动态获取当前运行中的容器（每次都重新筛选）
-    const currentRunningContainers = containers.value.filter(container => container.status === 'running')
+    const currentRunningContainers = containers.value.filter(
+      container => container.status === 'running'
+    )
     
     // 如果没有运行中的容器，暂停请求
     if (currentRunningContainers.length === 0) {
@@ -450,7 +454,9 @@ function startStatsTimer() {
     )
     
     if (containerStillValid) {
-      console.log(`📊 获取容器性能数据: ${targetContainer.name} (${targetContainer.id.slice(0, 12)})`)
+      console.log(
+        `📊 获取容器性能数据: ${targetContainer.name} (${targetContainer.id.slice(0, 12)})`
+      )
       loadContainerStats(targetContainer.id)
     } else {
       console.log(`📊 跳过无效容器: ${targetContainer.id.slice(0, 12)}`)
@@ -857,6 +863,7 @@ const webUIFormRules = {
 const showPathSelectionModal = ref(false)
 const containerPaths = ref<ContainerPathInfo[]>([])
 const loadingPaths = ref(false)
+const currentYamlResult = ref<any>(null)  // 保存当前的YAML结果数据
 
 // 加载容器路径信息
 async function loadContainerPaths() {
@@ -893,17 +900,22 @@ async function loadContainerPaths() {
           } else {
             userPaths++
           }
-          console.log(`   路径 ${pathIndex + 1}: ${path.hostPath} -> ${path.containerPath} (系统: ${path.isSystemPath}, 推荐: ${path.recommended})`)
+          console.log(
+            `   路径 ${pathIndex + 1}: ${path.hostPath} -> ${path.containerPath} ` +
+            `(系统: ${path.isSystemPath}, 推荐: ${path.recommended})`
+          )
         })
       })
       
-      console.log(`📈 路径统计: 总计${totalPaths}个，系统路径${systemPaths}个，用户路径${userPaths}个`)
+      console.log(
+        `📈 路径统计: 总计${totalPaths}个，系统路径${systemPaths}个，用户路径${userPaths}个`
+      )
       
       containerPaths.value = response.map((service: ContainerPathInfo) => ({
         ...service,
         pathMappings: service.pathMappings.map((path: PathMapping) => ({
           ...path,
-          selected: path.recommended && !path.isSystemPath  // 默认选择推荐的非系统路径
+          selected: path.recommended && !path.isSystemPath
         }))
       }))
       
@@ -920,25 +932,66 @@ async function loadContainerPaths() {
   }
 }
 
-// 全选/全不选路径
-function toggleAllPaths(service: ContainerPathInfo, selectAll: boolean) {
-  service.pathMappings.forEach((path: PathMapping) => {
-    if (!path.isSystemPath) {  // 只操作非系统路径
-      path.selected = selectAll
-    }
-  })
-}
-
 // 修改下载项目包函数，先弹出路径选择
-function downloadProjectPackage() {
-  // 这个函数现在由YamlGeneratorModal组件处理
-  console.log('downloadProjectPackage called from YamlGeneratorModal')
+async function downloadProjectPackage(yamlResult?: any) {
+  console.log('🎯 downloadProjectPackage called with yamlResult:', yamlResult)
+  
+  if (!yamlResult) {
+    message.error('缺少YAML数据，无法开始打包')
+    return
+  }
+
+  try {
+    // 保存yamlResult到一个ref变量
+    currentYamlResult.value = yamlResult
+    
+    // 加载路径信息
+    await loadContainerPaths()
+    
+    // 弹出路径选择界面
+    showPathSelectionModal.value = true
+  } catch (error: any) {
+    message.error('加载路径信息失败: ' + (error.message || error))
+  }
 }
 
 // 确认路径选择后开始异步打包  
-function confirmPathSelectionAndDownload() {
-  // 这个函数现在由PathSelectionModal组件处理
-  console.log('confirmPathSelectionAndDownload called from PathSelectionModal')
+async function confirmPathSelectionAndDownload() {
+  if (!currentYamlResult.value) {
+    message.error('缺少YAML数据，无法开始打包')
+    return
+  }
+
+  try {
+    // 收集用户选择的路径
+    const selectedPaths: string[] = []
+    containerPaths.value.forEach((service: ContainerPathInfo) => {
+      service.pathMappings.forEach((path: PathMapping) => {
+        if (path.selected && !path.isSystemPath) {
+          selectedPaths.push(path.id)  // hostPath:containerPath
+        }
+      })
+    })
+
+    const params = {
+      containerIds: Array.from(selectedContainers.value),
+      projectName: currentYamlResult.value.projectName,
+      description: currentYamlResult.value.description || '',
+      includeConfigPackages: true,
+      selectedPaths: selectedPaths
+    }
+
+    console.log('🚀 启动异步打包任务，参数:', params)
+
+    // 🔥 使用usePackageTask hooks的startPackageTask方法
+    await startPackageTask(params)
+    
+    // 🔥 立即关闭路径选择弹窗
+    showPathSelectionModal.value = false
+    
+  } catch (error: any) {
+    message.error('启动打包任务失败: ' + (error.message || error))
+  }
 }
 
 // 处理下载失败的重试
