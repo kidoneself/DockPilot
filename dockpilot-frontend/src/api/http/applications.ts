@@ -134,7 +134,8 @@ export const parseZipPackage = (formData: FormData) => {
   return request.post<string>('/api/applications/parse-zip', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
-    }
+    },
+    timeout: 120000  // ZIP包处理设置2分钟超时
   })
 }
 
