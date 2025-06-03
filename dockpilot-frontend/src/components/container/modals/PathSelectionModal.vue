@@ -225,20 +225,51 @@ async function loadContainerPaths() {
     selectedPaths.value.clear()
     
     const containerIds = Array.from(props.selectedContainers)
-    const response = await getContainerPaths({ containerIds })
+    console.log('🔍 PathSelectionModal开始加载容器路径信息')
+    console.log('📦 选中的容器IDs:', containerIds)
     
-    if (response.success) {
-      containerPaths.value = response.data || []
+    const response = await getContainerPaths({ containerIds })
+    console.log('📡 PathSelectionModal后端响应:', response)
+    
+    // 处理不同的响应格式
+    if (response && typeof response === 'object') {
+      let pathData: ContainerPathInfo[] = []
       
-      // 默认选择推荐路径
-      autoSelectRecommendedPaths()
+      // 检查是否有success字段的标准格式
+      if ('success' in response && response.success) {
+        pathData = response.data || []
+        console.log('✅ 使用标准格式，数据:', pathData)
+      } 
+      // 检查是否直接返回数组格式
+      else if (Array.isArray(response)) {
+        pathData = response as ContainerPathInfo[]
+        console.log('✅ 使用数组格式，数据:', pathData)
+      }
+      // 其他情况
+      else {
+        console.error('❌ 未知的响应格式:', response)
+        throw new Error('响应格式不正确')
+      }
       
-      message.success(`加载了 ${totalPaths.value} 个路径`)
+      if (pathData.length > 0) {
+        containerPaths.value = pathData
+        
+        // 默认选择推荐路径
+        autoSelectRecommendedPaths()
+        
+        console.log('🎯 设置容器路径数据成功，数量:', pathData.length)
+        message.success(`加载了 ${totalPaths.value} 个路径`)
+      } else {
+        console.warn('⚠️ 没有找到路径数据')
+        containerPaths.value = []
+        message.warning('未找到可打包的路径')
+      }
     } else {
-      message.error(response.message || '加载路径信息失败')
-      containerPaths.value = []
+      console.error('❌ 响应为空或格式错误:', response)
+      throw new Error('服务器响应为空')
     }
   } catch (error: any) {
+    console.error('❌ 加载容器路径异常:', error)
     message.error('加载路径信息失败: ' + (error.message || error))
     containerPaths.value = []
   } finally {

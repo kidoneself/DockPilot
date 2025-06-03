@@ -190,11 +190,6 @@ import {
   restartContainer,
   updateContainerInfo
 } from '@/api/container'
-import {
-  getContainerPaths,
-  type ContainerPathInfo,
-  type PathMapping
-} from '@/api/containerYaml'
 import { sendWebSocketMessage } from '@/api/websocket/websocketService'
 import { useRouter } from 'vue-router'
 import { useWebSocketTask } from '@/hooks/useWebSocketTask'
@@ -471,7 +466,8 @@ function startStatsTimer() {
 watch(containers, (newContainers, oldContainers) => {
   // 检查运行中容器数量是否变化
   const newRunningCount = newContainers.filter(c => c.status === 'running').length
-  const oldRunningCount = oldContainers ? oldContainers.filter(c => c.status === 'running').length : 0
+  const oldRunningCount = oldContainers ? 
+    oldContainers.filter(c => c.status === 'running').length : 0
   
   if (newRunningCount !== oldRunningCount) {
     console.log(`📊 运行中容器数量变化: ${oldRunningCount} -> ${newRunningCount}`)
@@ -861,76 +857,9 @@ const webUIFormRules = {
 
 // 路径选择相关状态
 const showPathSelectionModal = ref(false)
-const containerPaths = ref<ContainerPathInfo[]>([])
-const loadingPaths = ref(false)
 const currentYamlResult = ref<any>(null)  // 保存当前的YAML结果数据
 
-// 加载容器路径信息
-async function loadContainerPaths() {
-  try {
-    loadingPaths.value = true
-    console.log('🔍 开始加载容器路径信息，选中容器数量:', selectedContainers.value.size)
-    console.log('📦 选中的容器IDs:', Array.from(selectedContainers.value))
-    
-    const response = await getContainerPaths({
-      containerIds: Array.from(selectedContainers.value)
-    })
-    
-    console.log('📡 后端响应:', response)
-    
-    // 🔥 修复：response 现在直接是数组数据，不再有 success 字段
-    if (Array.isArray(response) && response.length > 0) {
-      console.log('✅ 获取到的容器路径数据:', response)
-      console.log('📊 容器数量:', response.length)
-      
-      // 统计路径信息
-      let totalPaths = 0
-      let systemPaths = 0
-      let userPaths = 0
-      
-      response.forEach((service: ContainerPathInfo, index: number) => {
-        console.log(`📁 容器 ${index + 1}: ${service.serviceName}`)
-        console.log(`   - 镜像: ${service.image}`)
-        console.log(`   - 路径数量: ${service.pathMappings.length}`)
-        
-        service.pathMappings.forEach((path: PathMapping, pathIndex: number) => {
-          totalPaths++
-          if (path.isSystemPath) {
-            systemPaths++
-          } else {
-            userPaths++
-          }
-          console.log(
-            `   路径 ${pathIndex + 1}: ${path.hostPath} -> ${path.containerPath} ` +
-            `(系统: ${path.isSystemPath}, 推荐: ${path.recommended})`
-          )
-        })
-      })
-      
-      console.log(
-        `📈 路径统计: 总计${totalPaths}个，系统路径${systemPaths}个，用户路径${userPaths}个`
-      )
-      
-      containerPaths.value = response.map((service: ContainerPathInfo) => ({
-        ...service,
-        pathMappings: service.pathMappings.map((path: PathMapping) => ({
-          ...path,
-          selected: path.recommended && !path.isSystemPath
-        }))
-      }))
-      
-      console.log('🎯 最终设置的containerPaths数量:', containerPaths.value.length)
-    } else {
-      console.error('❌ 后端返回的数据为空或格式不正确:', response)
-      message.error('获取容器路径失败: 返回数据为空')
-    }
-  } catch (error: any) {
-    console.error('❌ 加载容器路径异常:', error)
-    message.error('加载容器路径失败: ' + (error.message || error))
-  } finally {
-    loadingPaths.value = false
-  }
-}
+// PathSelectionModal现在自己处理路径加载逻辑
 
 // 修改下载项目包函数，先弹出路径选择
 async function downloadProjectPackage(yamlResult?: any) {
@@ -941,38 +870,28 @@ async function downloadProjectPackage(yamlResult?: any) {
     return
   }
 
-  try {
-    // 保存yamlResult到一个ref变量
-    currentYamlResult.value = yamlResult
-    
-    // 加载路径信息
-    await loadContainerPaths()
-    
-    // 弹出路径选择界面
-    showPathSelectionModal.value = true
-  } catch (error: any) {
-    message.error('加载路径信息失败: ' + (error.message || error))
-  }
+  // 保存yamlResult到一个ref变量
+  currentYamlResult.value = yamlResult
+  
+  // 直接弹出路径选择界面，让PathSelectionModal自己加载数据
+  showPathSelectionModal.value = true
 }
 
 // 确认路径选择后开始异步打包  
-async function confirmPathSelectionAndDownload() {
+async function confirmPathSelectionAndDownload(selectedPaths: string[]) {
+  console.log('🎯 确认路径选择，已选择路径:', selectedPaths)
+  
   if (!currentYamlResult.value) {
     message.error('缺少YAML数据，无法开始打包')
     return
   }
 
-  try {
-    // 收集用户选择的路径
-    const selectedPaths: string[] = []
-    containerPaths.value.forEach((service: ContainerPathInfo) => {
-      service.pathMappings.forEach((path: PathMapping) => {
-        if (path.selected && !path.isSystemPath) {
-          selectedPaths.push(path.id)  // hostPath:containerPath
-        }
-      })
-    })
+  if (!selectedPaths || selectedPaths.length === 0) {
+    message.warning('请至少选择一个路径进行打包')
+    return
+  }
 
+  try {
     const params = {
       containerIds: Array.from(selectedContainers.value),
       projectName: currentYamlResult.value.projectName,
@@ -996,7 +915,7 @@ async function confirmPathSelectionAndDownload() {
 
 // 处理下载失败的重试
 function handlePackageRetry() {
-  confirmPathSelectionAndDownload()
+  confirmPathSelectionAndDownload([])
 }
 
 // 处理手动下载
