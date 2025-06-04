@@ -179,25 +179,35 @@ export async function sendWebSocketMessage(options: WebSocketRequestOptions): Pr
       console.log('🚀 发送 CONTAINER_UPDATE 消息')
       console.log('📊 原始数据:', JSON.stringify(options.data, null, 2))
       
-      // 确保数据结构正确 - 现在数据结构是 { containerId, config: { image, ... } }
+      // 确保数据结构正确
       if (!options.data.containerId) {
         throw new Error('缺少 containerId 参数')
       }
       
-      // 检查 config 对象是否存在
-      if (!options.data.config) {
-        throw new Error('缺少 config 参数')
-      }
+      // 🎯 智能判断：如果只有containerId，说明是镜像更新；如果有config，说明是完整配置更新
+      const dataKeys = Object.keys(options.data)
+      const isImageUpdate = dataKeys.length === 1 && dataKeys[0] === 'containerId'
       
-      // 检查 config 中的 image 字段
-      if (!options.data.config.image) {
-        throw new Error('缺少 image 参数')
+      if (isImageUpdate) {
+        console.log('🔍 检测到镜像更新模式（只有containerId）')
+      } else {
+        console.log('🔍 检测到配置更新模式（包含config）')
+        
+        // 只有在配置更新模式下才检查 config 参数
+        if (!options.data.config) {
+          throw new Error('缺少 config 参数')
+        }
+        
+        // 检查 config 中的 image 字段
+        if (!options.data.config.image) {
+          throw new Error('缺少 image 参数')
+        }
+        
+        console.log('🔍 关键字段检查:')
+        console.log('  - containerId:', options.data.containerId)
+        console.log('  - config.image:', options.data.config.image)
+        console.log('  - config.name:', options.data.config.name)
       }
-      
-      console.log('🔍 关键字段检查:')
-      console.log('  - containerId:', options.data.containerId)
-      console.log('  - config.image:', options.data.config.image)
-      console.log('  - config.name:', options.data.config.name)
       
       messageData = options.data
     }

@@ -437,7 +437,7 @@ public class DockerEventService implements ApplicationRunner {
                     containerInfo.setImage(container.getImage());
                     containerInfo.setStatus(container.getState());
                     containerInfo.setOperationStatus("success");
-                    containerInfo.setNeedUpdate(false);
+                    containerInfo.setNeedUpdate(0);
                     containerInfo.setCreatedAt(new java.util.Date());
                     containerInfo.setUpdatedAt(new java.util.Date());
                     

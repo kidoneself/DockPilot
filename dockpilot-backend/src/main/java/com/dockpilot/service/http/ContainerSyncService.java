@@ -19,4 +19,12 @@ public interface ContainerSyncService {
      * 清理重复的容器记录
      */
     void cleanupDuplicateRecords();
+
+    /**
+     * 检查使用指定镜像的容器更新状态
+     * 
+     * @param imageName 镜像名称，如 nginx
+     * @param tag 镜像标签，如 latest
+     */
+    void checkContainersUsingImage(String imageName, String tag);
 } 

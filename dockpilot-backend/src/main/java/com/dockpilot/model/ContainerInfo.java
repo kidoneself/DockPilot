@@ -13,7 +13,7 @@ public class ContainerInfo {
     private String status;
     private String operationStatus;
     private String lastError;
-    private Boolean needUpdate;
+    private Integer needUpdate;  // 0=正常状态，1=需要更新，2=老版本（可删除的备份）
     private String iconUrl;
     private String webUrl;
     private Date createdAt;

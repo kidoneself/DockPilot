@@ -35,6 +35,19 @@
             <NTag :type="getStatusType(container.status)" size="small">
               {{ container.status }}
             </NTag>
+            <!-- 🔄 三状态标签：1=有更新，2=老版本 -->
+            <NTag v-if="container.needUpdate === 1" type="warning" size="small" class="update-tag">
+              <template #icon>
+                <NIcon><CloudUploadOutline /></NIcon>
+              </template>
+              有更新
+            </NTag>
+            <NTag v-if="container.needUpdate === 2" type="default" size="small" class="old-version-tag">
+              <template #icon>
+                <NIcon><ArchiveOutline /></NIcon>
+              </template>
+              老版本
+            </NTag>
             <n-ellipsis 
               :tooltip="true" 
               class="container-name-text"
@@ -119,29 +132,35 @@
 
       <!-- 第四区域：操作按钮组 -->
       <div v-if="!multiSelectMode" class="container-actions-section">
-        <NSpace size="small">
-          <!-- WebUI链接按钮 -->
-          <NButton
-            v-if="container.webUrl"
-            size="small"
-            circle
-            quaternary
-            @click="openWebUI"
-          >
-            <template #icon>
-              <NIcon><LinkOutline /></NIcon>
+        <div class="actions-layout">
+          <!-- WebUI按钮 -->
+          <NTooltip v-if="container.webUrl" trigger="hover">
+            <template #trigger>
+              <NButton
+                size="small"
+                circle
+                quaternary
+                @click="openWebUI"
+                class="web-button"
+              >
+                <template #icon>
+                  <NIcon><LinkOutline /></NIcon>
+                </template>
+              </NButton>
             </template>
-          </NButton>
+            打开WebUI
+          </NTooltip>
 
-          <!-- 主要操作按钮 -->
+          <!-- 启停按钮 -->
           <NButton
-            :type="container.status === 'running' ? 'warning' : 'success'"
+            :type="container.status === 'running' ? 'error' : 'success'"
             :disabled="operating"
             :loading="
               operating && 
               currentAction === (container.status === 'running' ? 'stop' : 'start')
             "
             size="small"
+            class="start-stop-button"
             @click="handleAction(container.status === 'running' ? 'stop' : 'start')"
           >
             <template #icon>
@@ -151,26 +170,29 @@
                 />
               </NIcon>
             </template>
-            {{ container.status === 'running' ? '停止' : '启动' }}
+            <span class="button-text">{{ container.status === 'running' ? '停止' : '启动' }}</span>
           </NButton>
 
-          <!-- 更多操作下拉菜单 -->
+          <!-- 更多操作 -->
           <NDropdown
             :options="getContainerOptions"
             :disabled="operating"
             @select="handleMoreAction"
+            placement="bottom-end"
           >
             <NButton 
               size="small"
-              :loading="operating && currentAction !== 'start' && currentAction !== 'stop'"
+              quaternary
+              circle
+              :loading="operating && !['start', 'stop', 'update'].includes(currentAction || '')"
+              class="more-button"
             >
               <template #icon>
                 <NIcon><EllipsisHorizontalOutline /></NIcon>
               </template>
-              更多操作
             </NButton>
           </NDropdown>
-        </NSpace>
+        </div>
       </div>
     </div>
   </n-card>
@@ -191,9 +213,11 @@ import {
   GlobeOutline,
   LinkOutline,
   ArrowUpOutline,
-  ArrowDownOutline
+  ArrowDownOutline,
+  CloudUploadOutline,
+  ArchiveOutline
 } from '@vicons/ionicons5'
-import { NIcon, NProgress, NButton, NSpace, NAvatar, NTag, NDropdown, NCheckbox } from 'naive-ui'
+import { NIcon, NProgress, NButton, NSpace, NAvatar, NTag, NDropdown, NCheckbox, NTooltip } from 'naive-ui'
 
 // 定义用于前端展示的容器接口，与 ContainerList.vue 中的 DisplayContainer 一致
 interface DisplayContainer {
@@ -214,6 +238,7 @@ interface DisplayContainer {
   download: string;
   webUrl?: string;
   iconUrl?: string;
+  needUpdate?: number; // 🎯 添加needUpdate字段
   // 可能包含后端 Container 原始类型中的其他字段，按需添加
   names: string[];
   imageId: string;
@@ -265,39 +290,64 @@ function openWebUI() {
 
 // 获取容器操作选项
 const getContainerOptions = computed(() => {
-  const options: Array<any> = [
-    {
-      label: '配置Web',
-      key: 'configWebUI',
-      icon: () => h(NIcon, null, { default: () => h(GlobeOutline) }),
-      disabled: props.operating
-    },
-    {
+  const options: Array<any> = []
+
+  // 🎯 如果需要更新（状态1），优先显示更新镜像选项
+  if (props.container.needUpdate === 1) {
+    options.push({
+      label: props.operating && props.currentAction === 'update' ? '更新中...' : '更新镜像',
+      key: 'update',
+      icon: () => h(NIcon, null, { default: () => h(CloudUploadOutline) }),
+      disabled: props.operating,
+      props: {
+        type: 'warning'
+      }
+    })
+    options.push({
       type: 'divider',
-      key: 'config-divider'
-    },
-    {
-      label: '查看详情',
-      key: 'detail',
-      icon: () => h(NIcon, null, { default: () => h(InformationCircleOutline) }),
-      disabled: props.operating
-    },
-    {
-      label: '查看日志',
-      key: 'logs',
-      icon: () => h(NIcon, null, { default: () => h(DocumentTextOutline) }),
-      disabled: props.operating
-    },
-    {
-      label: '编辑配置',
-      key: 'edit',
-      icon: () => h(NIcon, null, { default: () => h(CreateOutline) }),
-      disabled: props.operating
-    }
-  ]
+      key: 'update-divider'
+    })
+  }
+
+  // 配置相关选项
+  options.push({
+    label: '配置Web',
+    key: 'configWebUI',
+    icon: () => h(NIcon, null, { default: () => h(GlobeOutline) }),
+    disabled: props.operating
+  })
+  
+  options.push({
+    type: 'divider',
+    key: 'config-divider'
+  })
+  
+  // 查看相关选项
+  options.push({
+    label: '查看详情',
+    key: 'detail',
+    icon: () => h(NIcon, null, { default: () => h(InformationCircleOutline) }),
+    disabled: props.operating
+  })
+  options.push({
+    label: '查看日志',
+    key: 'logs',
+    icon: () => h(NIcon, null, { default: () => h(DocumentTextOutline) }),
+    disabled: props.operating
+  })
+  options.push({
+    label: '编辑配置',
+    key: 'edit',
+    icon: () => h(NIcon, null, { default: () => h(CreateOutline) }),
+    disabled: props.operating
+  })
 
   // 如果容器正在运行，添加重启选项
   if (props.container.status === 'running') {
+    options.push({
+      type: 'divider',
+      key: 'action-divider'
+    })
     options.push({
       label: props.operating && props.currentAction === 'restart' ? '重启中...' : '重启容器',
       key: 'restart',
@@ -306,7 +356,7 @@ const getContainerOptions = computed(() => {
     })
   }
 
-  // 添加删除选项
+  // 删除选项
   options.push({
     type: 'divider',
     key: 'd1'
@@ -329,7 +379,7 @@ function handleMoreAction(key: string) {
   if (key === 'configWebUI') {
     emit('action', 'configWebUI', props.container)
   } else {
-  emit('action', key, props.container)
+    emit('action', key, props.container)
   }
 }
 
@@ -582,7 +632,75 @@ const getStatusType = (status: string) => {
   justify-content: flex-end;
   align-items: center;
   padding: 0 4px;
+}
+
+/* 🎯 新的按钮布局样式 */
+.actions-layout {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  position: relative;
+}
+
+.priority-button {
+  flex-shrink: 0;
+}
+
+.secondary-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.web-button {
+  color: var(--n-primary-color);
+  border: 1px solid var(--n-primary-color-suppl);
+}
+
+.web-button:hover {
+  background: var(--n-primary-color-suppl);
+}
+
+.start-stop-button {
+  font-weight: 500;
+}
+
+.more-button {
+  color: var(--n-text-color-2);
+  border: 1px solid var(--n-border-color);
+}
+
+.more-button:hover {
+  background: var(--n-color-hover);
+  color: var(--n-text-color-1);
+}
+
+/* 按钮文字在小屏幕上的响应式 */
+.button-text {
+  display: inline;
+}
+
+/* 🎯 更新相关样式 */
+.update-tag {
+  animation: pulse 2s infinite;
+}
+
+/* 老版本标签样式 */
+.old-version-tag {
+  border: 1px solid #d9d9d9;
+  background: #f5f5f5;
+  color: #666;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* 响应式适配 */
@@ -604,6 +722,15 @@ const getStatusType = (status: string) => {
   .container-actions-section {
     flex: 1;
   }
+  
+  /* 调整按钮间距 */
+  .actions-layout {
+    gap: 6px;
+  }
+  
+  .secondary-actions {
+    gap: 4px;
+  }
 }
 
 @media (max-width: 900px) {
@@ -624,6 +751,15 @@ const getStatusType = (status: string) => {
   
   .container-actions-section {
     flex: 0 1 200px;
+    justify-content: center;
+  }
+  
+  /* 在中等屏幕上缩短按钮文字 */
+  .button-text {
+    display: inline;
+  }
+  
+  .actions-layout {
     justify-content: center;
   }
 }
@@ -658,6 +794,41 @@ const getStatusType = (status: string) => {
     flex-direction: column;
     align-items: center;
     text-align: center;
+  }
+  
+  /* 🎯 小屏幕按钮优化 */
+  .actions-layout {
+    gap: 8px;
+    justify-content: center;
+  }
+  
+  .secondary-actions {
+    gap: 8px;
+  }
+  
+  /* 保持按钮文字显示 */
+  .button-text {
+    display: inline;
+  }
+}
+
+/* 超小屏幕 - 隐藏按钮文字，只显示图标 */
+@media (max-width: 480px) {
+  .button-text {
+    display: none;
+  }
+  
+  .start-stop-button {
+    min-width: 40px;
+    padding: 0 8px;
+  }
+  
+  .actions-layout {
+    gap: 6px;
+  }
+  
+  .secondary-actions {
+    gap: 6px;
   }
 }
 </style>

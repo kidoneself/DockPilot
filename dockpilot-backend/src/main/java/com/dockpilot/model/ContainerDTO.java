@@ -25,7 +25,7 @@ public class ContainerDTO implements Serializable {
     private ContainerHostConfigDTO hostConfig;
     private ContainerNetworkSettingsDTO networkSettings;
     private List<ContainerMountDTO> mounts;
-    private boolean needUpdate;  // 是否需要更新
+    private int needUpdate;  // 0=正常状态，1=需要更新，2=老版本（可删除）
     private String operationStatus;
     private String lastError;
     private String webUrl;

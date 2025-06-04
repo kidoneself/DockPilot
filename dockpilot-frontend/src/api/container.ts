@@ -215,4 +215,21 @@ export function updateContainerInfo(
     callbacks,
     timeout: TIMEOUT.LIST
   })
+}
+
+/**
+ * 更新容器镜像（只传containerId，利用CONTAINER_UPDATE的智能判断）
+ * @param containerId 容器ID
+ * @param callbacks WebSocket回调函数
+ */
+export function updateContainerImage(
+  containerId: string,
+  callbacks?: WebSocketCallbacks
+) {
+  return sendWebSocketMessage({
+    type: MessageType.CONTAINER_UPDATE,  // 🎯 使用现有的CONTAINER_UPDATE
+    data: { containerId },               // 🎯 只传containerId，触发镜像更新逻辑
+    callbacks: callbacks || {},          // 🔧 提供默认值
+    timeout: TIMEOUT.CREATE              // �� 使用现有的超时时间
+  })
 } 

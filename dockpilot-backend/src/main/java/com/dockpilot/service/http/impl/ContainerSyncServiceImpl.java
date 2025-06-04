@@ -232,6 +232,10 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
 
     private void updateContainerBasicInfo(ContainerInfo dbContainer, Container dockerContainer) {
         try {
+            // 🔒 保存用户配置字段，防止被覆盖
+            String preservedWebUrl = dbContainer.getWebUrl();
+            String preservedIconUrl = dbContainer.getIconUrl();
+            
             // 只更新基本状态信息，保留用户配置
             boolean needUpdate = false;
 
@@ -247,8 +251,13 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
 
             if (needUpdate) {
                 dbContainer.setUpdatedAt(new java.util.Date());
+                
+                // 🔒 强制保留用户配置字段
+                dbContainer.setWebUrl(preservedWebUrl);
+                dbContainer.setIconUrl(preservedIconUrl);
+                
                 containerInfoMapper.update(dbContainer);
-                log.debug("更新容器基本信息: {}", dbContainer.getName());
+                log.debug("更新容器基本信息: {}，已保留用户配置", dbContainer.getName());
             }
         } catch (Exception e) {
             log.error("更新容器基本信息失败: {}", dbContainer.getName(), e);
@@ -257,14 +266,26 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
 
     private void updateContainerIdAndBasicInfo(ContainerInfo dbContainer, Container dockerContainer) {
         try {
+            // 🔒 保存用户配置字段，防止被覆盖
+            String preservedWebUrl = dbContainer.getWebUrl();
+            String preservedIconUrl = dbContainer.getIconUrl();
+            String preservedOperationStatus = dbContainer.getOperationStatus();
+            
             // 更新容器ID和基本信息
             dbContainer.setContainerId(dockerContainer.getId());
             dbContainer.setStatus(dockerContainer.getState());
             dbContainer.setImage(dockerContainer.getImage());
             dbContainer.setUpdatedAt(new java.util.Date());
-            // 保留其他字段如iconUrl、webUrl、operationStatus等
+            
+            // 🔒 强制保留用户配置字段和其他重要字段
+            dbContainer.setWebUrl(preservedWebUrl);
+            dbContainer.setIconUrl(preservedIconUrl);
+            if (preservedOperationStatus != null) {
+                dbContainer.setOperationStatus(preservedOperationStatus);
+            }
+            
             containerInfoMapper.update(dbContainer);
-            log.debug("更新容器ID和基本信息: {} -> {}", dbContainer.getName(), dockerContainer.getId());
+            log.debug("更新容器ID和基本信息: {} -> {}，已保留用户配置", dbContainer.getName(), dockerContainer.getId());
         } catch (Exception e) {
             log.error("更新容器ID和基本信息失败: {}", dbContainer.getName(), e);
         }
@@ -278,7 +299,7 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
             containerInfo.setImage(dockerContainer.getImage());
             containerInfo.setStatus(dockerContainer.getState());
             containerInfo.setOperationStatus("success"); // 设置操作状态
-            containerInfo.setNeedUpdate(false); // 新容器默认不需要更新
+            containerInfo.setNeedUpdate(0); // 0=正常状态，无需更新
             containerInfo.setCreatedAt(new java.util.Date()); // 设置创建时间
             containerInfo.setUpdatedAt(new java.util.Date()); // 设置更新时间
             containerInfoMapper.insert(containerInfo);
@@ -300,8 +321,8 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
             Map<String, String> imageIdMap = new HashMap<>();
             for (Image image : images) {
                 if (image.getRepoTags() != null) {
-                    for (String tag : image.getRepoTags()) {
-                        imageIdMap.put(tag, image.getId());
+                    for (String imageTag : image.getRepoTags()) {
+                        imageIdMap.put(imageTag, image.getId());
                     }
                 }
             }
@@ -349,7 +370,7 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
                     newContainerInfo.setImage(container.getImage());
                     newContainerInfo.setStatus(container.getState());
                     newContainerInfo.setOperationStatus("success");
-                    newContainerInfo.setNeedUpdate(needUpdate);
+                    newContainerInfo.setNeedUpdate(needUpdate ? 1 : 0); // Boolean转Integer：1=需要更新，0=正常状态
                     newContainerInfo.setCreatedAt(new java.util.Date());
                     newContainerInfo.setUpdatedAt(new java.util.Date());
                     containerInfoMapper.insert(newContainerInfo);
@@ -357,8 +378,18 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
                 } else if (matchingContainers.size() == 1) {
                     // 正常情况：只有一条记录，更新needUpdate字段
                     ContainerInfo containerInfo = matchingContainers.get(0);
-                    containerInfo.setNeedUpdate(needUpdate);
+                    
+                    // 🔒 保存用户配置字段，防止被覆盖
+                    String preservedWebUrl = containerInfo.getWebUrl();
+                    String preservedIconUrl = containerInfo.getIconUrl();
+                    
+                    containerInfo.setNeedUpdate(needUpdate ? 1 : 0); // Boolean转Integer：1=需要更新，0=正常状态
                     containerInfo.setUpdatedAt(new java.util.Date());
+                    
+                    // 🔒 强制保留用户配置字段
+                    containerInfo.setWebUrl(preservedWebUrl);
+                    containerInfo.setIconUrl(preservedIconUrl);
+                    
                     containerInfoMapper.update(containerInfo);
                 } else {
                     // 发现重复记录，进行清理
@@ -385,19 +416,123 @@ public class ContainerSyncServiceImpl implements ContainerSyncService {
                     }
 
                     // 更新保留的记录
-                    keepRecord.setNeedUpdate(needUpdate);
+                    // 🔒 保存用户配置字段，防止被覆盖
+                    String preservedWebUrl = keepRecord.getWebUrl();
+                    String preservedIconUrl = keepRecord.getIconUrl();
+                    String preservedOperationStatus = keepRecord.getOperationStatus();
+                    
+                    keepRecord.setNeedUpdate(needUpdate ? 1 : 0); // Boolean转Integer：1=需要更新，0=正常状态
                     keepRecord.setUpdatedAt(new java.util.Date());
                     // 确保保留记录中的基本信息是最新的
                     keepRecord.setName(container.getNames()[0].replaceFirst("/", ""));
                     keepRecord.setImage(container.getImage());
                     keepRecord.setStatus(container.getState());
+                    
+                    // 🔒 强制保留用户配置字段
+                    keepRecord.setWebUrl(preservedWebUrl);
+                    keepRecord.setIconUrl(preservedIconUrl);
+                    if (preservedOperationStatus != null) {
+                        keepRecord.setOperationStatus(preservedOperationStatus);
+                    }
+                    
                     containerInfoMapper.update(keepRecord);
-                    log.info("已清理容器 {} 的重复记录，保留记录ID: {}", container.getId(), keepRecord.getId());
+                    log.info("已清理容器 {} 的重复记录，保留记录ID: {}，已保留用户配置", container.getId(), keepRecord.getId());
                 }
             }
             log.info("容器更新状态检查完成");
         } catch (Exception e) {
             log.error("检查容器更新状态时出错", e);
+        }
+    }
+
+    @Override
+    public void checkContainersUsingImage(String imageName, String tag) {
+        log.info("开始检查使用镜像 {}:{} 的容器更新状态", imageName, tag);
+        try {
+            // 获取 Docker 容器列表
+            List<Container> containers = dockerService.listContainers();
+            // 获取所有镜像列表
+            List<Image> images = dockerService.listImages();
+            // 创建镜像ID映射
+            Map<String, String> imageIdMap = new HashMap<>();
+            for (Image image : images) {
+                if (image.getRepoTags() != null) {
+                    for (String imageTag : image.getRepoTags()) {
+                        imageIdMap.put(imageTag, image.getId());
+                    }
+                }
+            }
+
+            String targetImageName = imageName + ":" + tag;
+            int checkedCount = 0;
+
+            for (Container container : containers) {
+                String containerImageName = container.getImage();
+                
+                // 只检查使用指定镜像的容器
+                boolean shouldCheck = false;
+                if (containerImageName.equals(targetImageName)) {
+                    shouldCheck = true;
+                } else if (containerImageName.equals(imageName) && "latest".equals(tag)) {
+                    // 处理默认latest标签的情况
+                    shouldCheck = true;
+                }
+
+                if (!shouldCheck) {
+                    continue;
+                }
+
+                checkedCount++;
+                
+                // 使用现有的镜像ID比对逻辑
+                String imageIdToQuery = containerImageName;
+                if (!containerImageName.contains(":") && !containerImageName.contains("@")) {
+                    String potentialLatestKey = containerImageName + ":latest";
+                    if (imageIdMap.containsKey(potentialLatestKey)) {
+                        imageIdToQuery = potentialLatestKey;
+                    }
+                }
+
+                String latestImageId = imageIdMap.get(imageIdToQuery);
+                String actualContainerImageId = container.getImageId();
+
+                Boolean needUpdate;
+                if (latestImageId == null) {
+                    needUpdate = true;
+                } else {
+                    needUpdate = !latestImageId.equals(actualContainerImageId);
+                }
+
+                // 更新数据库中的容器记录
+                List<ContainerInfo> allContainerInfos = containerInfoMapper.selectAll();
+                List<ContainerInfo> matchingContainers = allContainerInfos.stream()
+                        .filter(info -> info.getContainerId().equals(container.getId()))
+                        .collect(java.util.stream.Collectors.toList());
+
+                if (!matchingContainers.isEmpty()) {
+                    ContainerInfo containerInfo = matchingContainers.get(0);
+                    Integer expectedUpdate = needUpdate ? 1 : 0; // 将Boolean转换为Integer进行比较
+                    if (!expectedUpdate.equals(containerInfo.getNeedUpdate())) {
+                        // 🔒 保存用户配置字段，防止被覆盖
+                        String preservedWebUrl = containerInfo.getWebUrl();
+                        String preservedIconUrl = containerInfo.getIconUrl();
+                        
+                        containerInfo.setNeedUpdate(needUpdate ? 1 : 0); // Boolean转Integer：1=需要更新，0=正常状态
+                        containerInfo.setUpdatedAt(new java.util.Date());
+                        
+                        // 🔒 强制保留用户配置字段
+                        containerInfo.setWebUrl(preservedWebUrl);
+                        containerInfo.setIconUrl(preservedIconUrl);
+                        
+                        containerInfoMapper.update(containerInfo);
+                        log.debug("更新容器 {} 的更新状态: {}，已保留用户配置", containerInfo.getName(), needUpdate);
+                    }
+                }
+            }
+            
+            log.info("完成检查使用镜像 {}:{} 的容器，共检查 {} 个容器", imageName, tag, checkedCount);
+        } catch (Exception e) {
+            log.error("检查使用镜像 {}:{} 的容器状态时出错", imageName, tag, e);
         }
     }
 }

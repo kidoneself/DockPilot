@@ -341,7 +341,9 @@ public class ApplicationWebSocketService implements BaseService {
             callback.onLog("设置工作目录: " + service.getWorkingDir());
         }
         
-        // 环境变量配置 - 合并服务定义的环境变量和用户配置的环境变量
+        // 环境变量配置 - 🔧 关键修复：正确处理环境变量的分离
+        // ✅ xmeta变量（DOCKER_BASE、MP_PORT等）：仅用于替换YAML占位符
+        // ✅ service.environment变量：实际传递给Docker容器的环境变量
         List<String> envList = buildEnvironmentVariables(service.getEnvironment(), envVars, callback);
         request.setEnv(envList);
         
@@ -408,41 +410,41 @@ public class ApplicationWebSocketService implements BaseService {
     }
     
     /**
-     * 构建环境变量列表 - 合并服务定义的环境变量和用户配置的环境变量
+     * 构建环境变量列表 - 🔧 修复：正确处理环境变量
+     * 
+     * @param serviceEnvVars 服务定义的环境变量（YAML中service.environment配置）
+     * @param userEnvVars xmeta配置变量（仅用于占位符替换，不传给容器）
+     * @param callback 日志回调
+     * @return 容器环境变量列表
      */
     private List<String> buildEnvironmentVariables(List<String> serviceEnvVars, Map<String, String> userEnvVars, InstallCallback callback) {
         List<String> envList = new ArrayList<>();
         
-        // 添加服务定义的环境变量
+        // 只添加服务定义的环境变量（YAML中service.environment配置的变量）
         if (serviceEnvVars != null) {
             for (String envVar : serviceEnvVars) {
-                // 替换环境变量占位符
+                // 🔧 关键：使用xmeta变量替换占位符，但不将xmeta变量本身添加到容器环境
+                // 例如：SOME_VAR=${MP_PORT} 会被替换为 SOME_VAR=3001
+                // 但 MP_PORT=3001 本身不会作为环境变量传给容器
                 String processedEnv = replaceEnvPlaceholders(envVar, userEnvVars);
                 envList.add(processedEnv);
             }
         }
         
-        // 添加用户配置的环境变量
-        if (userEnvVars != null) {
-            for (Map.Entry<String, String> entry : userEnvVars.entrySet()) {
-                String envString = entry.getKey() + "=" + entry.getValue();
-                // 避免重复添加
-                boolean exists = envList.stream().anyMatch(env -> env.startsWith(entry.getKey() + "="));
-                if (!exists) {
-                    envList.add(envString);
-                }
-            }
-        }
+        // 🎯 核心修复：xmeta变量（DOCKER_BASE、BASE_*、端口配置等）的正确用途：
+        // ✅ 用于替换YAML中的占位符（如 ${DOCKER_BASE}/app/config）
+        // ❌ 不作为环境变量传递给Docker容器
+        // ✅ 容器的环境变量应该在YAML的service.environment中明确定义
         
         if (!envList.isEmpty()) {
-            callback.onLog("设置环境变量: " + envList.size() + " 个");
+            callback.onLog("设置服务环境变量: " + envList.size() + " 个");
         }
         
         return envList;
     }
     
     /**
-     * 原有的构建环境变量方法，保持向后兼容
+     * 向后兼容的构建环境变量方法
      */
     private List<String> buildEnvironmentVariables(Map<String, String> envVars, InstallCallback callback) {
         return buildEnvironmentVariables(null, envVars, callback);

@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS web_servers (
     is_favorite INTEGER DEFAULT 0,              -- 是否收藏（0=否，1=是）
     created_at TEXT DEFAULT (datetime('now')), -- 创建时间
     updated_at TEXT DEFAULT (datetime('now')), -- 更新时间
-    
+
     -- 外键约束
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
 );
@@ -134,62 +134,25 @@ CREATE TABLE IF NOT EXISTS applications (
 CREATE INDEX IF NOT EXISTS idx_applications_category ON applications(category);
 CREATE INDEX IF NOT EXISTS idx_applications_hash ON applications(file_hash);
 
--- ======================================
--- 插入默认分类数据
--- ======================================
+-- -- ======================================
+-- -- 插入默认分类数据
+-- -- ======================================
+--
+-- INSERT OR IGNORE INTO categories (id, name, sort_order) VALUES
+-- (1, '开发工具', 1);
+--
+--
+-- -- ======================================
+-- -- 插入示例应用数据
+-- -- ======================================
+--
+-- INSERT OR IGNORE INTO web_servers (
+--     id, name, icon, external_url, description, category_id, item_sort,
+--     bg_color, card_type, icon_type, open_type
+-- ) VALUES
+-- ('dev-001', 'DockPilot', 'https://github.githubassets.com/favicons/favicon.svg',
+--  'https://github.com/kidoneself/DockPilot', 'docker管理工具', 1, 1,
+--  'rgba(36, 41, 47, 0.8)', 'normal', 'image', 'new');
 
-INSERT OR IGNORE INTO categories (id, name, sort_order) VALUES 
-(1, '开发工具', 1),
-(2, '效率工具', 2),
-(3, '监控运维', 3),
-(4, '媒体娱乐', 4);
 
--- ======================================
--- 插入示例应用数据
--- ======================================
-
-INSERT OR IGNORE INTO web_servers (
-    id, name, icon, external_url, description, category_id, item_sort, 
-    bg_color, card_type, icon_type, open_type
-) VALUES 
-
--- 开发工具分类 (category_id = 1)
-('dev-001', 'GitHub', 'https://github.githubassets.com/favicons/favicon.svg', 
- 'https://github.com', '全球最大的代码托管平台', 1, 1, 
- 'rgba(36, 41, 47, 0.8)', 'normal', 'image', 'new'),
-
-('dev-002', 'VS Code Web', 'https://code.visualstudio.com/favicon.ico', 
- 'https://vscode.dev', '在线代码编辑器', 1, 2, 
- 'transparent', 'normal', 'image', 'new'),
-
-('dev-003', 'Docker Hub', 'https://www.docker.com/favicon.ico', 
- 'https://hub.docker.com', 'Docker镜像仓库', 1, 3, 
- 'rgba(36, 150, 237, 0.7)', 'normal', 'image', 'new'),
-
--- 效率工具分类 (category_id = 2)  
-('eff-001', 'Notion', 'https://www.notion.so/favicon.ico', 
- 'https://www.notion.so', '全能工作空间', 2, 1, 
- 'transparent', 'normal', 'image', 'new'),
-
-('eff-002', 'Trello', 'https://trello.com/favicon.ico', 
- 'https://trello.com', '项目管理看板工具', 2, 2, 
- 'linear-gradient(135deg, #0079bf, #005a8b)', 'normal', 'image', 'new'),
-
--- 监控运维分类 (category_id = 3)
-('mon-001', 'Grafana', 'https://grafana.com/static/img/menu/grafana2.svg', 
- 'http://localhost:3000', '数据可视化监控平台', 3, 1, 
- 'linear-gradient(135deg, #f46800, #ff8533)', 'normal', 'image', 'new'),
-
-('mon-002', 'Portainer', '', 
- 'http://localhost:9443', 'Docker容器管理界面', 3, 2, 
- 'transparent', 'normal', 'text', 'new'),
-
--- 媒体娱乐分类 (category_id = 4)
-('med-001', 'YouTube', 'https://www.youtube.com/favicon.ico', 
- 'https://www.youtube.com', '视频分享平台', 4, 1, 
- '#ff0000', 'normal', 'image', 'new'),
-
-('med-002', 'Spotify', 'https://open.spotify.com/favicon.ico', 
- 'https://open.spotify.com', '音乐流媒体服务', 4, 2, 
- '#1db954', 'normal', 'image', 'new');
 

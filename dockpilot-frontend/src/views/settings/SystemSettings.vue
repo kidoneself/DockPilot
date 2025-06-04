@@ -81,7 +81,7 @@
 
         <!-- 默认配置界面 -->
         <div v-else class="config-placeholder">
-          <n-empty description="该功能的配置界面正在开发中">
+          <n-empty description="备份到webdev开发中">
             <template #extra>
               <n-button size="small" @click="handleConfigCancel">返回</n-button>
             </template>
@@ -324,7 +324,7 @@ const settingsGroups = ref([
       {
         key: 'backup',
         title: '备份设置',
-        desc: '配置自动备份和数据保护策略',
+        desc: '配置WebDAV自动备份，保护重要数据到远程存储',
         configType: 'default',
         status: 'developing' as const,
         icon: '💾'

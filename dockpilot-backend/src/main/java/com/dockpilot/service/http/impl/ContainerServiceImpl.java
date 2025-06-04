@@ -81,7 +81,8 @@ public class ContainerServiceImpl implements ContainerService {
             // 然后通过容器id信息比较
             ContainerInfo containerInfo = containerInfoMap.get(container.getId());
             if (containerInfo != null) {
-                dto.setNeedUpdate(containerInfo.getNeedUpdate() != null && containerInfo.getNeedUpdate());
+                // 🔄 直接传递三状态值：0=正常，1=需要更新，2=老版本
+                dto.setNeedUpdate(containerInfo.getNeedUpdate() != null ? containerInfo.getNeedUpdate() : 0);
                 dto.setLastError(containerInfo.getLastError());
                 dto.setOperationStatus(containerInfo.getOperationStatus());
                 dto.setWebUrl(containerInfo.getWebUrl());
@@ -245,6 +246,12 @@ public class ContainerServiceImpl implements ContainerService {
                 if (originalContainerInfo != null) {
                     callback.onLog("【数据库】正在更新容器信息记录...");
 
+                    // 📌 重要：保存用户配置字段，防止丢失
+                    String preservedWebUrl = originalContainerInfo.getWebUrl();
+                    String preservedIconUrl = originalContainerInfo.getIconUrl();
+                    
+                    callback.onLog("【数据库】保留用户配置 - WebURL: " + preservedWebUrl + ", IconURL: " + preservedIconUrl);
+
                     // 获取新容器的详细信息
                     InspectContainerResponse newInspect = dockerService.inspectContainerCmd(newContainerId);
 
@@ -256,7 +263,12 @@ public class ContainerServiceImpl implements ContainerService {
                     originalContainerInfo.setOperationStatus("success");
                     originalContainerInfo.setLastError(null); // 清除之前的错误
                     originalContainerInfo.setUpdatedAt(new Date());
-                    // iconUrl和webUrl保持不变，继承原有值
+                    
+                    // 🔒 强制保留用户配置字段，即使为空也要显式设置
+                    originalContainerInfo.setWebUrl(preservedWebUrl);
+                    originalContainerInfo.setIconUrl(preservedIconUrl);
+                    
+                    callback.onLog("【数据库】用户配置已强制保留 - WebURL: " + preservedWebUrl + ", IconURL: " + preservedIconUrl);
 
                     containerInfoService.updateContainerInfo(originalContainerInfo);
                     callback.onLog("【数据库】容器信息记录已更新，保留了原有的图标和网址配置");
@@ -270,7 +282,7 @@ public class ContainerServiceImpl implements ContainerService {
                     newContainerInfo.setImage(newInspect.getConfig().getImage());
                     newContainerInfo.setStatus("running");
                     newContainerInfo.setOperationStatus("success");
-                    newContainerInfo.setNeedUpdate(false);
+                    newContainerInfo.setNeedUpdate(0); // 0=正常状态，无需更新
                     newContainerInfo.setCreatedAt(new Date());
                     newContainerInfo.setUpdatedAt(new Date());
 
@@ -300,6 +312,7 @@ public class ContainerServiceImpl implements ContainerService {
         return CompletableFuture.supplyAsync(() -> {
             String newContainerId = null;
             String backupContainerName = null;
+            String originalContainerName = null; // 添加：保存原始容器名称用于回滚
 
             // 保存原有的容器信息（包括用户配置的iconUrl和webUrl）
             ContainerInfo originalContainerInfo = containerInfoService.getContainerInfoByContainerId(containerId);
@@ -309,6 +322,7 @@ public class ContainerServiceImpl implements ContainerService {
 
                 // 1. 检查容器状态
                 InspectContainerResponse originalConfig = dockerService.inspectContainerCmd(containerId);
+                originalContainerName = originalConfig.getName().replaceFirst("/", ""); // 保存原始名称
                 boolean wasRunning = "running".equals(originalConfig.getState().getStatus());
                 if (wasRunning) {
                     callback.onLog("【原容器】正在停止...");
@@ -322,35 +336,42 @@ public class ContainerServiceImpl implements ContainerService {
                 String originalImageName = originalConfig.getConfig().getImage();
                 callback.onLog("【原容器】配置已获取，镜像: " + originalImageName);
 
-                // 3. 生成备份名称
+                // 3. 生成备份名称（基于原始名称而不是当前名称，避免时间戳叠加）
                 callback.onLog("【原容器】正在生成备份名称...");
-                backupContainerName = generateBackupName(originalConfig.getName());
+                backupContainerName = generateBackupName(originalContainerName);
                 callback.onLog("【原容器】备份名称生成: " + backupContainerName);
                 callback.onLog("【原容器】正在重命名为备份...");
                 dockerService.renameContainer(containerId, backupContainerName);
                 callback.onLog("【原容器】已重命名为备份：" + backupContainerName);
 
                 try {
-                    // 4. 创建新容器请求
+                    // 4. 检查本地镜像是否存在
+                    callback.onLog("【镜像检查】检查本地镜像: " + originalImageName);
+                    if (!dockerService.isImageExists(originalImageName)) {
+                        throw new BusinessException("本地镜像不存在: " + originalImageName + "，请先在镜像管理页面拉取最新镜像");
+                    }
+                    callback.onLog("【镜像检查】本地镜像可用: " + originalImageName);
+
+                    // 5. 创建新容器请求（使用原始名称）
                     callback.onLog("【新容器】开始创建...");
                     CreateContainerCmd createContainerCmd = dockerService.createContainerCmd(originalImageName)
-                            .withName(originalConfig.getName());
+                            .withName(originalContainerName); // 使用原始名称
 
-                    // 5. 复制主机配置
+                    // 6. 复制主机配置
                     HostConfig hostConfig = originalConfig.getHostConfig();
                     if (hostConfig != null) {
                         createContainerCmd.withHostConfig(hostConfig);
                         callback.onLog("【新容器】已复制主机配置（挂载、网络、端口等）");
                     }
 
-                    // 6. 复制环境变量
+                    // 7. 复制环境变量
                     String[] env = originalConfig.getConfig().getEnv();
                     if (env != null && env.length > 0) {
                         createContainerCmd.withEnv(env);
                         callback.onLog("【新容器】已复制环境变量配置");
                     }
 
-                    // 7. 复制命令配置
+                    // 8. 复制命令配置
                     String[] cmd = originalConfig.getConfig().getCmd();
                     String[] entrypoint = originalConfig.getConfig().getEntrypoint();
                     if (cmd != null && cmd.length > 0) {
@@ -362,12 +383,12 @@ public class ContainerServiceImpl implements ContainerService {
                         callback.onLog("【新容器】已复制Entrypoint配置");
                     }
 
-                    // 8. 创建新容器
+                    // 9. 创建新容器
                     CreateContainerResponse response = createContainerCmd.exec();
                     newContainerId = response.getId();
                     callback.onLog("【新容器】创建完成，ID：" + newContainerId);
 
-                    // 9. 如果原容器在运行，启动新容器
+                    // 10. 如果原容器在运行，启动新容器
                     if (wasRunning) {
                         callback.onLog("【新容器】正在启动...");
                         startContainer(newContainerId);
@@ -380,27 +401,47 @@ public class ContainerServiceImpl implements ContainerService {
                         }
                     }
 
-                    // 10. 更新数据库中的容器信息记录
+                    // 11. 更新数据库中的容器信息记录
                     if (originalContainerInfo != null) {
-                        callback.onLog("【数据库】正在更新容器信息记录...");
+                        callback.onLog("【数据库】正在处理容器信息记录...");
+
+                        // 📌 重要：保存用户配置字段，防止丢失
+                        String preservedWebUrl = originalContainerInfo.getWebUrl();
+                        String preservedIconUrl = originalContainerInfo.getIconUrl();
+                        
+                        callback.onLog("【数据库】保留用户配置 - WebURL: " + preservedWebUrl + ", IconURL: " + preservedIconUrl);
 
                         // 获取新容器的详细信息
                         InspectContainerResponse newInspect = dockerService.inspectContainerCmd(newContainerId);
 
-                        // 更新容器信息，保留用户配置的iconUrl和webUrl
-                        originalContainerInfo.setContainerId(newContainerId);
-                        originalContainerInfo.setName(newInspect.getName().replaceFirst("/", ""));
-                        originalContainerInfo.setImage(newInspect.getConfig().getImage());
-                        originalContainerInfo.setStatus(wasRunning ? "running" : "created");
-                        originalContainerInfo.setOperationStatus("success");
-                        originalContainerInfo.setLastError(null); // 清除之前的错误
+                        // ✅ 正确逻辑：为新容器创建新记录，继承用户配置
+                        ContainerInfo newContainerInfo = new ContainerInfo();
+                        newContainerInfo.setContainerId(newContainerId);  // 新容器ID
+                        newContainerInfo.setName(newInspect.getName().replaceFirst("/", ""));
+                        newContainerInfo.setImage(newInspect.getConfig().getImage());
+                        newContainerInfo.setStatus(wasRunning ? "running" : "created");
+                        newContainerInfo.setOperationStatus("success");
+                        newContainerInfo.setLastError(null);
+                        newContainerInfo.setNeedUpdate(0); // 0=正常状态，无需更新
+                        newContainerInfo.setCreatedAt(new Date());
+                        newContainerInfo.setUpdatedAt(new Date());
+                        
+                        // 🔒 继承原容器的用户配置
+                        newContainerInfo.setWebUrl(preservedWebUrl);
+                        newContainerInfo.setIconUrl(preservedIconUrl);
+                        
+                        containerInfoService.createContainerInfo(newContainerInfo);
+                        callback.onLog("【数据库】新容器记录已创建，继承了用户配置 - WebURL: " + preservedWebUrl + ", IconURL: " + preservedIconUrl);
+                        
+                        // ✅ 正确逻辑：原容器记录只更新名称为备份名称，保持原容器ID不变
+                        originalContainerInfo.setName(backupContainerName);  // 只更新名称
+                        originalContainerInfo.setNeedUpdate(2); // 🔘 标记为老版本容器（可删除的备份）
                         originalContainerInfo.setUpdatedAt(new Date());
-                        // iconUrl和webUrl保持不变，继承原有值
-
+                        
                         containerInfoService.updateContainerInfo(originalContainerInfo);
-                        callback.onLog("【数据库】容器信息记录已更新，保留了原有的图标和网址配置");
+                        callback.onLog("【数据库】原容器记录已更新为备份名称: " + backupContainerName + "，标记为老版本（可删除）");
                     } else {
-                        callback.onLog("【数据库】原容器信息不存在，创建新记录...");
+                        callback.onLog("【数据库】原容器信息不存在，为新容器创建记录...");
                         // 如果原记录不存在，创建新记录
                         InspectContainerResponse newInspect = dockerService.inspectContainerCmd(newContainerId);
                         ContainerInfo newContainerInfo = new ContainerInfo();
@@ -409,7 +450,7 @@ public class ContainerServiceImpl implements ContainerService {
                         newContainerInfo.setImage(newInspect.getConfig().getImage());
                         newContainerInfo.setStatus(wasRunning ? "running" : "created");
                         newContainerInfo.setOperationStatus("success");
-                        newContainerInfo.setNeedUpdate(false);
+                        newContainerInfo.setNeedUpdate(0); // 0=正常状态，无需更新
                         newContainerInfo.setCreatedAt(new Date());
                         newContainerInfo.setUpdatedAt(new Date());
 
@@ -423,10 +464,35 @@ public class ContainerServiceImpl implements ContainerService {
                 } catch (Exception e) {
                     LogUtil.logSysError(e.getMessage());
                     callback.onLog("【操作异常】发生错误: " + e.getMessage());
-                    if (newContainerId != null) {
-                        callback.onLog("【新容器】创建失败，ID：" + newContainerId);
-                        callback.onLog("【提示】原容器已保留为备份：" + backupContainerName + "，新容器已保留，如需删除请手动操作");
+                    
+                    // 🚨 关键：更新失败时回滚容器名称
+                    try {
+                        if (backupContainerName != null && originalContainerName != null) {
+                            callback.onLog("【回滚操作】正在恢复容器名称...");
+                            // 将备份容器重命名回原始名称
+                            Container backupContainer = findContainerByIdOrName(backupContainerName);
+                            if (backupContainer != null) {
+                                dockerService.renameContainer(backupContainer.getId(), originalContainerName);
+                                callback.onLog("【回滚完成】容器名称已恢复为: " + originalContainerName);
+                                
+                                // 如果新容器创建成功但启动失败，清理新容器
+                                if (newContainerId != null) {
+                                    try {
+                                        dockerService.removeContainer(newContainerId);
+                                        callback.onLog("【清理完成】已删除失败的新容器: " + newContainerId);
+                                    } catch (Exception cleanupEx) {
+                                        callback.onLog("【清理失败】无法删除新容器，请手动清理: " + newContainerId);
+                                    }
+                                }
+                            } else {
+                                callback.onLog("【回滚失败】找不到备份容器: " + backupContainerName);
+                            }
+                        }
+                    } catch (Exception rollbackEx) {
+                        callback.onLog("【回滚异常】回滚操作失败: " + rollbackEx.getMessage());
+                        LogUtil.logSysError("回滚容器名称失败: " + rollbackEx.getMessage());
                     }
+                    
                     throw new RuntimeException("Failed to update container image: " + e.getMessage(), e);
                 }
                 return newContainerId;
@@ -613,7 +679,7 @@ public class ContainerServiceImpl implements ContainerService {
                 containerInfo.setStatus(status);
                 containerInfo.setOperationStatus(operationStatus);
                 containerInfo.setLastError(lastError);
-                containerInfo.setNeedUpdate(false);
+                containerInfo.setNeedUpdate(0); // 0=正常状态，无需更新
                 containerInfo.setCreatedAt(new Date());
                 containerInfo.setUpdatedAt(new Date());
 

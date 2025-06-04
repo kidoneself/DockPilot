@@ -7,6 +7,7 @@ import com.dockpilot.mapper.ImageStatusMapper;
 import com.dockpilot.model.*;
 import com.dockpilot.service.http.ImageService;
 import com.dockpilot.service.http.SystemSettingService;
+import com.dockpilot.service.http.ContainerSyncService;
 import com.dockpilot.utils.LogUtil;
 import com.dockpilot.utils.MessageCallback;
 import com.github.dockerjava.api.DockerClient;
@@ -54,6 +55,8 @@ public class ImageServiceImpl implements ImageService {
     private AppConfig appConfig;
     @Autowired
     private SystemSettingService systemSettingService;
+    @Autowired
+    private ContainerSyncService containerSyncService;
 
     // 🎯 缓存相关字段
     private final Map<String, CachedImageInfo> remoteImageCache = new ConcurrentHashMap<>();
@@ -563,6 +566,18 @@ public class ImageServiceImpl implements ImageService {
             result.put("success", true);
             result.put("message", "成功同步镜像信息");
             result.put("localCreateTime", localCreateTime);
+
+            // 🚀 镜像更新完成后，立即检查使用该镜像的容器
+            try {
+                // 注入容器同步服务来检查容器状态
+                if (containerSyncService != null) {
+                    containerSyncService.checkContainersUsingImage(imageName, tag);
+                    LogUtil.logSysInfo("镜像更新完成，已触发容器状态检查: " + imageName + ":" + tag);
+                }
+            } catch (Exception e) {
+                LogUtil.logSysError("触发容器状态检查失败: " + e.getMessage());
+                // 不影响主流程，只记录错误
+            }
 
             return result;
         } catch (Exception e) {

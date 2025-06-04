@@ -188,7 +188,8 @@ import {
   stopContainer,
   removeContainer,
   restartContainer,
-  updateContainerInfo
+  updateContainerInfo,
+  updateContainerImage
 } from '@/api/container'
 import { sendWebSocketMessage } from '@/api/websocket/websocketService'
 import { useRouter } from 'vue-router'
@@ -230,6 +231,7 @@ interface BackendContainerItem {
   lastError?: string
   webUrl?: string
   iconUrl?: string
+  needUpdate?: boolean
 }
 
 // 前端展示类型
@@ -259,6 +261,7 @@ interface DisplayContainer {
   memoryLimitRaw?: number
   webUrl?: string
   iconUrl?: string
+  needUpdate?: boolean
 }
 
 // 性能数据类型
@@ -324,7 +327,8 @@ const {
         hostConfig: item.hostConfig,
         stats: undefined,
         webUrl: item.webUrl,
-        iconUrl: item.iconUrl
+        iconUrl: item.iconUrl,
+        needUpdate: item.needUpdate
       }))
       startStatsTimer()
     }
@@ -680,6 +684,34 @@ function handleContainerAction(action: string, container: DisplayContainer) {
       handleConfigWebUI(container)
       operatingContainers.value.delete(container.id)
       containerActions.value.delete(container.id)
+      break
+    case 'update':
+      // 🔥 显示更新日志模态框
+      showLogModal.value = true
+      selectedContainer.value = container
+      logModalTitle.value = `更新容器镜像 - ${container.name}`
+      logModalLogs.value = [] // 清空之前的日志
+      logAutoRefresh.value = false // 更新过程不需要自动刷新日志
+      
+      updateContainerImage(container.id, {
+        onLog: (logMessage: string) => {
+          // 📝 将更新日志实时添加到模态框
+          logModalLogs.value.push(logMessage)
+        },
+        onComplete: () => {
+          logModalLogs.value.push('✅ 更新容器镜像成功')
+          message.success(`更新容器镜像成功: ${container.name}`)
+          loadContainers()
+          operatingContainers.value.delete(container.id)
+          containerActions.value.delete(container.id)
+        },
+        onError: (error) => {
+          logModalLogs.value.push(`❌ 更新失败: ${error}`)
+          message.error(`更新容器镜像失败: ${error}`)
+          operatingContainers.value.delete(container.id)
+          containerActions.value.delete(container.id)
+        }
+      })
       break
   }
 }
