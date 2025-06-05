@@ -395,9 +395,7 @@ jobs:
           push: true
           tags: |
             kidself/dockpilot:latest
-            kidself/dockpilot:${{ steps.version.outputs.VERSION }}
             ccr.ccs.tencentyun.com/kidoneself/dockpilot:latest
-            ccr.ccs.tencentyun.com/kidoneself/dockpilot:${{ steps.version.outputs.VERSION }}
           build-args: |
             VERSION=${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
@@ -407,7 +405,7 @@ jobs:
         run: |
           echo "🐳 DockPilot镜像构建完成！"
           echo "📋 镜像信息:"
-          echo "  Docker Hub: kidself/dockpilot:latest, kidself/dockpilot:${{ steps.version.outputs.VERSION }}"
+          echo "  Docker Hub: kidself/dockpilot:latest"
           echo "  腾讯云TCR: ccr.ccs.tencentyun.com/kidoneself/dockpilot:latest"
           echo "  平台: linux/amd64, linux/arm64"
           echo "  特性: 内置代码 + 热更新能力"
