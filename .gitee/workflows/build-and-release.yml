@@ -1,0 +1,93 @@
+name: Build All and Push to Tencent Cloud
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Set version
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          
+      # 构建前端包
+      - name: Build Frontend
+        run: |
+          cd dockpilotfront
+          npm install
+          npm run build
+          tar -czf ../frontend.tar.gz dist/
+          
+      # 构建后端包
+      - name: Build Backend
+        run: |
+          cd docker-manager-back
+          mvn clean package -DskipTests
+          cp target/docker-manager-*.jar ../backend.jar
+          
+      # 登录腾讯云TCR
+      - name: Login to Tencent Cloud TCR
+        run: |
+          echo "${{ secrets.TCR_PASSWORD }}" | docker login ccr.ccs.tencentyun.com -u ${{ secrets.TCR_USERNAME }} --password-stdin
+          
+      # 构建并推送Docker镜像
+      - name: Build and Push Docker Images
+        run: |
+          # 构建标准镜像
+          docker build -t ccr.ccs.tencentyun.com/kidoneself/dockpilot:${VERSION} .
+          docker build -t ccr.ccs.tencentyun.com/kidoneself/dockpilot:latest .
+          
+          # 构建热更新镜像
+          docker build -t ccr.ccs.tencentyun.com/kidoneself/dockpilot-hot:${VERSION} -f build/Dockerfile .
+          docker build -t ccr.ccs.tencentyun.com/kidoneself/dockpilot-hot:latest -f build/Dockerfile .
+          
+          # 推送镜像
+          docker push ccr.ccs.tencentyun.com/kidoneself/dockpilot:${VERSION}
+          docker push ccr.ccs.tencentyun.com/kidoneself/dockpilot:latest
+          docker push ccr.ccs.tencentyun.com/kidoneself/dockpilot-hot:${VERSION}
+          docker push ccr.ccs.tencentyun.com/kidoneself/dockpilot-hot:latest
+          
+      # 创建Gitee Release
+      - name: Create Gitee Release
+        uses: gitee/create-release@v1
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          body: |
+            ## 🚀 DockPilot ${{ env.VERSION }}
+            
+            ### 📦 安装方式
+            
+            #### 1. Docker部署（推荐，国内用户）
+            ```bash
+            # 腾讯云镜像（国内用户推荐）
+            docker pull ccr.ccs.tencentyun.com/kidoneself/dockpilot:latest
+            
+            # 热更新版本
+            docker pull ccr.ccs.tencentyun.com/kidoneself/dockpilot-hot:latest
+            ```
+            
+            #### 2. 热更新部署
+            下载下方的代码包，通过DockPilot管理界面进行热更新。
+            
+            #### 3. 手动部署
+            下载前后端代码包进行手动部署。
+            
+          files: |
+            frontend.tar.gz
+            backend.jar 
