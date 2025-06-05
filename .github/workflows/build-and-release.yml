@@ -230,7 +230,7 @@ jobs:
           
           #### 方式一：直接部署热更新镜像
           \`\`\`bash
-          # 拉取并部署最新版本
+          # Docker Hub（国际用户）
           docker run -d --privileged \\
             --name dockpilot \\
             -p 8888:8888 \\
@@ -240,6 +240,17 @@ jobs:
             -e DOCKPILOT_VERSION=$VERSION \\
             --restart unless-stopped \\
             kidself/dockpilot:latest
+          
+          # 腾讯云TCR（国内用户推荐，速度更快）
+          docker run -d --privileged \\
+            --name dockpilot \\
+            -p 8888:8888 \\
+            -v /var/run/docker.sock:/var/run/docker.sock \\
+            -v /:/mnt/host \\
+            -v /home/dockpilot:/dockpilot \\
+            -e DOCKPILOT_VERSION=$VERSION \\
+            --restart unless-stopped \\
+            ccr.ccs.tencentyun.com/kidoneself/dockpilot:latest
           \`\`\`
           
           #### 方式二：在现有容器中手动更新
@@ -358,6 +369,13 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: 🔐 登录腾讯云TCR
+        uses: docker/login-action@v3
+        with:
+          registry: ccr.ccs.tencentyun.com
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
+
       - name: 📋 获取版本号
         id: version
         run: |
@@ -368,7 +386,7 @@ jobs:
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: 🐳 构建并推送热更新镜像（内置代码版本）
+      - name: 🐳 构建并推送热更新镜像（双镜像仓库）
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -377,6 +395,9 @@ jobs:
           push: true
           tags: |
             kidself/dockpilot:latest
+            kidself/dockpilot:${{ steps.version.outputs.VERSION }}
+            ccr.ccs.tencentyun.com/kidoneself/dockpilot:latest
+            ccr.ccs.tencentyun.com/kidoneself/dockpilot:${{ steps.version.outputs.VERSION }}
           build-args: |
             VERSION=${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
@@ -386,13 +407,13 @@ jobs:
         run: |
           echo "🐳 DockPilot镜像构建完成！"
           echo "📋 镜像信息:"
-          echo "  仓库: kidself/dockpilot"
-          echo "  标签: latest"
+          echo "  Docker Hub: kidself/dockpilot:latest, kidself/dockpilot:${{ steps.version.outputs.VERSION }}"
+          echo "  腾讯云TCR: ccr.ccs.tencentyun.com/kidoneself/dockpilot:latest"
           echo "  平台: linux/amd64, linux/arm64"
           echo "  特性: 内置代码 + 热更新能力"
           echo ""
           echo "🚀 使用方法:"
-          echo "  # 推荐方式（latest即热更新版）"
+          echo "  # Docker Hub（国际用户）"
           echo "  docker run -d --privileged --name dockpilot \\"
           echo "    -p 8888:8888 \\"
           echo "    -v /var/run/docker.sock:/var/run/docker.sock \\"
@@ -401,8 +422,18 @@ jobs:
           echo "    --restart unless-stopped \\"
           echo "    kidself/dockpilot:latest"
           echo ""
+          echo "  # 腾讯云TCR（国内用户推荐）"
+          echo "  docker run -d --privileged --name dockpilot \\"
+          echo "    -p 8888:8888 \\"
+          echo "    -v /var/run/docker.sock:/var/run/docker.sock \\"
+          echo "    -v /:/mnt/host \\"
+          echo "    -v /home/dockpilot:/dockpilot \\"
+          echo "    --restart unless-stopped \\"
+          echo "    ccr.ccs.tencentyun.com/kidoneself/dockpilot:latest"
+          echo ""
           echo "🛡️ 新特性:"
           echo "  • 镜像内置当前最新代码，启动即可用"
           echo "  • 支持热更新到更新版本"
           echo "  • 网络故障时自动fallback到内置版本"
-          echo "  • 双重保险，确保服务可用性" 
+          echo "  • 双重保险，确保服务可用性"
+          echo "  • 双镜像仓库，国内外用户都有最佳体验" 
