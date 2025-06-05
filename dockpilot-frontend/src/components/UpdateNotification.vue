@@ -1,15 +1,15 @@
-<!-- 现代化的关于项目组件 -->
+<!-- 简洁的升级提示组件 -->
 <template>
-  <div class="about-notification">
-    <!-- 现代化的关于按钮 -->
-    <div class="about-button-container">
+  <div class="update-notification">
+    <!-- 升级提示按钮 -->
+    <div class="update-button-container">
       <n-tooltip trigger="hover" placement="bottom">
         <template #trigger>
           <n-button 
             text
-            class="about-button"
+            class="update-button"
             :class="{ 'has-update': hasUpdate }"
-            @click="showAboutDialog = true"
+            @click="showUpgradeModal = true"
           >
             <template #icon>
               <n-icon size="16" :component="InformationCircleOutline" />
@@ -25,275 +25,151 @@
         </div>
       </n-tooltip>
       
-      <!-- 现代化更新提示 -->
+      <!-- 更新提示指示器 -->
       <div v-if="hasUpdate && !isDownloading" class="update-indicator">
         <div class="update-dot"></div>
         <div class="update-ring"></div>
       </div>
     </div>
 
-    <!-- 现代化关于项目对话框 -->
-    <n-modal 
-      v-model:show="showAboutDialog" 
-      preset="card"
-      title=""
-      style="width: 600px; max-width: 90vw"
-      :bordered="false"
-      class="about-modal"
-    >
-      <div class="about-content">
-        <!-- 现代化项目头部 -->
-        <div class="project-header">
-          <div class="header-background">
-            <div class="gradient-bg"></div>
-            <div class="pattern-overlay"></div>
-          </div>
-          <div class="header-content">
-            <div class="logo-container">
-              <img 
-                src="/logo.svg" 
-                class="project-logo" 
-                alt="DockPilot"
-              />
-              <div class="logo-glow"></div>
-            </div>
-            <div class="project-info">
-              <h1 class="project-title">DockPilot</h1>
-              <div class="version-badge">{{ displayVersion }}</div>
-              <p class="project-description">现代化 Docker 容器管理平台</p>
-              <div class="status-indicator">
-                <div v-if="hasUpdate" class="status-badge update-available">
-                  <n-icon :component="InformationCircleOutline" />
-                  <span>有新版本可用</span>
-                </div>
-                <div v-else-if="isDownloading" class="status-badge downloading">
-                  <div class="loading-spinner"></div>
-                  <span>下载中</span>
-                </div>
-                <div v-else-if="updateStage === 'ready-to-restart'" class="status-badge ready">
-                  <n-icon :component="InformationCircleOutline" />
-                  <span>可以重启</span>
-                </div>
-                <div v-else class="status-badge latest">
-                  <n-icon :component="InformationCircleOutline" />
-                  <span>最新版本</span>
-                </div>
-              </div>
-            </div>
-          </div>
+    <!-- 升级提示弹窗 -->
+    <div v-if="showUpgradeModal" class="modal-overlay" @click="closeModal">
+      <div class="modal" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">🚀 升级提示</h2>
+          <button class="close-btn" @click="closeModal">&times;</button>
         </div>
-
-        <!-- 功能特性卡片 -->
-        <div class="features-grid">
-          <div class="feature-card">
-            <div class="feature-icon">🐳</div>
-            <h3>容器管理</h3>
-            <p>直观的 Docker 容器管理界面</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">🔄</div>
-            <h3>热更新</h3>
-            <p>无需重新部署的在线更新</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">📊</div>
-            <h3>实时监控</h3>
-            <p>容器状态实时监控展示</p>
-          </div>
-        </div>
-
-        <!-- 版本更新区域 -->
-        <div class="update-section">
-          <!-- 发现新版本 -->
-          <div v-if="updateStage === 'ready-to-download'" class="update-card">
-            <div class="update-header">
-              <div class="update-icon new-version">🎉</div>
-              <div class="update-info">
-                <h3>发现新版本</h3>
-                <p>{{ updateInfo?.latestVersion }} 版本已发布</p>
-              </div>
-            </div>
-            <div class="update-actions">
-              <n-button
-type="primary"
-size="medium"
-class="primary-action"
-@click="startDownload">
-                立即下载
-              </n-button>
-              <n-button size="medium" class="secondary-action" @click="recheckUpdate">
-                重新检查
-              </n-button>
-            </div>
+        <div class="modal-content">
+          <div class="project-info">
+            <h3>系统名称：DockPilot 容器管理平台</h3>
+            <p>这是一个现代化的 Docker 容器管理平台，支持容器管理、镜像管理、实时监控、热更新等功能。</p>
           </div>
           
-          <!-- 下载中 -->
-          <div v-else-if="updateStage === 'downloading'" class="update-card downloading">
-            <div class="update-header">
-              <div class="update-icon downloading">
-                <div class="download-spinner"></div>
-              </div>
-              <div class="update-info">
-                <h3>正在下载新版本</h3>
-                <p>{{ downloadStatus.message }}</p>
-              </div>
-            </div>
+          <!-- 根据更新状态显示不同内容 -->
+          <div v-if="updateStage === 'ready-to-download'" class="project-info">
+            <h3>本次更新</h3>
+            <ul>
+              <li>新增系统资源监控图表</li>
+              <li>优化容器管理界面</li>
+              <li>增强镜像更新功能</li>
+              <li>修复部分安全性问题</li>
+            </ul>
+          </div>
+          
+          <!-- 下载中状态 -->
+          <div v-else-if="updateStage === 'downloading'" class="download-section">
+            <h3>正在下载更新</h3>
             <div class="progress-container">
               <n-progress 
                 :percentage="downloadStatus.progress" 
                 :status="getProgressStatus()" 
-                :show-indicator="false"
-                class="custom-progress"
+                :show-indicator="true"
               />
-              <div class="progress-text">{{ downloadStatus.progress }}%</div>
-            </div>
-            <div class="download-note">
-              <n-icon :component="InformationCircleOutline" />
-              <span>服务正常运行，可继续使用</span>
-            </div>
-            <div class="update-actions">
-              <n-button
-size="medium"
-:loading="cancelling"
-class="cancel-action"
-@click="cancelDownload">
-                取消下载
-              </n-button>
-            </div>
-          </div>
-
-          <!-- 下载完成，等待重启确认 -->
-          <div v-else-if="updateStage === 'ready-to-restart'" class="update-card completed">
-            <div class="update-header">
-              <div class="update-icon completed">✅</div>
-              <div class="update-info">
-                <h3>新版本下载完成</h3>
-                <p>版本 {{ downloadStatus.version }} 已准备就绪</p>
-              </div>
-            </div>
-            <div class="restart-container">
-              <div class="restart-options">
-                <n-button
-type="primary"
-size="medium"
-:loading="restarting"
-class="restart-action"
-@click="confirmRestart">
-                  立即重启更新
-                </n-button>
-                <n-button size="medium" class="later-action" @click="laterRestart">
-                  稍后重启
-                </n-button>
-              </div>
-              <div class="restart-note">
-                <n-icon :component="InformationCircleOutline" />
-                <span>重启前服务保持正常运行</span>
-              </div>
+              <div class="progress-message">{{ downloadStatus.message }}</div>
             </div>
           </div>
           
-          <!-- 重启中 -->
-          <div v-else-if="updateStage === 'restarting'" class="update-card restarting">
-            <div class="update-header">
-              <div class="update-icon restarting">
-                <div class="restart-spinner"></div>
-              </div>
-              <div class="update-info">
-                <h3>正在重启更新</h3>
-                <p>预计30秒完成，页面将自动刷新</p>
-              </div>
-            </div>
+          <!-- 准备重启状态 -->
+          <div v-else-if="updateStage === 'ready-to-restart'" class="restart-section">
+            <h3>更新下载完成</h3>
+            <p>新版本 {{ downloadStatus.version }} 已下载完成，点击"立即升级"重启应用以完成更新。</p>
+          </div>
+          
+          <!-- 重启中状态 -->
+          <div v-else-if="updateStage === 'restarting'" class="restarting-section">
+            <h3>正在重启更新</h3>
             <div class="progress-container">
               <n-progress 
                 :percentage="restartProgress" 
                 status="info"
-                :show-indicator="false"
-                class="custom-progress"
+                :show-indicator="true"
               />
-              <div class="progress-text">{{ restartProgress }}%</div>
-            </div>
-          </div>
-
-          <!-- 下载失败 -->
-          <div v-else-if="updateStage === 'download-failed'" class="update-card failed">
-            <div class="update-header">
-              <div class="update-icon failed">❌</div>
-              <div class="update-info">
-                <h3>下载失败</h3>
-                <p>{{ downloadStatus.message }}</p>
-              </div>
-            </div>
-            <div class="update-actions">
-              <n-button
-type="primary"
-size="medium"
-class="retry-action"
-@click="retryDownload">
-                重试下载
-              </n-button>
-              <n-button size="medium" class="cancel-action" @click="resetUpdateStage">
-                取消
-              </n-button>
+              <div class="progress-message">预计30秒完成，页面将自动刷新</div>
             </div>
           </div>
           
-          <!-- 正常状态 -->
-          <div v-else class="update-card normal">
-            <div class="check-update-container">
-              <n-button 
-                type="primary" 
-                size="medium" 
-                :loading="checking" 
-                class="check-update-btn"
-                @click="checkForUpdates"
-              >
-                <template #icon>
-                  <n-icon :component="InformationCircleOutline" />
-                </template>
-                检查更新
-              </n-button>
-              <div v-if="updateInfo && !hasUpdate" class="up-to-date">
-                <div class="up-to-date-icon">✅</div>
-                <span>当前已是最新版本</span>
+          <!-- 下载失败状态 -->
+          <div v-else-if="updateStage === 'download-failed'" class="error-section">
+            <h3>下载失败</h3>
+            <p class="error-message">{{ downloadStatus.message }}</p>
+          </div>
+          
+          <!-- 默认状态：检查更新 -->
+          <div v-else class="check-section">
+            <h3>检查更新</h3>
+            <p>点击下方按钮检查是否有新版本可用。</p>
+          </div>
+          
+          <!-- GitHub Star 链接 -->
+          <a class="github-star" href="https://github.com/kidoneself/DockPilot" target="_blank">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            点个 Star 支持一下！
+          </a>
+          
+          <!-- 联系方式区域 -->
+          <div class="contact-section">
+            <h4>联系作者</h4>
+            <div class="contact-links">
+              <!-- 微信联系 -->
+              <div class="contact-item" @click="showWechatQR = true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.171 4.203 3.002 5.55l-.568 2.273 2.778-1.555c.935.193 1.902.193 2.837 0C9.967 16.757 12.188 18.188 15.188 18.188c.339 0 .677-.016 1.016-.048-.271-.839-.419-1.727-.419-2.639 0-4.054 3.891-7.342 8.691-7.342.295 0 .588.016.881.048C24.66 5.166 21.743 2.188 8.691 2.188z"/>
+                  <circle cx="6.188" cy="9.53" r="0.97"/>
+                  <circle cx="11.188" cy="9.53" r="0.97"/>
+                </svg>
+                <span>微信群</span>
               </div>
+              
+              <!-- Telegram群组 -->
+              <a class="contact-item" href="https://t.me/dockpilot" target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                </svg>
+                <span>Telegram 群组</span>
+              </a>
             </div>
           </div>
-        </div>
-
-        <!-- 现代化作者信息 -->
-        <div class="author-section">
-          <div class="author-card">
-            <div class="author-avatar">👨‍💻</div>
-            <div class="author-info">
-              <h3>kidoneself</h3>
-              <p class="author-title">项目开发者</p>
-              <div class="github-link" @click="openGithub">
-                <svg class="github-icon" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                </svg>
-                <span>GitHub</span>
-                <svg class="external-icon" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3m-2 16H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7z"/>
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 现代化支持区域 -->
-        <div class="support-section">
-          <div class="support-card">
-            <div class="support-content">
-              <div class="support-icon">🙏</div>
-              <div class="support-text">
-                <h3>支持项目</h3>
-                <p>如果项目对你有帮助，欢迎 Star ⭐ 或打赏支持开发</p>
-              </div>
-            </div>
+          
+          <!-- 操作按钮 -->
+          <div class="modal-actions">
+            <button 
+              class="btn btn-secondary" 
+              @click="handleSecondaryAction"
+              :disabled="isDownloading || updateStage === 'restarting'"
+            >
+              {{ getSecondaryButtonText() }}
+            </button>
+            <button 
+              class="btn btn-primary" 
+              @click="handlePrimaryAction"
+              :disabled="updateStage === 'restarting'"
+            >
+              {{ getPrimaryButtonText() }}
+            </button>
           </div>
         </div>
       </div>
-    </n-modal>
+    </div>
+    
+    <!-- 微信二维码弹窗 -->
+    <div v-if="showWechatQR" class="qr-overlay" @click="showWechatQR = false">
+      <div class="qr-modal" @click.stop>
+        <div class="qr-header">
+          <h3>微信群</h3>
+          <button class="close-btn" @click="showWechatQR = false">&times;</button>
+        </div>
+        <div class="qr-content">
+          <!-- 微信二维码图片 -->
+          <div class="qr-placeholder">
+            <img src="/wechat-qr.png" alt="微信群二维码" class="qr-image" />
+          </div>
+          <p>扫描二维码加入微信群</p>
+          <p class="wechat-id">DockPilot 用户交流群</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -316,7 +192,8 @@ import {
 const message = useMessage()
 
 // 响应式数据
-const showAboutDialog = ref(false)
+const showUpgradeModal = ref(false)
+const showWechatQR = ref(false)
 const checking = ref(false)
 const cancelling = ref(false)
 const restarting = ref(false)
@@ -334,16 +211,84 @@ const restartProgress = ref(0)
 
 // 定时器
 let downloadTimer: NodeJS.Timeout | null = null
-const restartTimer: NodeJS.Timeout | null = null
 
 // 计算属性
 const hasUpdate = computed(() => updateInfo.value?.hasUpdate || false)
 const isDownloading = computed(() => updateStage.value === 'downloading')
 const displayVersion = computed(() => currentVersion.value)
 
-// 方法
-const openGithub = () => {
-  window.open('https://github.com/kidoneself/DockPilot', '_blank')
+// 关闭弹窗
+const closeModal = () => {
+  if (updateStage.value === 'downloading' || updateStage.value === 'restarting') {
+    message.info('更新进行中，请稍候...')
+    return
+  }
+  showUpgradeModal.value = false
+}
+
+// 获取按钮文本
+const getSecondaryButtonText = () => {
+  switch (updateStage.value) {
+    case 'downloading':
+      return '取消下载'
+    case 'download-failed':
+      return '取消'
+    case 'ready-to-restart':
+      return '稍后重启'
+    default:
+      return '以后再说'
+  }
+}
+
+const getPrimaryButtonText = () => {
+  switch (updateStage.value) {
+    case 'ready-to-download':
+      return '立即下载'
+    case 'downloading':
+      return '下载中...'
+    case 'ready-to-restart':
+      return '立即升级'
+    case 'restarting':
+      return '重启中...'
+    case 'download-failed':
+      return '重试下载'
+    default:
+      return '检查更新'
+  }
+}
+
+// 处理次要操作按钮
+const handleSecondaryAction = async () => {
+  switch (updateStage.value) {
+    case 'downloading':
+      await cancelDownload()
+      break
+    case 'download-failed':
+      resetUpdateStage()
+      break
+    case 'ready-to-restart':
+      laterRestart()
+      break
+    default:
+      closeModal()
+  }
+}
+
+// 处理主要操作按钮
+const handlePrimaryAction = async () => {
+  switch (updateStage.value) {
+    case 'ready-to-download':
+      await startDownload()
+      break
+    case 'ready-to-restart':
+      await confirmRestart()
+      break
+    case 'download-failed':
+      await retryDownload()
+      break
+    default:
+      await checkForUpdates()
+  }
 }
 
 // 检查更新
@@ -372,12 +317,6 @@ const checkForUpdates = async () => {
   } finally {
     checking.value = false
   }
-}
-
-const recheckUpdate = async () => {
-  updateInfo.value = null
-  updateStage.value = 'idle'
-  await checkForUpdates()
 }
 
 // 开始下载
@@ -471,7 +410,7 @@ const confirmRestart = async () => {
 // 稍后重启
 const laterRestart = () => {
   message.info('新版本已就绪，您可以稍后重启更新')
-  showAboutDialog.value = false
+  showUpgradeModal.value = false
 }
 
 // 重试下载
@@ -565,23 +504,20 @@ onUnmounted(() => {
   if (downloadTimer) {
     clearInterval(downloadTimer)
   }
-  if (restartTimer) {
-    clearInterval(restartTimer)
-  }
 })
 </script>
 
 <style scoped>
-.about-notification {
+.update-notification {
   position: relative;
 }
 
-.about-button-container {
+.update-button-container {
   position: relative;
   display: inline-block;
 }
 
-.about-button {
+.update-button {
   font-size: 12px;
   color: var(--n-text-color-2);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -589,13 +525,13 @@ onUnmounted(() => {
   padding: 4px 8px;
 }
 
-.about-button:hover {
+.update-button:hover {
   color: var(--n-color-primary);
   background: rgba(64, 158, 255, 0.1);
   transform: translateY(-1px);
 }
 
-.about-button.has-update {
+.update-button.has-update {
   color: var(--n-color-warning);
   font-weight: 500;
   background: rgba(240, 160, 32, 0.1);
@@ -674,578 +610,341 @@ onUnmounted(() => {
   color: var(--n-color-success);
 }
 
-/* 模态框样式 */
-:deep(.about-modal .n-card) {
-  border-radius: 16px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  background: var(--n-color);
-}
-
-:deep(.about-modal .n-card-header) {
-  display: none;
-}
-
-.about-content {
-  max-height: 80vh;
-  overflow-y: auto;
-  margin: -24px;
-}
-
-/* 项目头部样式 */
-.project-header {
-  position: relative;
-  padding: 40px 24px;
-  overflow: hidden;
-}
-
-.header-background {
-  position: absolute;
+/* 弹窗样式 - 参考1.html设计 */
+.modal-overlay {
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 0;
-}
-
-.gradient-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, 
-    #2c2c2c 0%, 
-    #1a1a1a 100%);
-}
-
-.pattern-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: 
-    radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.05) 2px, transparent 2px),
-    radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.05) 2px, transparent 2px);
-  background-size: 60px 60px;
-  opacity: 0.4;
-}
-
-.header-content {
-  position: relative;
-  z-index: 1;
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
-  gap: 24px;
-  color: white;
+  justify-content: center;
+  z-index: 999;
 }
 
-.logo-container {
-  position: relative;
-}
-
-.project-logo {
-  width: 64px;
-  height: 64px;
+.modal {
+  background: var(--n-color);
+  padding: 2rem;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 8px;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  max-width: 600px;
+  width: 90%;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  position: relative;
+  max-height: 80vh;
+  overflow-y: auto;
 }
 
-.logo-glow {
-  position: absolute;
-  top: -4px;
-  left: -4px;
-  right: -4px;
-  bottom: -4px;
-  background: linear-gradient(45deg, #404040, #2a2a2a);
-  border-radius: 20px;
-  opacity: 0.3;
-  filter: blur(8px);
-  z-index: -1;
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+  color: var(--n-text-color);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--n-text-color-2);
+  border-radius: 4px;
+  padding: 4px;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: var(--n-color-hover);
+  color: var(--n-text-color);
+}
+
+.modal-content {
+  margin-top: 1rem;
 }
 
 .project-info {
-  flex: 1;
+  margin-bottom: 1.5rem;
 }
 
-.project-title {
-  font-size: 28px;
-  font-weight: 700;
-  margin: 0 0 8px 0;
-  background: linear-gradient(45deg, #ffffff, #f0f0f0);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.project-info h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.2rem;
+  color: var(--n-text-color);
 }
 
-.version-badge {
-  display: inline-block;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 8px;
+.project-info p {
+  margin: 0;
+  color: var(--n-text-color-2);
+  line-height: 1.6;
 }
 
-.project-description {
-  font-size: 16px;
-  opacity: 0.9;
-  margin: 0 0 16px 0;
+.project-info ul {
+  margin: 0.5rem 0 0 1rem;
+  color: var(--n-text-color-2);
+}
+
+.project-info li {
+  margin-bottom: 0.25rem;
   line-height: 1.5;
 }
 
-.status-indicator {
-  display: flex;
-  align-items: center;
+/* 状态区域样式 */
+.download-section,
+.restart-section,
+.restarting-section,
+.error-section,
+.check-section {
+  margin-bottom: 1.5rem;
 }
 
-.status-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.15);
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.status-badge.update-available {
-  background: rgba(240, 160, 32, 0.2);
-  border-color: rgba(240, 160, 32, 0.3);
-}
-
-.status-badge.downloading {
-  background: rgba(64, 158, 255, 0.2);
-  border-color: rgba(64, 158, 255, 0.3);
-}
-
-.status-badge.ready {
-  background: rgba(24, 160, 88, 0.2);
-  border-color: rgba(24, 160, 88, 0.3);
-}
-
-.loading-spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* 功能特性网格 */
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 16px;
-  padding: 24px;
-  background: var(--n-color-hover);
-}
-
-.feature-card {
-  background: var(--n-color);
-  padding: 20px;
-  border-radius: 12px;
-  text-align: center;
-  transition: all 0.3s ease;
-  border: 1px solid var(--n-border-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.feature-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-}
-
-.feature-icon {
-  font-size: 24px;
-  margin-bottom: 12px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.feature-card h3 {
-  font-size: 14px;
-  font-weight: 600;
-  margin: 0 0 8px 0;
+.download-section h3,
+.restart-section h3,
+.restarting-section h3,
+.error-section h3,
+.check-section h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.2rem;
   color: var(--n-text-color);
-}
-
-.feature-card p {
-  font-size: 12px;
-  color: var(--n-text-color-2);
-  margin: 0;
-  line-height: 1.4;
-}
-
-/* 更新区域 */
-.update-section {
-  padding: 24px;
-}
-
-.update-card {
-  background: var(--n-color);
-  border-radius: 12px;
-  padding: 24px;
-  border: 1px solid var(--n-border-color);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-  transition: all 0.3s ease;
-}
-
-.update-card.downloading {
-  border-color: rgba(64, 158, 255, 0.2);
-  background: var(--n-color);
-}
-
-.update-card.completed {
-  border-color: rgba(24, 160, 88, 0.2);
-  background: var(--n-color);
-}
-
-.update-card.failed {
-  border-color: rgba(245, 108, 108, 0.2);
-  background: var(--n-color);
-}
-
-.update-card.restarting {
-  border-color: rgba(64, 158, 255, 0.2);
-  background: var(--n-color);
-}
-
-.update-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.update-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  font-weight: bold;
-}
-
-.update-icon.new-version {
-  background: linear-gradient(135deg, #f0a020, #ff8a8a);
-  color: white;
-  box-shadow: 0 4px 12px rgba(240, 160, 32, 0.3);
-}
-
-.update-icon.downloading {
-  background: linear-gradient(135deg, #409eff, #66b3ff);
-  color: white;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
-}
-
-.update-icon.completed {
-  background: linear-gradient(135deg, #18a058, #4ade80);
-  color: white;
-  box-shadow: 0 4px 12px rgba(24, 160, 88, 0.3);
-}
-
-.update-icon.failed {
-  background: linear-gradient(135deg, #f56c6c, #ff8a8a);
-  color: white;
-  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3);
-}
-
-.update-icon.restarting {
-  background: linear-gradient(135deg, #409eff, #66b3ff);
-  color: white;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
-}
-
-.download-spinner, .restart-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.update-info h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0 0 4px 0;
-  color: var(--n-text-color);
-}
-
-.update-info p {
-  font-size: 14px;
-  color: var(--n-text-color-2);
-  margin: 0;
-  line-height: 1.4;
-}
-
-.update-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
 .progress-container {
-  position: relative;
-  margin: 16px 0;
+  margin: 1rem 0;
 }
 
-:deep(.custom-progress .n-progress-graph) {
-  height: 8px;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-:deep(.custom-progress .n-progress-graph-line-fill) {
-  background: linear-gradient(90deg, #409eff, #66b3ff);
-  border-radius: 4px;
-}
-
-.progress-text {
-  position: absolute;
-  right: 0;
-  top: -20px;
-  font-size: 12px;
+.progress-message {
+  margin-top: 0.5rem;
+  font-size: 14px;
   color: var(--n-text-color-2);
-  font-weight: 600;
-}
-
-.download-note, .restart-note {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 12px 0;
-  padding: 8px 12px;
-  background: rgba(24, 160, 88, 0.1);
-  border-radius: 8px;
-  font-size: 12px;
-  color: var(--n-color-success);
-}
-
-.restart-container {
-  margin-top: 16px;
-}
-
-.restart-options {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.check-update-container {
   text-align: center;
-  padding: 20px 0;
 }
 
-.check-update-btn {
-  margin-bottom: 16px;
-}
-
-.up-to-date {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--n-color-success);
-  font-size: 14px;
-}
-
-.up-to-date-icon {
-  font-size: 16px;
-}
-
-/* 按钮样式 */
-.primary-action, .restart-action, .retry-action {
-  background: linear-gradient(135deg, #409eff, #66b3ff);
-  border: none;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
-  transition: all 0.3s ease;
-}
-
-.primary-action:hover, .restart-action:hover, .retry-action:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.4);
-}
-
-.secondary-action, .later-action {
-  background: var(--n-color-hover);
-  border: 1px solid var(--n-border-color);
-  color: var(--n-text-color);
-  transition: all 0.3s ease;
-}
-
-.secondary-action:hover, .later-action:hover {
-  background: var(--n-color-pressed);
-  transform: translateY(-1px);
-}
-
-.cancel-action {
-  background: var(--n-color-hover);
-  border: 1px solid rgba(245, 108, 108, 0.2);
+.error-message {
   color: var(--n-color-error);
-  transition: all 0.3s ease;
+  margin: 0;
+  line-height: 1.6;
 }
 
-.cancel-action:hover {
-  background: rgba(245, 108, 108, 0.1);
+/* GitHub Star 链接 */
+.github-star {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.5rem 0;
+  color: #333;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0.5rem;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.github-star:hover {
+  background: #f5f5f5;
+  color: #007bff;
+}
+
+.github-star svg {
+  width: 24px;
+  height: 24px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  gap: 1rem;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s;
+  font-size: 14px;
+  min-width: 120px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+  border: 2px solid #007bff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #0056b3;
+  border-color: #0056b3;
   transform: translateY(-1px);
 }
 
-/* 作者信息 */
-.author-section {
-  padding: 24px;
-  background: var(--n-color-hover);
+.btn-secondary {
+  background-color: #28a745;
+  color: white;
+  border: 2px solid #28a745;
 }
 
-.author-card {
-  background: var(--n-color);
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-  border: 1px solid var(--n-border-color);
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  transition: all 0.3s ease;
+.btn-secondary:hover:not(:disabled) {
+  background-color: #218838;
+  border-color: #218838;
+  transform: translateY(-1px);
 }
 
-.author-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+/* 联系方式区域样式 */
+.contact-section {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
-.author-avatar {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #404040, #2a2a2a);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.author-info h3 {
-  font-size: 18px;
+.contact-section h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
   font-weight: 600;
-  margin: 0 0 4px 0;
   color: var(--n-text-color);
 }
 
-.author-title {
-  font-size: 14px;
-  color: var(--n-text-color-2);
-  margin: 0 0 12px 0;
+.contact-links {
+  display: flex;
+  gap: 1rem;
 }
 
-.github-link {
+.contact-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--n-color-primary);
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
   cursor: pointer;
+  color: #666;
+  text-decoration: none;
+  transition: all 0.2s;
+  background: #f9f9f9;
+}
+
+.contact-item:hover {
+  color: #007bff;
+  border-color: #007bff;
+  background: #f0f7ff;
+  transform: translateY(-1px);
+}
+
+.contact-item svg {
+  width: 20px;
+  height: 20px;
+}
+
+.contact-item span {
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.3s ease;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(64, 158, 255, 0.1);
-  width: fit-content;
 }
 
-.github-link:hover {
-  background: rgba(64, 158, 255, 0.2);
-  transform: translateX(4px);
-}
-
-.github-icon, .external-icon {
-  width: 16px;
-  height: 16px;
-}
-
-/* 支持区域 */
-.support-section {
-  padding: 24px;
-}
-
-.support-card {
-  background: linear-gradient(135deg, #2c2c2c, #1a1a1a);
-  border-radius: 12px;
-  padding: 24px;
-  color: white;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-}
-
-.support-content {
+/* 微信二维码弹窗样式 */
+.qr-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: center;
+  z-index: 999;
 }
 
-.support-icon {
-  font-size: 32px;
-  opacity: 0.9;
+.qr-modal {
+  background: var(--n-color);
+  padding: 2rem;
+  border-radius: 16px;
+  max-width: 600px;
+  width: 90%;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  position: relative;
+  max-height: 80vh;
+  overflow-y: auto;
 }
 
-.support-text h3 {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0 0 4px 0;
+.qr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
 }
 
-.support-text p {
-  font-size: 14px;
+.qr-header h3 {
+  font-size: 1.5rem;
+  font-weight: bold;
   margin: 0;
-  opacity: 0.9;
-  line-height: 1.4;
+  color: var(--n-text-color);
 }
 
-/* 响应式设计 */
-@media (max-width: 600px) {
-  .header-content {
-    flex-direction: column;
-    text-align: center;
-    gap: 16px;
-  }
-  
-  .features-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .author-card {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .support-content {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .update-actions, .restart-options {
-    flex-direction: column;
-  }
+.qr-header .close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--n-text-color-2);
+  border-radius: 4px;
+  padding: 4px;
+  transition: all 0.2s;
+}
+
+.qr-header .close-btn:hover {
+  background: var(--n-color-hover);
+  color: var(--n-text-color);
+}
+
+.qr-content {
+  text-align: center;
+}
+
+.qr-placeholder {
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.qr-image {
+  width: 200px;
+  height: 200px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.qr-placeholder svg {
+  width: 200px;
+  height: 200px;
+}
+
+.qr-content p {
+  margin: 0.5rem 0;
+  color: var(--n-text-color-2);
+  line-height: 1.6;
+}
+
+.wechat-id {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: #f0f7ff;
+  border: 1px solid #007bff;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #007bff;
+  display: inline-block;
 }
 </style> 
