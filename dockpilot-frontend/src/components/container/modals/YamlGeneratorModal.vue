@@ -64,8 +64,8 @@
         <NSpace>
           <NButton 
             size="small" 
-            @click="editableMode = !editableMode"
             :type="editableMode ? 'warning' : 'default'"
+            @click="editableMode = !editableMode"
           >
             <template #icon>
               <n-icon><CreateOutline /></n-icon>
@@ -131,13 +131,17 @@
         />
         
         <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
-          <NButton size="small" type="primary" @click="applyYamlChanges" :disabled="!hasUnsavedChanges">
+          <NButton
+size="small"
+type="primary"
+:disabled="!hasUnsavedChanges"
+@click="applyYamlChanges">
             <template #icon>
               <n-icon><CheckmarkOutline /></n-icon>
             </template>
             应用修改
           </NButton>
-          <NButton size="small" @click="resetYamlChanges" :disabled="!hasUnsavedChanges">
+          <NButton size="small" :disabled="!hasUnsavedChanges" @click="resetYamlChanges">
             <template #icon>
               <n-icon><RefreshOutline /></n-icon>
             </template>
@@ -149,7 +153,7 @@
             </template>
             验证语法
           </NButton>
-          <NButton size="small" @click="insertTemplate" type="default">
+          <NButton size="small" type="default" @click="insertTemplate">
             <template #icon>
               <n-icon><AddOutline /></n-icon>
             </template>

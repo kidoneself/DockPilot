@@ -1,14 +1,14 @@
 <template>
   <div class="navigation-home">
     <!-- 固定背景 -->
-    <div class="navigation-background" ref="navigationBackgroundRef"></div>
+    <div ref="navigationBackgroundRef" class="navigation-background"></div>
     
     <!-- 背景装饰 -->
     <div class="bg-decoration">
       <div class="bg-gradient"></div>
     </div>
 
-    <div class="main-content" v-show="!pageLoading">
+    <div v-show="!pageLoading" class="main-content">
       <!-- 顶部区域 -->
       <header class="top-header">
         <div class="header-left">
@@ -39,10 +39,10 @@
               size="small"
               quaternary
               circle
-              @click="refreshBackground"
               :loading="refreshingBackground"
               :title="refreshingBackground ? '正在刷新背景...' : '刷新背景'"
               class="refresh-bg-toggle-btn"
+              @click="refreshBackground"
             >
               <template #icon>
                 <n-icon :size="16" :component="RefreshOutline" />
@@ -56,9 +56,9 @@
               size="small"
               quaternary
               circle
-              @click="toggleNetworkMode"
               :title="isInternalMode ? '当前：内网模式，点击切换到外网' : '当前：外网模式，点击切换到内网'"
               class="mode-toggle-btn"
+              @click="toggleNetworkMode"
             >
               <template #icon>
                 <n-icon :size="16" :component="isInternalMode ? WifiOutline : GlobeOutline" />

@@ -7,9 +7,9 @@
         <template #trigger>
           <n-button 
             text
-            @click="showAboutDialog = true"
             class="about-button"
             :class="{ 'has-update': hasUpdate }"
+            @click="showAboutDialog = true"
           >
             <template #icon>
               <n-icon size="16" :component="InformationCircleOutline" />
@@ -114,10 +114,14 @@
               </div>
             </div>
             <div class="update-actions">
-              <n-button type="primary" size="medium" @click="startDownload" class="primary-action">
+              <n-button
+type="primary"
+size="medium"
+class="primary-action"
+@click="startDownload">
                 立即下载
               </n-button>
-              <n-button size="medium" @click="recheckUpdate" class="secondary-action">
+              <n-button size="medium" class="secondary-action" @click="recheckUpdate">
                 重新检查
               </n-button>
             </div>
@@ -148,7 +152,11 @@
               <span>服务正常运行，可继续使用</span>
             </div>
             <div class="update-actions">
-              <n-button size="medium" @click="cancelDownload" :loading="cancelling" class="cancel-action">
+              <n-button
+size="medium"
+:loading="cancelling"
+class="cancel-action"
+@click="cancelDownload">
                 取消下载
               </n-button>
             </div>
@@ -165,10 +173,15 @@
             </div>
             <div class="restart-container">
               <div class="restart-options">
-                <n-button type="primary" size="medium" @click="confirmRestart" :loading="restarting" class="restart-action">
+                <n-button
+type="primary"
+size="medium"
+:loading="restarting"
+class="restart-action"
+@click="confirmRestart">
                   立即重启更新
                 </n-button>
-                <n-button size="medium" @click="laterRestart" class="later-action">
+                <n-button size="medium" class="later-action" @click="laterRestart">
                   稍后重启
                 </n-button>
               </div>
@@ -211,10 +224,14 @@
               </div>
             </div>
             <div class="update-actions">
-              <n-button type="primary" size="medium" @click="retryDownload" class="retry-action">
+              <n-button
+type="primary"
+size="medium"
+class="retry-action"
+@click="retryDownload">
                 重试下载
               </n-button>
-              <n-button size="medium" @click="resetUpdateStage" class="cancel-action">
+              <n-button size="medium" class="cancel-action" @click="resetUpdateStage">
                 取消
               </n-button>
             </div>
@@ -226,9 +243,9 @@
               <n-button 
                 type="primary" 
                 size="medium" 
-                @click="checkForUpdates" 
-                :loading="checking"
+                :loading="checking" 
                 class="check-update-btn"
+                @click="checkForUpdates"
               >
                 <template #icon>
                   <n-icon :component="InformationCircleOutline" />
@@ -317,7 +334,7 @@ const restartProgress = ref(0)
 
 // 定时器
 let downloadTimer: NodeJS.Timeout | null = null
-let restartTimer: NodeJS.Timeout | null = null
+const restartTimer: NodeJS.Timeout | null = null
 
 // 计算属性
 const hasUpdate = computed(() => updateInfo.value?.hasUpdate || false)
@@ -407,8 +424,8 @@ const pollDownloadStatus = () => {
         clearInterval(downloadTimer!)
         message.info('下载已取消')
       }
-    } catch (error) {
-      console.error('获取下载状态失败:', error)
+    } catch {
+      // 继续等待
     }
   }, 2000) // 2秒轮询一次
 }
@@ -496,7 +513,7 @@ const checkServiceRecovery = () => {
       setTimeout(() => {
         window.location.reload()
       }, 1000)
-    } catch (e) {
+    } catch {
       // 继续等待
     }
   }, 3000)

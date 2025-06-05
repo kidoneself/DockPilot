@@ -1,7 +1,7 @@
 import request from '@/utils/request'
 import { sendWebSocketMessage } from '@/api/websocket/websocketService'
 import { MessageType } from '@/api/websocket/types'
-import type { WebSocketCallbacks, DockerWebSocketMessage } from '@/api/websocket/types'
+import type { DockerWebSocketMessage } from '@/api/websocket/types'
 
 // 应用接口类型定义
 export interface Application {
@@ -139,6 +139,15 @@ export const parseZipPackage = (formData: FormData) => {
   })
 }
 
+/**
+ * 从URL获取YAML或ZIP文件
+ */
+export const fetchFromUrl = (url: string) => {
+  return request.post<string>('/api/applications/fetch-from-url', { url }, {
+    timeout: 120000  // URL下载设置1分钟超时
+  })
+}
+
 // 应用部署相关接口
 
 /**
@@ -253,7 +262,7 @@ export function installApplicationWS(params: AppInstallParams, callbacks: AppIns
       onLog: (log: string, taskId: string) => {
         callbacks.onLog?.(log, taskId)
       },
-      onComplete: (data: DockerWebSocketMessage, taskId: string) => {
+      onComplete: (data: DockerWebSocketMessage) => {
         console.log('应用安装完成，返回数据:', data)
         callbacks.onComplete?.(data.data as ApplicationDeployResult)
       },
@@ -261,4 +270,20 @@ export function installApplicationWS(params: AppInstallParams, callbacks: AppIns
     },
     timeout: 600000 // 10分钟超时
   })
+}
+
+// 应用市场相关接口
+
+/**
+ * 获取应用市场源配置
+ */
+export const getMarketSources = () => {
+  return request.get<string>('/api/system/setting/app_market_sources')
+}
+
+/**
+ * 获取应用市场数据
+ */
+export const getMarketApplications = () => {
+  return request.get<(Application & { downloadUrl: string })[]>('/api/applications/marketplace')
 } 

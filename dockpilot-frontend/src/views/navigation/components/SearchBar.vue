@@ -5,9 +5,9 @@
         <!-- 搜索引擎选择器 -->
         <n-dropdown
           :options="searchEngineOptions"
-          @select="handleEngineSelect"
           placement="bottom-start"
           size="small"
+          @select="handleEngineSelect"
         >
           <div 
             class="search-engine-btn-wrapper"
@@ -25,9 +25,9 @@
           size="large"
           :placeholder="currentEngine.placeholder"
           clearable
+          class="search-input"
           @keyup.enter="handleSearch"
           @update:value="handleSearchUpdate"
-          class="search-input"
         >
           <template #prefix>
             <n-icon :component="SearchOutline" />
@@ -37,8 +37,8 @@
               v-if="searchQuery && currentEngine.key !== 'local'"
               text
               size="small"
-              @click="handleSearch"
               class="search-btn"
+              @click="handleSearch"
             >
               搜索
             </n-button>
@@ -52,19 +52,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, markRaw, onMounted, h } from 'vue'
 import { useMessage } from 'naive-ui'
-import { 
-  SearchOutline, 
-  ChevronDownOutline,
-  GlobeOutline,
-  HomeOutline,
-  LogoGoogle,
-  Earth,
-  Globe,
-  Language,
-  FlashOutline,
-  StarOutline,
-  RocketOutline
-} from '@vicons/ionicons5'
+import { SearchOutline, ChevronDownOutline, RocketOutline, FlashOutline, StarOutline, HomeOutline } from '@vicons/ionicons5'
 
 // Props
 interface Props {

@@ -28,8 +28,8 @@
             </NButton>
             <NButton 
               class="action-btn" 
-              @click="toggleMultiSelectMode"
               :type="isMultiSelectMode ? 'warning' : 'default'"
+              @click="toggleMultiSelectMode"
             >
               <template #icon>
                 <n-icon v-if="isMultiSelectMode"><CloseOutline /></n-icon>

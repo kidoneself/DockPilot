@@ -94,9 +94,9 @@
           <n-button 
             type="primary" 
             size="small" 
-            @click="testAutoBackgroundApi"
             :loading="testingApi"
             :disabled="!autoBackgroundApiUrl"
+            @click="testAutoBackgroundApi"
           >
             验证格式
           </n-button>
@@ -348,12 +348,6 @@ const testAutoBackgroundApi = async () => {
   } finally {
     testingApi.value = false
   }
-}
-
-// 显示API测试预览
-const showApiTestPreview = (imageUrl: string) => {
-  // 可以在这里添加预览图片的逻辑
-  console.log('📸 API返回的图片URL:', imageUrl)
 }
 
 // 保存自动背景配置

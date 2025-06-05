@@ -4,20 +4,8 @@
     <div class="store-header">
       <div class="header-left">
         <h1>应用中心</h1>
-        <span class="template-count">{{ templates.length }} 个应用</span>
       </div>
       <div class="header-actions">
-        <n-input 
-          v-model:value="searchText" 
-          placeholder="搜索应用..."
-          style="width: 280px;"
-          clearable
-          @keyup.enter="handleSearch"
-        >
-          <template #prefix>
-            <n-icon><SearchOutline /></n-icon>
-          </template>
-        </n-input>
         <n-button type="primary" size="medium" @click="handleImport">
           <template #icon>
             <n-icon><AddOutline /></n-icon>
@@ -27,78 +15,74 @@
       </div>
     </div>
 
-    <!-- 分类标签 -->
-    <div class="category-tabs">
-      <n-button 
-        :type="selectedCategory === null ? 'primary' : 'tertiary'"
-        @click="() => { selectedCategory = null; handleCategoryChange() }"
-        size="small"
-      >
-        全部
-      </n-button>
-      <n-button 
-        v-for="category in categories"
-        :key="category"
-        :type="selectedCategory === category ? 'primary' : 'tertiary'"
-        @click="() => { selectedCategory = category; handleCategoryChange() }"
-        size="small"
-      >
-        {{ category }}
-      </n-button>
+    <!-- 应用类型切换 -->
+    <div class="app-type-tabs">
+      <n-button-group>
+        <n-button 
+          :type="appType === 'local' ? 'primary' : 'default'"
+          @click="() => { appType = 'local'; handleAppTypeChange() }"
+        >
+          📱 本地应用
+        </n-button>
+        <n-button 
+          :type="appType === 'market' ? 'primary' : 'default'"
+          @click="() => { appType = 'market'; handleAppTypeChange() }"
+        >
+          🏪 应用市场
+        </n-button>
+      </n-button-group>
     </div>
 
     <!-- 模板列表 -->
     <div class="template-list">
       <div 
-        v-for="template in filteredTemplates" 
-        :key="template.id"
-        class="template-item"
+        v-for="(template, index) in filteredTemplates" 
+        :key="template.id || `market-${index}`"
+        class="plugin-card"
+        :style="{ background: getCardGradient(template.id || index, template.name) }"
+        @click="handleDeploy(template)"
       >
-        <div class="template-icon">
+        <!-- 标题和版本 -->
+        <h3 class="plugin-title">{{ template.name }} {{ template.version || 'v1.0.0' }}</h3>
+        
+        <!-- 描述文字 -->
+        <p class="plugin-description">{{ template.description }}</p>
+        
+        <!-- 右上角圆形图标 -->
+        <div class="plugin-icon">
           <img :src="template.iconUrl || template.icon" :alt="template.name" />
         </div>
-        <div class="template-content">
-          <div class="template-header">
-            <h3 class="template-name">{{ template.name }}</h3>
-            <div class="template-badges">
-              <n-tag 
-                :type="template.type === '官方模板' ? 'success' : 'info'" 
-                size="small"
-              >
-                {{ template.type }}
-              </n-tag>
-              <n-tag type="default" size="small">
-                {{ template.deployCount }}次部署
-              </n-tag>
-            </div>
+        
+        <!-- 底部信息栏 -->
+        <div class="plugin-footer">
+          <div class="author-info">
+            <n-icon size="12" color="rgba(255,255,255,0.7)"><PersonOutline /></n-icon>
+            <span>{{ template.author || 'thsrite' }}</span>
           </div>
-          <p class="template-description">{{ template.description }}</p>
-          <div class="template-meta">
-            <span class="meta-item">
-              <n-icon><CubeOutline /></n-icon>
-              {{ template.services }}个服务
-            </span>
-            <span class="meta-item">
-              <n-icon><CalendarOutline /></n-icon>
-              {{ template.createdAt }}
-            </span>
-            <span class="meta-item">
-              <n-icon><FolderOutline /></n-icon>
-              {{ template.category }}
-            </span>
-          </div>
-        </div>
-        <div class="template-actions">
-          <n-button type="primary" @click="handleDeploy(template)">
-            立即部署
-          </n-button>
-          <n-dropdown trigger="click" :options="getActionOptions(template)" @select="(key: any) => handleAction(key, template)">
-            <n-button quaternary circle>
-              <template #icon>
-                <n-icon><EllipsisVerticalOutline /></n-icon>
-              </template>
+          <div class="more-actions">
+            <!-- 市场应用显示安装按钮 -->
+            <n-button 
+              v-if="appType === 'market'"
+              size="tiny" 
+              type="primary"
+              @click.stop="handleInstallFromMarket(template)"
+            >
+              安装
             </n-button>
-          </n-dropdown>
+            <!-- 本地应用显示更多操作菜单 -->
+            <n-dropdown 
+              v-else
+              trigger="click" 
+              :options="getActionOptions(template)" 
+              @select="(key: any) => handleAction(key, template)"
+            >
+              <n-button size="tiny" text @click.stop>
+                <template #icon>
+                  <n-icon size="16" color="rgba(255,255,255,0.6)"><EllipsisVerticalOutline /></n-icon>
+                </template>
+              </n-button>
+            </n-dropdown>
+          </div>
         </div>
       </div>
     </div>
@@ -108,112 +92,14 @@
       <n-empty description="没有找到匹配的应用" />
     </div>
 
-    <!-- 模板详情弹窗 -->
-    <n-modal v-model:show="showDetail" style="width: 90%; max-width: 600px;">
-      <n-card 
-        :bordered="false"
-        size="huge"
-        role="dialog"
-        aria-modal="true"
-        closable
-        @close="showDetail = false"
-      >
-        <div v-if="selectedTemplate" class="template-detail">
-          <!-- 模板头部 -->
-          <div class="detail-header">
-            <img :src="selectedTemplate.iconUrl || selectedTemplate.icon" :alt="selectedTemplate.name" class="detail-icon" />
-            <div class="detail-info">
-              <h2 class="detail-title">{{ selectedTemplate.name }}</h2>
-              <p class="detail-desc">{{ selectedTemplate.description }}</p>
-              <div class="detail-meta">
-                <n-tag :type="selectedTemplate.type === '官方模板' ? 'success' : 'info'" size="small">
-                  {{ selectedTemplate.type }}
-                </n-tag>
-                <span class="meta-text">{{ selectedTemplate.deployCount }}人使用过</span>
-                <span class="meta-text">{{ selectedTemplate.category }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 主要信息 -->
-          <div class="detail-content">
-            <!-- 包含的服务 -->
-            <div class="info-section">
-              <h3><n-icon><CubeOutline /></n-icon>包含服务 ({{ selectedTemplate.services }}个)</h3>
-              <div class="services-list">
-                <div v-for="service in getSimpleServices(selectedTemplate)" :key="service.name" class="service-row">
-                  <img :src="service.icon" :alt="service.name" class="service-icon-small" />
-                  <div class="service-content">
-                    <span class="service-name">{{ service.name }}</span>
-                    <span class="service-image">{{ service.image }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 端口配置 -->
-            <div class="info-section">
-              <h3><n-icon><ServerOutline /></n-icon>使用端口</h3>
-              <div class="ports-list">
-                <div v-for="port in getSimplePorts(selectedTemplate)" :key="port.internal" class="port-row">
-                  <span class="port-number">{{ port.internal }}</span>
-                  <span class="port-service">{{ port.service }}</span>
-                  <span class="port-desc">{{ port.description }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 环境变量 -->
-            <div class="info-section" v-if="getSimpleEnvs(selectedTemplate).length > 0">
-              <h3><n-icon><SettingsOutline /></n-icon>可配置项</h3>
-              <div class="envs-list">
-                <div v-for="env in getSimpleEnvs(selectedTemplate)" :key="env.name" class="env-row">
-                  <code class="env-name">{{ env.name }}</code>
-                  <span class="env-default">{{ env.default || '需要配置' }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 数据存储 -->
-            <div class="info-section" v-if="getSimpleVolumes(selectedTemplate).length > 0">
-              <h3><n-icon><FolderOutline /></n-icon>数据存储</h3>
-              <div class="volumes-list">
-                <div v-for="volume in getSimpleVolumes(selectedTemplate)" :key="volume.container" class="volume-row">
-                  <span class="volume-path">{{ volume.container }}</span>
-                  <span class="volume-desc">{{ volume.service }}数据目录</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 部署提醒 -->
-            <div class="info-section">
-              <n-alert type="info" style="margin-bottom: 0;">
-                <template #header>
-                  <n-icon><InformationCircleOutline /></n-icon>
-                  部署提醒
-                </template>
-                部署后将创建{{ selectedTemplate.services }}个容器，请确保所需端口未被占用
-              </n-alert>
-            </div>
-          </div>
-
-          <!-- 底部操作 -->
-          <div class="detail-actions">
-            <n-button size="large" @click="closeModal">取消</n-button>
-            <n-button type="primary" size="large" @click="handleDeployFromDetail">
-              <template #icon>
-                <n-icon><PlayOutline /></n-icon>
-          </template>
-              立即安装
-            </n-button>
-          </div>
-        </div>
-        </n-card>
-    </n-modal>
-
     <!-- 导入应用弹窗 -->
     <n-modal v-model:show="showImportModal" style="width: 650px">
-      <n-card title="导入应用" :bordered="false" closable @close="showImportModal = false" style="border-radius: 12px;">
+      <n-card
+title="导入应用"
+:bordered="false"
+closable
+style="border-radius: 12px;"
+@close="showImportModal = false">
         <template #header>
           <div style="display: flex; align-items: center; gap: 12px;">
             <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #18a058, #36ad6a); display: flex; align-items: center; justify-content: center;">
@@ -221,198 +107,317 @@
             </div>
             <div>
               <h3 style="margin: 0; font-size: 20px; font-weight: 600;">导入应用</h3>
-              <p style="margin: 0; color: #666; font-size: 14px;">从YAML文件导入新的应用配置</p>
+              <p style="margin: 0; color: #666; font-size: 14px;">选择导入方式，系统将自动解析配置</p>
             </div>
           </div>
         </template>
         
-        <n-form :model="importData" label-placement="top" style="margin-top: 8px;">
+        <div style="margin-top: 8px;">
           <!-- 使用提示 -->
-          <n-alert type="info" style="margin-bottom: 20px;">
-            <template #header>💡 使用提示</template>
-            支持导入标准的Docker Compose YAML文件，系统会自动解析并填充应用信息
-          </n-alert>
+          <NAlert type="info" style="margin-bottom: 20px;">
+            <template #header>💡 使用说明</template>
+            支持 Docker Compose YAML 文件和项目 ZIP 包，系统会自动解析并填充应用信息
+          </NAlert>
           
-          <n-form-item label="应用名称" required>
-            <n-input v-model:value="importData.name" placeholder="请输入应用名称" clearable />
-          </n-form-item>
-          <n-form-item label="应用描述">
-            <n-input 
-              v-model:value="importData.description" 
-              type="textarea" 
-              placeholder="请输入应用描述（可选）"
-              :rows="3"
-              clearable
-            />
-          </n-form-item>
-          <n-form-item label="应用分类">
-            <n-select 
-              v-model:value="importData.category" 
-              :options="categoryOptions"
-              placeholder="选择或输入分类"
-              filterable
-              tag
-              clearable
-            />
-          </n-form-item>
-          
-          <!-- 导入方式选择 -->
-          <n-form-item label="导入方式">
-            <n-radio-group v-model:value="importMethod">
-              <n-radio value="file">上传YAML文件</n-radio>
-              <n-radio value="zip">上传ZIP包</n-radio>
-              <n-radio value="content">粘贴内容</n-radio>
-            </n-radio-group>
-          </n-form-item>
-          
-          <!-- 文件上传方式 -->
-          <n-form-item v-if="importMethod === 'file'" label="YAML文件" required>
-            <n-upload
-              :max="1"
-              accept=".yml,.yaml"
-              :show-file-list="false"
-              :before-upload="handleBeforeUpload"
-              @change="handleFileChange"
-              @remove="handleFileRemove"
-            >
-              <n-button type="primary" dashed style="width: 100%; height: 80px; border-style: dashed; border-width: 2px;">
-                <template #icon>
-                  <n-icon size="24"><CloudUploadOutline /></n-icon>
-                </template>
-                <div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
-                  <span style="font-size: 16px; font-weight: 500;">选择YAML文件</span>
-                  <span style="font-size: 12px; color: #999;">支持 .yml 和 .yaml 格式，最大1MB</span>
-                </div>
-              </n-button>
-            </n-upload>
-            
-            <!-- 文件状态显示 -->
-            <div v-if="uploadedFileName" style="margin-top: 12px;">
-              <n-alert type="success" style="margin-bottom: 8px;">
-                <template #header>
+          <!-- 步骤1：选择导入方式 -->
+          <div style="margin-bottom: 24px;">
+            <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: var(--text-color-1);">
+              📂 选择导入方式
+            </h4>
+            <NRadioGroup v-model:value="importMethod">
+              <n-space vertical>
+                <NRadio value="file">
                   <div style="display: flex; align-items: center; gap: 8px;">
                     <n-icon><DocumentTextOutline /></n-icon>
-                    <span>已选择文件</span>
+                    <span>上传YAML文件</span>
+                    <span style="color: #999; font-size: 12px;">(docker-compose.yml)</span>
                   </div>
-                </template>
-                <div style="font-family: monospace; color: #2080f0;">{{ uploadedFileName }}</div>
-              </n-alert>
-              
-              <!-- 解析状态 -->
-              <div v-if="parsing" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #2080f0;">
-                <n-spin size="small" />
-                <span style="color: #2080f0; font-size: 14px;">正在解析配置文件...</span>
-              </div>
-              
-              <div v-else-if="parseSuccess" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0fff4; border-radius: 6px; border-left: 3px solid #18a058;">
-                <n-icon color="#18a058"><CheckmarkCircleOutline /></n-icon>
-                <span style="color: #18a058; font-size: 14px; font-weight: 500;">✓ 配置解析成功，应用信息已自动填充</span>
-              </div>
-              
-              <div v-else-if="!parsing && importData.yamlContent?.trim()" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fffbf0; border-radius: 6px; border-left: 3px solid #f0a020;">
-                <n-icon color="#f0a020"><WarningOutline /></n-icon>
-                <span style="color: #f0a020; font-size: 14px;">⚠ 配置解析失败，请手动填写应用信息</span>
-              </div>
-            </div>
-          </n-form-item>
-          
-          <!-- ZIP包上传方式 -->
-          <n-form-item v-if="importMethod === 'zip'" label="ZIP包" required>
-            <n-upload
-              :max="1"
-              accept=".zip"
-              :show-file-list="false"
-              :before-upload="handleZipBeforeUpload"
-              @change="handleZipFileChange"
-              @remove="handleZipFileRemove"
-            >
-              <n-button type="primary" dashed style="width: 100%; height: 80px; border-style: dashed; border-width: 2px;">
-                <template #icon>
-                  <n-icon size="24"><CloudUploadOutline /></n-icon>
-                </template>
-                <div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
-                  <span style="font-size: 16px; font-weight: 500;">选择ZIP包</span>
-                  <span style="font-size: 12px; color: #999;">导出的项目ZIP包</span>
-                </div>
-              </n-button>
-            </n-upload>
-            
-            <!-- ZIP文件状态显示 -->
-            <div v-if="uploadedZipName" style="margin-top: 12px;">
-              <n-alert type="success" style="margin-bottom: 8px;">
-                <template #header>
+                </NRadio>
+                <NRadio value="zip">
                   <div style="display: flex; align-items: center; gap: 8px;">
                     <n-icon><FolderOutline /></n-icon>
-                    <span>已选择ZIP包</span>
+                    <span>上传ZIP包</span>
+                    <span style="color: #999; font-size: 12px;">(项目导出包)</span>
                   </div>
-                </template>
-                <div style="font-family: monospace; color: #2080f0;">{{ uploadedZipName }}</div>
-              </n-alert>
+                </NRadio>
+                <NRadio value="url">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <n-icon><CloudDownloadOutline /></n-icon>
+                    <span>在线URL</span>
+                    <span style="color: #999; font-size: 12px;">(网络地址下载)</span>
+                  </div>
+                </NRadio>
+                <NRadio value="content">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <n-icon><DocumentTextOutline /></n-icon>
+                    <span>粘贴内容</span>
+                    <span style="color: #999; font-size: 12px;">(直接粘贴YAML)</span>
+                  </div>
+                </NRadio>
+              </n-space>
+            </NRadioGroup>
+          </div>
+
+          <!-- 步骤2：上传/输入文件 -->
+          <div v-if="importMethod" style="margin-bottom: 24px;">
+            <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: var(--text-color-1);">
+              📤 {{ getStepTitle }}
+            </h4>
+            
+            <!-- 文件上传方式 -->
+            <div v-if="importMethod === 'file'">
+              <NUpload
+                :max="1"
+                accept=".yml,.yaml"
+                :show-file-list="false"
+                :before-upload="handleBeforeUpload"
+                @change="handleFileChange"
+                @remove="handleFileRemove"
+              >
+                <n-button type="primary" dashed style="width: 100%; height: 80px; border-style: dashed; border-width: 2px;">
+                  <template #icon>
+                    <n-icon size="24"><CloudUploadOutline /></n-icon>
+                  </template>
+                  <div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
+                    <span style="font-size: 16px; font-weight: 500;">点击选择YAML文件</span>
+                    <span style="font-size: 12px; color: #999;">支持 .yml 和 .yaml 格式，最大1MB</span>
+                  </div>
+                </n-button>
+              </NUpload>
               
-              <!-- ZIP解析状态 -->
-              <div v-if="zipProcessing" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #2080f0;">
-                <n-spin size="small" />
-                <span style="color: #2080f0; font-size: 14px;">正在解析ZIP包和配置文件...</span>
-              </div>
-              
-              <div v-else-if="zipParseSuccess" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0fff4; border-radius: 6px; border-left: 3px solid #18a058;">
-                <n-icon color="#18a058"><CheckmarkCircleOutline /></n-icon>
-                <span style="color: #18a058; font-size: 14px; font-weight: 500;">✓ ZIP包解析成功，配置包已自动关联</span>
-              </div>
-              
-              <div v-else-if="!zipProcessing && uploadedZipName" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fffbf0; border-radius: 6px; border-left: 3px solid #f0a020;">
-                <n-icon color="#f0a020"><WarningOutline /></n-icon>
-                <span style="color: #f0a020; font-size: 14px;">⚠ ZIP包解析失败，请检查包格式</span>
+              <!-- 文件状态显示 -->
+              <div v-if="uploadedFileName" style="margin-top: 12px;">
+                <NAlert type="success" style="margin-bottom: 8px;">
+                  <template #header>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <n-icon><DocumentTextOutline /></n-icon>
+                      <span>已选择文件</span>
+                    </div>
+                  </template>
+                  <div style="font-family: monospace; color: #2080f0;">{{ uploadedFileName }}</div>
+                </NAlert>
+                
+                <!-- 解析状态 -->
+                <div v-if="parsing" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #2080f0;">
+                  <NSpin size="small" />
+                  <span style="color: #2080f0; font-size: 14px;">正在解析配置文件...</span>
+                </div>
+                
+                <div v-else-if="parseSuccess" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0fff4; border-radius: 6px; border-left: 3px solid #18a058;">
+                  <n-icon color="#18a058"><CheckmarkCircleOutline /></n-icon>
+                  <span style="color: #18a058; font-size: 14px; font-weight: 500;">✓ 配置解析成功，应用信息已自动填充</span>
+                </div>
+                
+                <div v-else-if="!parsing && importData.yamlContent?.trim()" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fffbf0; border-radius: 6px; border-left: 3px solid #f0a020;">
+                  <n-icon color="#f0a020"><WarningOutline /></n-icon>
+                  <span style="color: #f0a020; font-size: 14px;">⚠ 配置解析失败，请手动填写应用信息</span>
+                </div>
               </div>
             </div>
-          </n-form-item>
-          
-          <!-- 内容粘贴方式 -->
-          <n-form-item v-if="importMethod === 'content'" label="YAML配置" required>
-            <n-input 
-              v-model:value="importData.yamlContent" 
-              type="textarea" 
-              placeholder="请粘贴YAML配置内容"
-              :rows="10"
-            />
-            <div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">
+            
+            <!-- ZIP包上传方式 -->
+            <div v-if="importMethod === 'zip'">
+              <NUpload
+                :max="1"
+                accept=".zip"
+                :show-file-list="false"
+                :before-upload="handleZipBeforeUpload"
+                @change="handleZipFileChange"
+                @remove="handleZipFileRemove"
+              >
+                <n-button type="primary" dashed style="width: 100%; height: 80px; border-style: dashed; border-width: 2px;">
+                  <template #icon>
+                    <n-icon size="24"><CloudUploadOutline /></n-icon>
+                  </template>
+                  <div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
+                    <span style="font-size: 16px; font-weight: 500;">点击选择ZIP包</span>
+                    <span style="font-size: 12px; color: #999;">导出的项目ZIP包</span>
+                  </div>
+                </n-button>
+              </NUpload>
+              
+              <!-- ZIP文件状态显示 -->
+              <div v-if="uploadedZipName" style="margin-top: 12px;">
+                <NAlert type="success" style="margin-bottom: 8px;">
+                  <template #header>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <n-icon><FolderOutline /></n-icon>
+                      <span>已选择ZIP包</span>
+                    </div>
+                  </template>
+                  <div style="font-family: monospace; color: #2080f0;">{{ uploadedZipName }}</div>
+                </NAlert>
+                
+                <!-- ZIP解析状态 -->
+                <div v-if="zipProcessing" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0f7ff; border-radius: 6px; border-left: 3px solid #2080f0;">
+                  <NSpin size="small" />
+                  <span style="color: #2080f0; font-size: 14px;">正在解析ZIP包和配置文件...</span>
+                </div>
+                
+                <div v-else-if="zipParseSuccess" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0fff4; border-radius: 6px; border-left: 3px solid #18a058;">
+                  <n-icon color="#18a058"><CheckmarkCircleOutline /></n-icon>
+                  <span style="color: #18a058; font-size: 14px; font-weight: 500;">✓ ZIP包解析成功，配置包已自动关联</span>
+                </div>
+                
+                <div v-else-if="!zipProcessing && uploadedZipName" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fffbf0; border-radius: 6px; border-left: 3px solid #f0a020;">
+                  <n-icon color="#f0a020"><WarningOutline /></n-icon>
+                  <span style="color: #f0a020; font-size: 14px;">⚠ ZIP包解析失败，请检查包格式</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 在线URL方式 -->
+            <div v-if="importMethod === 'url'">
+              <n-input 
+                v-model:value="urlInput" 
+                placeholder="请输入YAML或ZIP文件的URL地址，例如：https://example.com/app.yml"
+                clearable
+                size="large"
+                style="margin-bottom: 12px;"
+              />
+              <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+                <n-button 
+                  :loading="urlFetching"
+                  :disabled="!urlInput?.trim()"
+                  type="primary"
+                  size="large"
+                  style="flex-shrink: 0;"
+                  @click="handleFetchFromUrl"
+                >
+                  <template #icon>
+                    <n-icon><CloudDownloadOutline /></n-icon>
+                  </template>
+                  获取文件
+                </n-button>
+                <div v-if="urlFetching" style="color: #2080f0; font-size: 14px;">
+                  正在下载文件...
+                </div>
+                <div v-else-if="urlFetchSuccess" style="color: #18a058; font-size: 14px;">
+                  ✓ 文件获取成功，已自动解析
+                </div>
+              </div>
+              
+              <!-- URL文件状态显示 -->
+              <div v-if="urlInput && !urlFetching && importData.yamlContent" style="margin-top: 12px;">
+                <NAlert type="success" style="margin-bottom: 8px;">
+                  <template #header>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <n-icon><CheckmarkCircleOutline /></n-icon>
+                      <span>文件获取成功</span>
+                    </div>
+                  </template>
+                  <div style="font-family: monospace; color: #2080f0; word-break: break-all;">{{ urlInput }}</div>
+                </NAlert>
+              </div>
+              
+              <!-- 支持格式提示 -->
+              <div style="padding: 12px; background: #f6f9ff; border-radius: 6px; border-left: 3px solid #2080f0;">
+                <div style="color: #2080f0; font-size: 12px; font-weight: 500; margin-bottom: 4px;">💡 支持的格式：</div>
+                <div style="color: #666; font-size: 12px;">
+                  • YAML文件：.yml、.yaml<br>
+                  • ZIP包：.zip<br>
+                  • GitHub Raw链接、CDN链接等
+                </div>
+              </div>
+            </div>
+            
+            <!-- 内容粘贴方式 -->
+            <div v-if="importMethod === 'content'">
+              <n-input 
+                v-model:value="importData.yamlContent" 
+                type="textarea" 
+                placeholder="请粘贴YAML配置内容"
+                :rows="8"
+                style="margin-bottom: 12px;"
+              />
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <n-button 
+                  size="medium" 
+                  :loading="parsing"
+                  :disabled="!importData.yamlContent?.trim()"
+                  type="primary"
+                  @click="() => parseYamlContent(importData.yamlContent || '')"
+                >
+                  <template #icon>
+                    <n-icon><DocumentTextOutline /></n-icon>
+                  </template>
+                  解析配置
+                </n-button>
+                <div v-if="parsing" style="color: #2080f0; font-size: 14px;">
+                  正在解析...
+                </div>
+                <div v-else-if="parseSuccess" style="color: #18a058; font-size: 14px;">
+                  ✓ 解析成功，已自动填充
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 步骤3：应用信息确认（只有解析成功后才显示） -->
+          <div v-if="parseSuccess || zipParseSuccess || urlFetchSuccess || (importData.yamlContent && importMethod === 'content')" style="margin-bottom: 24px;">
+            <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: var(--text-color-1);">
+              ✏️ 确认应用信息
+            </h4>
+            <n-form
+:model="importData"
+label-placement="left"
+label-width="80px"
+style="background: #fafafa; padding: 16px; border-radius: 8px;">
+              <n-form-item label="应用名称" required>
+                <n-input v-model:value="importData.name" placeholder="请输入应用名称" clearable />
+              </n-form-item>
+              <n-form-item label="应用描述">
+                <n-input 
+                  v-model:value="importData.description" 
+                  type="textarea" 
+                  placeholder="请输入应用描述（可选）"
+                  :rows="2"
+                  clearable
+                />
+              </n-form-item>
+              <n-form-item label="应用分类">
+                <n-select 
+                  v-model:value="importData.category" 
+                  :options="categoryOptions"
+                  placeholder="选择或输入分类"
+                  filterable
+                  tag
+                  clearable
+                />
+              </n-form-item>
+              <n-form-item label="图标URL">
+                <n-input 
+                  v-model:value="importData.iconUrl" 
+                  placeholder="请输入图标链接（可选）"
+                  clearable
+                />
+              </n-form-item>
+            </n-form>
+          </div>
+        </div>
+        
+        <template #footer>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px;">
+            <div style="color: #999; font-size: 12px;">
+              {{ getFooterText }}
+            </div>
+            <div style="display: flex; gap: 12px;">
+              <n-button size="large" @click="showImportModal = false">
+                取消
+              </n-button>
               <n-button 
-                size="small" 
-                @click="() => parseYamlContent(importData.yamlContent || '')"
-                :loading="parsing"
-                :disabled="!importData.yamlContent?.trim()"
+                type="primary" 
+                size="large"
+                :loading="importing" 
+                :disabled="!canSubmit"
+                @click="handleImportSubmit"
               >
                 <template #icon>
-                  <n-icon><DocumentTextOutline /></n-icon>
+                  <n-icon><CloudUploadOutline /></n-icon>
                 </template>
-                解析配置
+                {{ importing ? '导入中...' : '导入应用' }}
               </n-button>
-              <div v-if="parsing" style="color: #2080f0; font-size: 12px;">
-                正在解析...
-              </div>
-              <div v-else-if="parseSuccess" style="color: #18a058; font-size: 12px;">
-                ✓ 解析成功，已自动填充
-              </div>
             </div>
-          </n-form-item>
-        </n-form>
-        <template #footer>
-          <div style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 8px;">
-            <n-button size="large" @click="showImportModal = false">
-              取消
-            </n-button>
-            <n-button 
-              type="primary" 
-              size="large"
-              @click="handleImportSubmit" 
-              :loading="importing"
-              :disabled="!importData.name.trim() || !importData.yamlContent?.trim()"
-            >
-              <template #icon>
-                <n-icon><CloudUploadOutline /></n-icon>
-              </template>
-              {{ importing ? '导入中...' : '导入应用' }}
-            </n-button>
           </div>
         </template>
       </n-card>
@@ -425,24 +430,16 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage, NUpload, NRadioGroup, NRadio, NAlert, NSpin } from 'naive-ui'
 import {
-  SearchOutline,
   AddOutline,
   DocumentTextOutline,
-  ShareOutline,
   TrashOutline,
-  RocketOutline,
   CloudDownloadOutline,
-  CubeOutline,
   FolderOutline,
-  CalendarOutline,
   EllipsisVerticalOutline,
-  InformationCircleOutline,
-  ServerOutline,
-  SettingsOutline,
-  PlayOutline,
   CloudUploadOutline,
   CheckmarkCircleOutline,
-  WarningOutline
+  WarningOutline,
+  PersonOutline
 } from '@vicons/ionicons5'
 
 // 导入真实API
@@ -450,10 +447,11 @@ import {
   getApplications, 
   saveApplication, 
   deleteApplication,
-  shareApplication,
   getCategories,
   parseApplication,
   parseZipPackage,
+  fetchFromUrl,
+  getMarketApplications,
   type Application,
   type ApplicationSaveRequest,
   type ApplicationParseResult
@@ -465,19 +463,27 @@ const message = useMessage()
 // 状态
 const searchText = ref('')
 const selectedCategory = ref<string | null>(null)
-const showDetail = ref(false)
-const selectedTemplate = ref<Application | null>(null)
 const showImportModal = ref(false)
 const importing = ref(false)
-const importMethod = ref('file')
+const importMethod = ref('')
 const uploadedFileName = ref('')
 const parsing = ref(false)
 const parseSuccess = ref(false)
+
+// 应用类型切换相关状态
+const appType = ref<'local' | 'market'>('local')
+const marketTemplates = ref<Application[]>([])
+const marketSourcesLoading = ref(false)
 
 // ZIP上传相关状态
 const uploadedZipName = ref('')
 const zipProcessing = ref(false)
 const zipParseSuccess = ref(false)
+
+// URL导入相关状态
+const urlInput = ref('')
+const urlFetching = ref(false)
+const urlFetchSuccess = ref(false)
 
 // 真实数据
 const templates = ref<Application[]>([])
@@ -488,8 +494,12 @@ const importData = ref<ApplicationSaveRequest>({
   name: '',
   description: '',
   category: '',
+  iconUrl: '',
   yamlContent: ''
 })
+
+// 计算属性：本地应用
+const localTemplates = computed(() => templates.value)
 
 // 加载应用列表
 const loadApplications = async () => {
@@ -500,9 +510,9 @@ const loadApplications = async () => {
     }
     const data = await getApplications(params)
     templates.value = data
-  } catch (error) {
+  } catch (error: any) {
     console.error('加载应用列表失败:', error)
-    message.error('加载应用列表失败')
+    message.error(error.message || '加载应用列表失败')
   }
 }
 
@@ -511,14 +521,39 @@ const loadCategories = async () => {
   try {
     const data = await getCategories()
     categories.value = data
-  } catch (error) {
+  } catch (error: any) {
     console.error('加载分类失败:', error)
+    message.error(error.message || '加载分类失败')
+  }
+}
+
+// 加载市场应用列表
+const loadMarketApplications = async () => {
+  if (marketSourcesLoading.value) return
+  
+  try {
+    marketSourcesLoading.value = true
+    message.info('正在获取应用市场数据...')
+    
+    // 调用API获取市场应用数据
+    const data = await getMarketApplications()
+    marketTemplates.value = data
+    
+    message.success(`已获取 ${data.length} 个市场应用`)
+    
+  } catch (error: any) {
+    console.error('加载市场应用失败:', error)
+    message.error(error.message || '加载市场应用失败')
+    marketTemplates.value = []
+  } finally {
+    marketSourcesLoading.value = false
   }
 }
 
 // 过滤后的模板
 const filteredTemplates = computed(() => {
-  return templates.value.filter(template => {
+  const currentTemplates = appType.value === 'local' ? localTemplates.value : marketTemplates.value
+  return currentTemplates.filter(template => {
     const matchSearch = !searchText.value || 
       template.name.toLowerCase().includes(searchText.value.toLowerCase()) ||
       template.description.toLowerCase().includes(searchText.value.toLowerCase())
@@ -539,14 +574,18 @@ const categoryOptions = computed(() => {
 
 // 操作菜单
 const getActionOptions = (template: Application) => [
-  { label: '查看详情', key: 'detail', icon: DocumentTextOutline },
-  { label: '分享应用', key: 'share', icon: ShareOutline },
-  { type: 'divider' },
   { label: '删除应用', key: 'delete', icon: TrashOutline }
 ]
 
 // 事件处理
 const handleDeploy = (template: Application) => {
+  // 应用市场的应用没有id，直接触发安装
+  if (appType.value === 'market') {
+    handleInstallFromMarket(template)
+    return
+  }
+  
+  // 本地应用有id，跳转到安装页面
   router.push({
     path: '/appcenter/install',
     query: { 
@@ -562,9 +601,10 @@ const handleImport = () => {
     name: '',
     description: '',
     category: '',
+    iconUrl: '',
     yamlContent: ''
   }
-  importMethod.value = 'file'
+  importMethod.value = '' // 重置导入方式，让用户重新选择
   uploadedFileName.value = ''
   parsing.value = false
   parseSuccess.value = false
@@ -574,44 +614,24 @@ const handleImport = () => {
   zipProcessing.value = false
   zipParseSuccess.value = false
   
+  // 重置URL状态
+  urlInput.value = ''
+  urlFetching.value = false
+  urlFetchSuccess.value = false
+  
   showImportModal.value = true
 }
 
 const handleAction = async (key: string, template: Application) => {
-  if (key === 'detail') {
-    selectedTemplate.value = template
-    showDetail.value = true
-  } else if (key === 'share') {
-    try {
-      const yamlContent = await shareApplication(template.id)
-      await navigator.clipboard.writeText(yamlContent)
-      message.success('YAML配置已复制到剪贴板')
-    } catch (error) {
-      console.error('分享应用失败:', error)
-      message.error('分享应用失败')
-    }
-  } else if (key === 'delete') {
+  if (key === 'delete') {
     try {
       await deleteApplication(template.id)
       message.success('删除成功')
       loadApplications()
-    } catch (error) {
+    } catch (error: any) {
       console.error('删除应用失败:', error)
-      message.error('删除应用失败')
+      message.error(error.message || '删除应用失败')
     }
-  }
-}
-
-const handleDeployFromDetail = () => {
-  if (selectedTemplate.value) {
-    router.push({
-      path: '/appcenter/install',
-      query: { 
-        id: selectedTemplate.value.id.toString(),
-        name: selectedTemplate.value.name 
-      }
-    })
-    showDetail.value = false
   }
 }
 
@@ -638,9 +658,10 @@ const handleImportSubmit = async () => {
       name: '',
       description: '',
       category: '',
+      iconUrl: '',
       yamlContent: ''
     }
-    importMethod.value = 'file'
+    importMethod.value = ''
     uploadedFileName.value = ''
     parsing.value = false
     parseSuccess.value = false
@@ -650,124 +671,18 @@ const handleImportSubmit = async () => {
     zipProcessing.value = false
     zipParseSuccess.value = false
     
+    // 重置URL状态
+    urlInput.value = ''
+    urlFetching.value = false
+    urlFetchSuccess.value = false
+    
     loadApplications()
-  } catch (error) {
+  } catch (error: any) {
     console.error('导入应用失败:', error)
-    message.error('导入应用失败')
+    message.error(error.message || '导入应用失败')
   } finally {
     importing.value = false
   }
-}
-
-const closeModal = () => {
-  showDetail.value = false
-  selectedTemplate.value = null
-}
-
-// 从YAML解析服务信息的辅助函数
-const getTemplateServices = (template: Application) => {
-  // 从YAML中解析services，这里先返回简化版本
-    return [
-      {
-      name: template.name,
-      description: template.description,
-      image: 'unknown',
-      icon: template.iconUrl || template.icon,
-      ports: []
-    }
-  ]
-}
-
-const getTemplateEnvs = (template: Application): Array<{name: string, default: string}> => {
-  // 这里可以解析YAML中的环境变量，暂时返回空数组
-  return []
-}
-
-const getTemplatePorts = (template: Application): Array<{internal: number, service: string, description: string}> => {
-  // 这里可以解析YAML中的端口映射，暂时返回空数组
-  return []
-}
-
-const getTemplateVolumes = (template: Application): Array<{container: string, service: string}> => {
-  // 这里可以解析YAML中的卷挂载，暂时返回空数组
-  return []
-}
-
-const getTemplateYaml = (template: Application) => {
-  return template.yamlContent || '# 暂无配置预览'
-}
-
-const getTemplateReadme = (template: Application) => {
-    return `
-<h3>应用信息</h3>
-<ul>
-  <li>应用名称: ${template.name}</li>
-  <li>应用分类: ${template.category}</li>
-  <li>服务数量: ${template.services}个</li>
-  <li>部署次数: ${template.deployCount}次</li>
-</ul>
-
-<h3>部署步骤</h3>
-<ol>
-  <li>点击"立即部署"按钮开始部署</li>
-  <li>确认配置参数</li>
-  <li>等待镜像拉取和容器启动</li>
-  <li>根据提示访问应用</li>
-</ol>
-
-<h3>注意事项</h3>
-<ul>
-  <li>请确保端口未被占用</li>
-  <li>确保有足够的磁盘空间</li>
-  <li>首次启动可能需要几分钟时间</li>
-</ul>
-    `
-}
-
-const getSimpleServices = (template: Application) => {
-  return getTemplateServices(template)
-}
-
-const getUseCases = (template: Application) => {
-  // 根据分类返回适用场景
-  switch (template.category) {
-    case 'Web开发':
-      return ['Web项目开发', '前端调试', '后端API开发', '全栈开发环境']
-    case '媒体娱乐':
-    return ['家庭影音中心', '个人视频库', '在线视频播放', '媒体文件管理']
-    case '文件存储':
-    return ['个人网盘', '文件同步', '团队协作', '数据备份']
-    case '运维监控':
-    return ['服务器监控', '性能分析', '故障告警', '运维管理']
-    default:
-      return ['通用用途', '学习环境', '测试部署']
-  }
-}
-
-const getRequirements = (template: Application) => {
-  // 根据服务数量估算资源需求
-  const serviceCount = template.services || 1
-    return {
-    memory: serviceCount > 3 ? '最低4GB' : serviceCount > 1 ? '最低2GB' : '最低1GB',
-    storage: serviceCount > 3 ? '20GB起' : serviceCount > 1 ? '10GB起' : '5GB起',
-    ports: '根据配置而定'
-    }
-}
-
-const getDeployTips = (template: Application) => {
-  return `部署 ${template.name} 前请确保系统满足资源需求，首次启动可能需要拉取镜像。`
-}
-
-const getSimplePorts = (template: Application) => {
-  return getTemplatePorts(template)
-}
-
-const getSimpleEnvs = (template: Application) => {
-  return getTemplateEnvs(template)
-}
-
-const getSimpleVolumes = (template: Application) => {
-  return getTemplateVolumes(template)
 }
 
 // 搜索处理
@@ -775,9 +690,44 @@ const handleSearch = () => {
   loadApplications()
 }
 
-// 分类选择处理
-const handleCategoryChange = () => {
-  loadApplications()
+
+// 应用类型切换处理
+const handleAppTypeChange = () => {
+  if (appType.value === 'market') {
+    loadMarketApplications()
+  }
+}
+
+// 从市场安装应用
+const handleInstallFromMarket = async (marketApp: Application) => {
+  const marketAppWithUrl = marketApp as Application & { downloadUrl?: string }
+  
+  if (!marketAppWithUrl.downloadUrl) {
+    message.error('该应用没有提供下载链接')
+    return
+  }
+  
+  try {
+    message.info(`正在获取 ${marketApp.name} 的配置文件...`)
+    
+    // 调用现有的URL导入功能
+    urlInput.value = marketAppWithUrl.downloadUrl
+    await handleFetchFromUrl()
+    
+    // 自动填充应用信息
+    importData.value.name = marketApp.name
+    importData.value.description = marketApp.description
+    importData.value.category = marketApp.category
+    importData.value.iconUrl = marketApp.iconUrl || marketApp.icon // 添加图标URL
+    
+    // 显示导入弹窗，让用户确认
+    importMethod.value = 'url'
+    showImportModal.value = true
+    
+  } catch (error: any) {
+    console.error('从市场安装应用失败:', error)
+    message.error('安装失败: ' + (error.message || '网络错误'))
+  }
 }
 
 // 文件上传处理
@@ -835,14 +785,15 @@ const handleFileChange = async (data: { file: any; fileList: any[] }) => {
       }
       
       message.success('文件读取成功')
-    } catch (error) {
+    } catch (error: any) {
       console.error('文件处理出错:', error)
-      message.error('文件处理失败')
+      message.error(error.message || '文件处理失败')
+    }
   }
-}
-  reader.onerror = () => {
-    console.error('文件读取失败')
-    message.error('文件读取失败')
+  reader.onerror = (e) => {
+    console.error('文件读取失败:', e)
+    message.error('文件读取失败，请重试')
+    uploadedFileName.value = ''
   }
   reader.readAsText(file)
 }
@@ -907,14 +858,15 @@ const processSelectedFile = async (file: File) => {
       }
       
       message.success('文件读取成功')
-    } catch (error) {
+    } catch (error: any) {
       console.error('文件处理出错:', error)
-      message.error('文件处理失败')
+      message.error(error.message || '文件处理失败')
     }
   }
-  reader.onerror = () => {
-    console.error('文件读取失败')
-    message.error('文件读取失败')
+  reader.onerror = (e) => {
+    console.error('文件读取失败:', e)
+    message.error('文件读取失败，请重试')
+    uploadedFileName.value = ''
   }
   reader.readAsText(file)
 }
@@ -1037,6 +989,112 @@ const processSelectedZipFile = async (file: File) => {
   }
 }
 
+// 从URL获取文件
+const handleFetchFromUrl = async () => {
+  if (!urlInput.value?.trim()) {
+    message.error('请输入文件URL地址')
+    return
+  }
+  
+  try {
+    urlFetching.value = true
+    urlFetchSuccess.value = false
+    
+    // 调用API获取文件内容
+    const yamlContent = await fetchFromUrl(urlInput.value)
+    
+    // 设置YAML内容
+    importData.value.yamlContent = yamlContent
+    
+    // 自动解析YAML内容以填充表单
+    await parseYamlContent(yamlContent)
+    
+    urlFetchSuccess.value = true
+    message.success('文件获取成功')
+    
+  } catch (error: any) {
+    urlFetchSuccess.value = false
+    console.error('URL文件获取失败:', error)
+    message.error('文件获取失败: ' + (error.message || '网络错误'))
+  } finally {
+    urlFetching.value = false
+  }
+}
+
+// UI辅助方法
+const getStepTitle = computed(() => {
+  switch (importMethod.value) {
+    case 'file': return '上传YAML文件'
+    case 'zip': return '上传ZIP包'
+    case 'url': return '输入文件URL'
+    case 'content': return '粘贴YAML内容'
+    default: return '选择文件'
+  }
+})
+
+const getFooterText = computed(() => {
+  if (!importMethod.value) {
+    return '请先选择导入方式'
+  }
+  if (!importData.value.yamlContent?.trim()) {
+    return '请先上传或输入配置文件'
+  }
+  if (!importData.value.name?.trim()) {
+    return '请填写应用名称'
+  }
+  return '准备就绪，可以导入应用'
+})
+
+// 计算属性：是否可以提交
+const canSubmit = computed(() => {
+  return importData.value.name?.trim() && importData.value.yamlContent?.trim()
+})
+
+// 生成卡片渐变背景
+const getCardGradient = (id: number | undefined, appName?: string) => {
+  const gradients = [
+    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', // 深紫蓝
+    'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', // 清新蓝
+    'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', // 薄荷绿
+    'linear-gradient(135deg, #667db6 0%, #0082c8 100%)', // 深海蓝
+    'linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%)', // 天空蓝
+    'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', // 薄荷粉
+    'linear-gradient(135deg, #8fd3f4 0%, #84fab0 100%)', // 青绿色
+    'linear-gradient(135deg, #74b9ff 0%, #0984e3 100%)', // 蓝色系
+    'linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%)', // 淡紫色
+    'linear-gradient(135deg, #00b894 0%, #00cec9 100%)', // 青蓝色
+    'linear-gradient(135deg, #5f72bd 0%, #9b23ea 100%)', // 深紫色
+    'linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%)', // 清水蓝
+    'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)', // 经典蓝
+    'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)', // 青色系
+    'linear-gradient(135deg, #10b981 0%, #059669 100%)', // 翠绿色
+    'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', // 紫罗兰
+    'linear-gradient(135deg, #64748b 0%, #475569 100%)', // 石墨灰
+    'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)', // 湖水蓝
+    'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', // 森林绿
+    'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)'  // 靛蓝色
+  ]
+  
+  // 如果有ID，优先使用ID
+  if (id !== undefined && id !== null && !isNaN(id)) {
+    return gradients[id % gradients.length]
+  }
+  
+  // 如果没有ID但有应用名称，基于名称生成哈希
+  if (appName) {
+    let hash = 0
+    for (let i = 0; i < appName.length; i++) {
+      const char = appName.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash // 转换为32位整数
+    }
+    return gradients[Math.abs(hash) % gradients.length]
+  }
+  
+  // 默认返回第一个渐变
+  return gradients[0]
+}
+
 // 页面挂载时的处理
 onMounted(async () => {
   loadApplications()
@@ -1053,6 +1111,7 @@ onMounted(async () => {
         name: name || '容器应用',
         description: '',
         category: '容器应用',
+        iconUrl: '',
         yamlContent: yamlContent
       }
       importMethod.value = 'content' // 自动切换到粘贴内容模式
@@ -1070,8 +1129,8 @@ onMounted(async () => {
 
 <style scoped>
 .template-store {
-  padding: 24px;
-  max-width: 1200px;
+  padding: 24px 16px;
+  max-width: 100%;
   margin: 0 auto;
 }
 
@@ -1089,124 +1148,137 @@ onMounted(async () => {
   color: var(--text-color-1);
 }
 
-.template-count {
-  margin-left: 12px;
-  color: var(--text-color-3);
-  font-size: 14px;
-}
-
 .header-actions {
   display: flex;
   gap: 16px;
   align-items: center;
 }
 
-.category-tabs {
+.app-type-tabs {
   display: flex;
   gap: 8px;
   margin-bottom: 24px;
-  flex-wrap: wrap;
 }
 
 .template-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.plugin-card {
+  position: relative;
+  padding: 16px;
+  border-radius: 12px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  aspect-ratio: 2/1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  justify-content: flex-start;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
 }
 
-.template-item {
-  display: flex;
-  align-items: center;
-  padding: 20px;
-  background: var(--card-color);
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-.template-item:hover {
-  border-color: #18a058;
-  box-shadow: 0 4px 12px rgba(24, 160, 88, 0.1);
-  transform: translateY(-1px);
+.plugin-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 /* 深色模式下的增强效果 */
-[data-theme="dark"] .template-item {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.05);
+[data-theme="dark"] .plugin-card {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
 }
 
-[data-theme="dark"] .template-item:hover {
-  box-shadow: 0 4px 16px rgba(24, 160, 88, 0.15), 0 2px 12px rgba(0, 0, 0, 0.4);
-  border-color: #18a058;
-  background: rgba(255, 255, 255, 0.08);
+[data-theme="dark"] .plugin-card:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   transform: translateY(-2px);
 }
 
-.template-icon {
-  width: 64px;
-  height: 64px;
-  margin-right: 20px;
-  flex-shrink: 0;
+.plugin-title {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: white;
+  line-height: 1.3;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  padding-right: 60px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 60px);
 }
 
-.template-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.template-content {
+.plugin-description {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+  font-size: 13px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  padding-right: 60px;
   flex: 1;
-  min-width: 0;
+  word-break: break-word;
 }
 
-.template-header {
+.plugin-icon {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.plugin-icon img {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.plugin-footer {
+  position: absolute;
+  bottom: 8px;
+  left: 12px;
+  right: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 400;
+  z-index: 2;
 }
 
-.template-name {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-color-1);
-}
-
-.template-badges {
-  display: flex;
-  gap: 6px;
-}
-
-.template-description {
-  margin: 0 0 12px 0;
-  color: var(--text-color-2);
-  line-height: 1.5;
-  font-size: 14px;
-}
-
-.template-meta {
-  display: flex;
-  gap: 20px;
-  font-size: 13px;
-  color: var(--text-color-3);
-}
-
-.meta-item {
+.author-info {
   display: flex;
   align-items: center;
   gap: 4px;
+  font-size: 11px;
 }
 
-.template-actions {
+.author-info .n-icon {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.more-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-left: 20px;
 }
 
 .empty-state {
@@ -1215,9 +1287,23 @@ onMounted(async () => {
 }
 
 /* 响应式 */
+@media (max-width: 1600px) {
+  .template-list {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .template-list {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+  }
+}
+
 @media (max-width: 768px) {
   .template-store {
-    padding: 16px;
+    padding: 16px 12px;
   }
   
   .store-header {
@@ -1230,242 +1316,83 @@ onMounted(async () => {
     justify-content: space-between;
   }
   
-  .template-item {
-    flex-direction: column;
-    align-items: stretch;
-    text-align: center;
-  }
-  
-  .template-icon {
-    margin: 0 auto 16px auto;
-  }
-  
-  .template-header {
-    flex-direction: column;
+  .template-list {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 8px;
   }
   
-  .template-meta {
-    justify-content: center;
-    flex-wrap: wrap;
+  .plugin-card {
+    padding: 12px;
   }
   
-  .template-actions {
-    margin-left: 0;
-    margin-top: 16px;
-    justify-content: center;
+  .plugin-title {
+    font-size: 14px;
+    padding-right: 50px;
+    max-width: calc(100% - 50px);
+  }
+  
+  .plugin-description {
+    font-size: 12px;
+    padding-right: 50px;
+  }
+  
+  .plugin-icon {
+    width: 40px;
+    height: 40px;
+    top: 12px;
+    right: 12px;
+  }
+  
+  .plugin-icon img {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .plugin-footer {
+    bottom: 8px;
+    left: 12px;
+    right: 12px;
+    font-size: 10px;
   }
 }
 
-.template-detail {
-  padding: 24px;
-}
-
-.detail-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.detail-icon {
-  width: 80px;
-  height: 80px;
-  margin-right: 20px;
-  flex-shrink: 0;
-  border-radius: 16px;
-  object-fit: contain;
-}
-
-.detail-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.detail-title {
-  margin: 0 0 8px 0;
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text-color-1);
-}
-
-.detail-desc {
-  margin: 0 0 12px 0;
-  color: var(--text-color-2);
-  line-height: 1.5;
-  font-size: 14px;
-}
-
-.detail-meta {
-  display: flex;
-  gap: 6px;
-}
-
-.meta-text {
-  color: var(--text-color-3);
-  font-size: 14px;
-}
-
-.detail-content {
-  margin-bottom: 24px;
-}
-
-.info-section {
-  margin-bottom: 24px;
-}
-
-.info-section h3 {
-  margin: 0 0 8px 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-color-1);
-}
-
-.services-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.service-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: var(--card-color-hover);
-  border-radius: 8px;
-  border-left: 3px solid #36ad6a;
-}
-
-.service-icon-small {
-  width: 24px;
-  height: 24px;
-  margin-right: 0;
-  flex-shrink: 0;
-}
-
-.service-content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.service-name {
-  color: var(--text-color-1);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.service-image {
-  color: var(--text-color-3);
-  font-size: 12px;
-  font-family: monospace;
-}
-
-.ports-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.port-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: var(--card-color-hover);
-  border-radius: 8px;
-  border-left: 3px solid #18a058;
-}
-
-.port-number {
-  font-weight: 600;
-  color: #18a058;
-  min-width: 60px;
-}
-
-.port-service {
-  color: var(--text-color-1);
-  font-weight: 500;
-  min-width: 80px;
-}
-
-.port-desc {
-  color: var(--text-color-3);
-  font-size: 12px;
-  flex: 1;
-}
-
-.envs-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.env-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: var(--card-color-hover);
-  border-radius: 8px;
-  border-left: 3px solid #2080f0;
-}
-
-.env-name {
-  font-weight: 600;
-  color: #2080f0;
-  min-width: 120px;
-}
-
-.env-default {
-  color: var(--text-color-3);
-  font-size: 12px;
-  flex: 1;
-}
-
-.volumes-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.volume-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: var(--card-color-hover);
-  border-radius: 8px;
-  border-left: 3px solid #f0a020;
-}
-
-.volume-path {
-  font-weight: 600;
-  color: #f0a020;
-  font-family: monospace;
-  min-width: 150px;
-}
-
-.volume-desc {
-  color: var(--text-color-3);
-  font-size: 12px;
-  flex: 1;
-}
-
-.deploy-docs {
-  margin-bottom: 24px;
-}
-
-.detail-actions {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 32px;
-  gap: 16px;
-}
-
-.detail-actions .n-button {
-  flex: 1;
+@media (max-width: 480px) {
+  .template-list {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 6px;
+  }
+  
+  .plugin-card {
+    padding: 10px;
+  }
+  
+  .plugin-title {
+    font-size: 12px;
+    margin-bottom: 6px;
+    max-width: calc(100% - 40px);
+  }
+  
+  .plugin-description {
+    font-size: 11px;
+  }
+  
+  .plugin-icon {
+    width: 36px;
+    height: 36px;
+    top: 8px;
+    right: 8px;
+  }
+  
+  .plugin-icon img {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .plugin-footer {
+    font-size: 9px;
+    bottom: 6px;
+    left: 10px;
+    right: 10px;
+  }
 }
 </style> 

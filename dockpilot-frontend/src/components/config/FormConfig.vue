@@ -10,10 +10,10 @@
     >
       <n-form-item 
         v-for="field in (fields || [])" 
+        v-show="field && field.key"
         :key="field.key"
         :label="field.label"
         :path="field.key"
-        v-show="field && field.key"
       >
         <!-- 输入框 -->
         <n-input
@@ -227,7 +227,7 @@ const isEqual = (obj1: Record<string, any>, obj2: Record<string, any>) => {
     return false
   }
   
-  for (let key of keys1) {
+  for (const key of keys1) {
     if (obj1[key] !== obj2[key]) {
       return false
     }

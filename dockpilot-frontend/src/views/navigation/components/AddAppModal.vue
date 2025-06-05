@@ -37,8 +37,8 @@
               :step="1"
               :tooltip="true"
               :format-tooltip="(value: number) => `透明度: ${value}%`"
-              @update:value="handleOpacityChange"
               style="width: 150px;"
+              @update:value="handleOpacityChange"
             />
           </div>
           
@@ -413,7 +413,7 @@ const getWebsiteIcon = async () => {
       // 直接覆盖 iconUrl，实现回填效果
       newApp.value.iconUrl = faviconUrl
       previewImageError.value = false // 重置预览错误状态
-      message.success(`图标获取成功！`)
+      message.success('图标获取成功！')
       console.log('获取在线图标成功:', faviconUrl)
     } else {
       message.warning('未能获取到网站图标，请手动输入图片地址')

@@ -52,7 +52,7 @@ export function pullImage(params: PullImageParams, callbacks: PullImageCallbacks
       onLog: (log: string, taskId: string) => {
         callbacks.onLog?.(log, taskId)
       },
-      onComplete: (data, taskId) => {
+      onComplete: (data) => {
         console.log('WebSocket 返回的原始数据:', data)
         // 如果返回的是对象且包含 data 字段，使用 data 字段
         if (data && typeof data === 'object' && 'data' in data) {

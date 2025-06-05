@@ -183,8 +183,8 @@ async function handleRefresh(): Promise<void> {
                   if (progressData.status === 'failed') {
                     console.log('🔍 解析到失败镜像:', item.name + ':' + item.tag, progressData)
                   }
-                } catch (e) {
-                  console.warn('解析progress失败:', e, 'raw progress:', item.progress)
+                } catch {
+                  console.warn('解析progress失败, raw progress:', item.progress)
                 }
               }
 
@@ -260,8 +260,8 @@ function startPull() {
   pullImage(
     { imageName },
     {
-      onProgress: (progress, receivedTaskId) => {
-        console.log(`📈 收到进度更新: ${imageName} - ${progress}% (taskId: ${receivedTaskId})`)
+      onProgress: (progress) => {
+        console.log(`📈 收到进度更新: ${imageName} - ${progress}%`)
         console.log(`🔍 当前镜像列表长度: ${images.value.length}`)
         
         // 直接根据镜像名称查找并更新对应的镜像
@@ -271,7 +271,7 @@ function startPull() {
         
         if (targetImage) {
           console.log(`✅ 找到目标镜像: ${targetImage.name}:${targetImage.tag}`)
-          console.log(`📊 更新前状态:`, targetImage.pullStatus)
+          console.log('📊 更新前状态:', targetImage.pullStatus)
           
           targetImage.pullStatus = {
             status: 'pulling',
@@ -282,14 +282,14 @@ function startPull() {
             end_time: targetImage.pullStatus?.end_time
           }
           
-          console.log(`📊 更新后状态:`, targetImage.pullStatus)
+          console.log('📊 更新后状态:', targetImage.pullStatus)
           console.log(`✅ 已更新镜像进度: ${imageName} - ${progress}%`)
         } else {
           console.warn(`⚠️ 未找到对应镜像: ${imageName}`)
-          console.log(`📋 当前镜像列表:`, images.value.map(img => `${img.name}:${img.tag}`))
+          console.log('📋 当前镜像列表:', images.value.map(img => `${img.name}:${img.tag}`))
         }
       },
-      onLog: (log, receivedTaskId) => {
+      onLog: (log) => {
         console.log(`📝 收到日志更新: ${imageName} - ${log}`)
         // 直接根据镜像名称查找并更新对应的镜像
         const targetImage = images.value.find(img => 
@@ -311,12 +311,12 @@ function startPull() {
       },
       onComplete: () => {
         console.log(`✅ 镜像拉取完成: ${imageName}`)
-        message.success(`镜像 "${imageName}" 拉取成功`)
+        message.success(`镜像 '${imageName}' 拉取成功`)
         handleRefresh()
       },
-      onError: (error) => {
-        console.error(`❌ 镜像拉取失败: ${imageName} - ${error}`)
-        message.error(`镜像 "${imageName}" 拉取失败`)
+      onError: () => {
+        console.error(`❌ 镜像拉取失败: ${imageName}`)
+        message.error(`镜像 '${imageName}' 拉取失败`)
         handleRefresh()
       }
     }
@@ -326,7 +326,7 @@ function startPull() {
   showDrawer.value = false
   resetPullState()
   formValue.name = ''
-  message.info(`镜像 "${imageName}" 开始拉取，请在列表中查看进度`)
+  message.info(`镜像 '${imageName}' 开始拉取，请在列表中查看进度`)
   
   // 刷新一次列表显示拉取中状态
   handleRefresh()
@@ -536,7 +536,7 @@ function restoreActivePullTasks() {
         }
       } else {
         // 🔧 备用方案：如果没有镜像名称，使用原来的逻辑
-        console.log(`🔍 消息中没有镜像名称，使用备用匹配逻辑`)
+        console.log('🔍 消息中没有镜像名称，使用备用匹配逻辑')
         const pullingImages = images.value.filter(img => img.pullStatus?.status === 'pulling')
         
         if (pullingImages.length === 1) {

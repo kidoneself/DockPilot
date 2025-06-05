@@ -37,8 +37,8 @@
           type="primary"
           size="medium"
           :disabled="setting.status === 'disabled'"
-          @click.stop="handleConfig"
           class="config-button"
+          @click.stop="handleConfig"
         >
           <template #icon>
             <n-icon>

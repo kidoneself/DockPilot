@@ -36,13 +36,21 @@
               {{ container.status }}
             </NTag>
             <!-- 🔄 三状态标签：1=有更新，2=老版本 -->
-            <NTag v-if="container.needUpdate === 1" type="warning" size="small" class="update-tag">
+            <NTag
+v-if="container.needUpdate === 1"
+type="warning"
+size="small"
+class="update-tag">
               <template #icon>
                 <NIcon><CloudUploadOutline /></NIcon>
               </template>
               有更新
             </NTag>
-            <NTag v-if="container.needUpdate === 2" type="default" size="small" class="old-version-tag">
+            <NTag
+v-if="container.needUpdate === 2"
+type="default"
+size="small"
+class="old-version-tag">
               <template #icon>
                 <NIcon><ArchiveOutline /></NIcon>
               </template>
@@ -140,8 +148,8 @@
                 size="small"
                 circle
                 quaternary
-                @click="openWebUI"
                 class="web-button"
+                @click="openWebUI"
               >
                 <template #icon>
                   <NIcon><LinkOutline /></NIcon>
@@ -177,8 +185,8 @@
           <NDropdown
             :options="getContainerOptions"
             :disabled="operating"
-            @select="handleMoreAction"
             placement="bottom-end"
+            @select="handleMoreAction"
           >
             <NButton 
               size="small"

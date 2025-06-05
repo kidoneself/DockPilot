@@ -304,6 +304,14 @@ const settingsGroups = ref([
         configType: 'category-manage',
         status: 'active' as const,
         icon: '📁'
+      },
+      {
+        key: 'appMarketSources',
+        title: '应用市场配置',
+        desc: '配置应用市场数据源，添加第三方应用市场链接',
+        configType: 'form',
+        status: 'active' as const,
+        icon: '🏪'
       }
     ]
   },
@@ -718,6 +726,80 @@ const openConfig = async (item: any) => {
         }
         break
         
+      case 'appMarketSources':
+        currentConfig.value = {
+          title: '🏪 应用市场配置',
+          width: '600px',
+          confirmText: '保存配置',
+          showResetButton: true,
+          resetText: '清空所有源',
+          beforeConfirm: async (data) => {
+            // 验证市场源URL格式
+            const sources = data.sources ? data.sources.trim() : ''
+            if (sources) {
+              const sourceList = sources.split('\n')
+              for (const source of sourceList) {
+                const trimmedSource = source.trim()
+                if (trimmedSource && !isValidUrl(trimmedSource)) {
+                  message.error(`无效的市场源URL: ${trimmedSource}`)
+                  return false
+                }
+              }
+            }
+            return true
+          },
+          beforeReset: async () => {
+            // 重置前确认
+            return new Promise((resolve) => {
+              dialog.warning({
+                title: '确认清空',
+                content: '确定要清空所有应用市场源配置吗？',
+                positiveText: '确定',
+                negativeText: '取消',
+                onPositiveClick: () => resolve(true),
+                onNegativeClick: () => resolve(false)
+              })
+            })
+          },
+          afterConfirm: async (data) => {
+            await saveAppMarketSourcesConfig(data)
+          },
+          afterReset: async () => {
+            await resetAppMarketSourcesConfig()
+          }
+        }
+
+        // 设置表单字段
+        currentFormFields.value = [
+          {
+            key: 'sources',
+            label: '应用市场源',
+            type: 'textarea',
+            placeholder: '每行一个市场源URL，例如：\nhttps://example.com/apps.json\nhttps://market.example.com/apps.json\nhttps://raw.githubusercontent.com/user/repo/main/apps.json',
+            required: false,
+            rows: 8
+          }
+        ]
+
+        currentFormDescription.value = 
+          '配置第三方应用市场数据源。每行输入一个JSON格式的市场源URL。' +
+          '系统将从这些源获取应用信息并在应用市场中展示。' +
+          '支持HTTP/HTTPS协议，数据格式需符合标准规范。'
+
+        // 从后端加载当前配置
+        try {
+          const appMarketSources = await getSetting('app_market_sources')
+          configData.value = {
+            sources: appMarketSources || ''
+          }
+          console.log('✅ 应用市场源配置加载成功:', appMarketSources || '(未配置)')
+        } catch (error) {
+          console.error('加载应用市场源配置失败:', error)
+          message.warning('加载配置失败，使用默认值')
+          configData.value = { sources: '' }
+        }
+        break
+        
       default:
         currentConfig.value = {
           title: `⚙️ ${item.title}配置`,
@@ -978,6 +1060,16 @@ const isValidMirrorUrl = (url: string): boolean => {
   return true
 }
 
+// 验证URL格式
+const isValidUrl = (url: string): boolean => {
+  try {
+    const urlObj = new URL(url)
+    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 // 保存镜像加速配置
 const saveMirrorConfig = async (mirrorData: any) => {
   try {
@@ -1082,6 +1174,61 @@ const resetDockerBaseDirConfig = async () => {
   } catch (error) {
     console.error('❌ 清空Docker运行目录配置失败:', error)
     message.error('清空配置失败: ' + (error as Error).message)
+    throw error
+  }
+}
+
+// 🏪 应用市场配置相关函数
+
+// 保存应用市场源配置
+const saveAppMarketSourcesConfig = async (data: any) => {
+  try {
+    const sources = data.sources ? data.sources.trim() : ''
+    
+    // 验证每个URL
+    if (sources) {
+      const sourceList = sources.split('\n')
+      for (const source of sourceList) {
+        const trimmedSource = source.trim()
+        if (trimmedSource && !isValidUrl(trimmedSource)) {
+          message.error(`无效的市场源URL: ${trimmedSource}`)
+          return
+        }
+      }
+    }
+    
+    // 保存到后端
+    await setSetting({ key: 'app_market_sources', value: sources })
+    
+    if (sources) {
+      const sourceCount = sources.split('\n').filter((url: string) => url.trim()).length
+      message.success(`应用市场源配置已保存，共 ${sourceCount} 个源`)
+      console.log('✅ 应用市场源配置已保存:', sources)
+    } else {
+      message.success('应用市场源已清空')
+      console.log('✅ 应用市场源已清空')
+    }
+  } catch (error) {
+    console.error('❌ 保存应用市场源配置失败:', error)
+    message.error('保存应用市场源配置失败')
+    throw error
+  }
+}
+
+// 重置应用市场源配置
+const resetAppMarketSourcesConfig = async () => {
+  try {
+    // 清空应用市场源配置
+    await setSetting({ key: 'app_market_sources', value: '' })
+    
+    message.success('应用市场源配置已清空')
+    console.log('✅ 应用市场源配置已重置')
+    
+    // 更新当前配置数据
+    configData.value = { sources: '' }
+  } catch (error) {
+    console.error('❌ 重置应用市场源配置失败:', error)
+    message.error('重置应用市场源配置失败')
     throw error
   }
 }

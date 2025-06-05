@@ -60,7 +60,7 @@
                 {{ app.name.charAt(0).toUpperCase() }}
               </div>
               <!-- 默认图标（兼容旧数据） -->
-              <n-icon 
+              <NIcon 
                 v-else
                 :size="24" 
                 :component="(app as any).icon || CubeOutline" 
@@ -78,7 +78,7 @@
             </div>
             <!-- 收藏按钮 -->
             <div class="favorite-button" @click.stop="handleFavoriteClick(app)">
-              <n-icon 
+              <NIcon 
                 :size="18" 
                 :component="app.isFavorite ? Heart : HeartOutline"
                 :class="{ 'favorited': app.isFavorite }"
@@ -86,7 +86,7 @@
             </div>
             <!-- 拖拽提示图标 -->
             <div class="drag-handle">
-              <n-icon :size="16" :component="ReorderThreeOutline" />
+              <NIcon :size="16" :component="ReorderThreeOutline" />
             </div>
           </div>
         </template>

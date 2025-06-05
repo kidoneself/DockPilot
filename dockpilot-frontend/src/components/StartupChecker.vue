@@ -8,7 +8,7 @@
       </div>
       
       <div class="progress-section">
-        <n-progress 
+        <NProgress 
           type="line" 
           :percentage="progress" 
           :show-indicator="false"
@@ -22,23 +22,23 @@
       </div>
       
       <div class="status-section">
-        <n-space vertical size="small">
+        <NSpace vertical size="small">
           <div class="status-item" :class="{ 'completed': frontendReady }">
-            <n-icon :component="frontendReady ? CheckmarkCircle : Time" />
+            <NIcon :component="frontendReady ? CheckmarkCircle : Time" />
             <span>前端服务</span>
             <span class="status">{{ frontendReady ? '✓ 就绪' : '启动中...' }}</span>
           </div>
           <div class="status-item" :class="{ 'completed': backendReady }">
-            <n-icon :component="backendReady ? CheckmarkCircle : Time" />
+            <NIcon :component="backendReady ? CheckmarkCircle : Time" />
             <span>后端服务</span>
             <span class="status">{{ backendReady ? '✓ 就绪' : '启动中...' }}</span>
           </div>
-        </n-space>
+        </NSpace>
       </div>
       
       <div class="tips-section">
         <p class="startup-tip">
-          <n-icon :component="InformationCircle" />
+          <NIcon :component="InformationCircle" />
           服务启动中，通常需要30-60秒...
         </p>
       </div>
@@ -77,7 +77,7 @@ const checkBackendHealth = async (): Promise<boolean> => {
     
     clearTimeout(timeoutId)
     return response.ok
-  } catch (error) {
+  } catch {
     return false
   }
 }
@@ -121,8 +121,8 @@ const performHealthCheck = async () => {
         isBackendReady.value = true
       }, 1500)
     }
-  } catch (error) {
-    console.warn('健康检查失败:', error)
+  } catch {
+    console.warn('健康检查失败')
   }
   
   updateProgress()
@@ -186,7 +186,7 @@ const checkBackendAvailability = async () => {
       startHealthCheck()
     }
     
-  } catch (error) {
+  } catch {
     console.log('⚠️ 后端服务暂不可用，开始定时检查...')
     startHealthCheck()
   }

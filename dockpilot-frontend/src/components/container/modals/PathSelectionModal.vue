@@ -27,10 +27,10 @@
           </NText>
         </div>
         <div class="stats-actions">
-          <NButton size="small" @click="selectAllPaths" :disabled="selectedPaths.size === totalPaths">
+          <NButton size="small" :disabled="selectedPaths.size === totalPaths" @click="selectAllPaths">
             全选
           </NButton>
-          <NButton size="small" @click="clearAllSelection" :disabled="selectedPaths.size === 0">
+          <NButton size="small" :disabled="selectedPaths.size === 0" @click="clearAllSelection">
             清空
           </NButton>
           <NButton size="small" @click="selectOnlyUserPaths">
@@ -58,8 +58,8 @@
             <div class="container-actions">
               <NButton 
                 size="tiny" 
-                @click="toggleContainerSelection(container)"
                 :type="isContainerFullySelected(container) ? 'warning' : 'default'"
+                @click="toggleContainerSelection(container)"
               >
                 {{ isContainerFullySelected(container) ? '取消全选' : '全选此容器' }}
               </NButton>

@@ -15,7 +15,11 @@
                 <span class="title" :title="container?.containerName || container?.containerId || '容器详情'">
                   {{ container?.containerName || container?.containerId?.slice(0, 12) || '容器详情' }}
                 </span>
-                <NTag v-if="container" :type="getStatusType(container.status)" size="small" class="status-tag">
+                <NTag
+v-if="container"
+:type="getStatusType(container.status)"
+size="small"
+class="status-tag">
                   {{ container.status }}
                 </NTag>
               </div>

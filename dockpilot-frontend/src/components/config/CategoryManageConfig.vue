@@ -14,14 +14,14 @@
     </div>
 
     <!-- 分类列表 -->
-    <div class="category-list" v-if="categories.length > 0">
+    <div v-if="categories.length > 0" class="category-list">
       <draggable
         v-model="categories"
         group="categories"
         item-key="id"
         :animation="200"
-        @end="handleDragEnd"
         class="drag-container"
+        @end="handleDragEnd"
       >
         <template #item="{ element: category, index }">
           <div class="category-item">

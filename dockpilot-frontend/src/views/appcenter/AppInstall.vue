@@ -23,11 +23,11 @@
             <template #icon><n-icon><CheckmarkCircleOutline /></n-icon></template>
             准备就绪
           </n-tag>
-          <n-button @click="handleBack" quaternary>返回</n-button>
+          <n-button quaternary @click="handleBack">返回</n-button>
           <n-button 
             type="primary" 
-            @click="startInstall"
             :disabled="!allImagesReady"
+            @click="startInstall"
           >
             立即安装
           </n-button>
@@ -157,9 +157,9 @@
                         <div class="port-actions-inline">
                           <n-button 
                             size="tiny"
-                            @click="checkPortAvailability(env)"
                             :loading="portCheckStates[env.name]?.checking"
                             :disabled="!env.value || !isValidPort(env.value)"
+                            @click="checkPortAvailability(env)"
                           >
                             检测
                           </n-button>
@@ -167,8 +167,8 @@
                             v-if="portCheckStates[env.name]?.available === false" 
                             size="tiny"
                             type="primary"
-                            @click="handleFindAvailablePort(env)"
                             :loading="findingPort[env.name]"
+                            @click="handleFindAvailablePort(env)"
                           >
                             换端口
                           </n-button>
@@ -188,7 +188,11 @@
               <span class="config-count">{{ otherEnvs.length }} 个配置</span>
             </div>
             <div class="config-grid other-grid">
-              <div v-for="env in otherEnvs" :key="env.name" class="config-item" :class="{ 'other-item': !isPathEnv(env), 'path-item': isPathEnv(env) }">
+              <div
+v-for="env in otherEnvs"
+:key="env.name"
+class="config-item"
+:class="{ 'other-item': !isPathEnv(env), 'path-item': isPathEnv(env) }">
                 <div class="config-header">
                   <span class="config-label">{{ env.description || env.name }}</span>
                   <div class="config-tags">
@@ -221,7 +225,12 @@
 
     <!-- 安装进度模态框 -->
     <n-modal v-model:show="showInstallModal" :mask-closable="true" style="width: 900px;">
-      <n-card title="正在安装应用" :bordered="false" size="huge" role="dialog" aria-modal="true">
+      <n-card
+title="正在安装应用"
+:bordered="false"
+size="huge"
+role="dialog"
+aria-modal="true">
         <div class="install-modal-content">
           <div class="install-progress">
             <n-progress
@@ -236,7 +245,7 @@
 
           <div class="install-logs">
             <h4>安装日志</h4>
-            <div class="log-container" ref="logContainer">
+            <div ref="logContainer" class="log-container">
               <div v-for="log in installLogs" :key="log.id" class="log-item">
                 <span class="log-time">{{ log.time }}</span>
                 <span class="log-level" :class="log.level">{{ log.level.toUpperCase() }}</span>
@@ -250,8 +259,8 @@
           <div class="modal-actions">
             <n-button 
               v-if="installStatus === 'error'"
-              @click="retryInstall"
               type="warning"
+              @click="retryInstall"
             >
               重试安装
             </n-button>
@@ -286,7 +295,7 @@
           <div class="result-actions">
             <n-button @click="goToContainers">管理容器</n-button>
             <n-button @click="installAnother">安装其他应用</n-button>
-            <n-button type="primary" @click="openApp" v-if="accessUrls.length > 0">
+            <n-button v-if="accessUrls.length > 0" type="primary" @click="openApp">
               立即使用
             </n-button>
           </div>
@@ -294,7 +303,7 @@
       </n-result>
       
       <!-- 访问信息 -->
-      <div class="access-info" v-if="accessUrls.length > 0">
+      <div v-if="accessUrls.length > 0" class="access-info">
         <h4>访问地址</h4>
         <div class="access-list">
           <div v-for="access in accessUrls" :key="access.name" class="access-item">
@@ -319,10 +328,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import {
   DownloadOutline,
-  SettingsOutline,
   CheckmarkCircleOutline,
   CloseCircleOutline,
-  SearchOutline,
   RefreshOutline,
   ChevronDownOutline,
   ChevronUpOutline
@@ -331,13 +338,11 @@ import {
 // 导入真实API
 import {
   getInstallInfo,
-  deployApplication as deployApplicationAPI,
   installApplicationWS,
   type ApplicationInstallInfo,
   type ImageStatusInfo,
   type EnvVarInfo,
   type ServiceInfo,
-  type ApplicationDeployRequest,
   type ApplicationDeployResult,
   type AppInstallParams,
   type AppInstallCallbacks
@@ -375,7 +380,6 @@ const installProgress = ref(0)
 const installStatus = ref<'active' | 'success' | 'error'>('active')
 const progressText = ref('')
 const installLogs = ref<any[]>([])
-const showDetails = ref(false)
 const showInstallModal = ref(false)
 const installFinished = ref(false)
 const logContainer = ref<HTMLElement | null>(null)
@@ -432,10 +436,6 @@ const allImagesReady = computed(() => {
   return appImages.value.every(img => img.status === 'exists' || img.status === 'success')
 })
 
-const hasConfigPackages = computed(() => {
-  return appServices.value.some(service => service.configUrl && service.configUrl.trim() !== '')
-})
-
 const accessUrls = computed(() => {
   // 优先使用安装结果中的访问地址
   if (installResult.value?.accessUrls) {
@@ -471,22 +471,6 @@ const isValidPort = (port: string) => {
 }
 
 // 方法
-const getImageStatusType = (status: string) => {
-  switch (status) {
-    case 'exists':
-    case 'success':
-      return 'success'
-    case 'missing':
-      return 'warning'
-    case 'pulling':
-      return 'info'
-    case 'failed':
-      return 'error'
-    default:
-      return 'default'
-  }
-}
-
 const getImageStatusColor = (status: string) => {
   switch (status) {
     case 'exists':
@@ -767,13 +751,6 @@ const openUrl = (url: string) => {
   window.open(url, '_blank')
 }
 
-const getInputStatus = (env: LocalEnvVarInfo) => {
-  if (isPortEnv(env) && portCheckStates.value[env.name]?.available === false) {
-    return 'error'
-  }
-  return undefined
-}
-
 const handleInputChange = (env: LocalEnvVarInfo) => {
   if (isPortEnv(env) && env.value) {
     // 重置状态
@@ -851,11 +828,6 @@ const isPathEnv = (env: LocalEnvVarInfo) => {
   return nameMatch || descMatch
 }
 
-const getImageSizeByName = (imageName: string) => {
-  const image = appImages.value.find(img => img.name === imageName)
-  return image?.size || '未知大小'
-}
-
 const getImageStatusByName = (imageName: string) => {
   const image = appImages.value.find(img => img.name === imageName)
   return image?.status || 'missing'
@@ -864,10 +836,6 @@ const getImageStatusByName = (imageName: string) => {
 const getImageProgressByName = (imageName: string) => {
   const image = appImages.value.find(img => img.name === imageName) as any
   return image?.pullStatus?.percentage || 0
-}
-
-const getImageLogsByName = (imageName: string) => {
-  return []  // 简化实现，不再显示详细日志
 }
 
 const pullImageByName = async (imageName: string) => {
