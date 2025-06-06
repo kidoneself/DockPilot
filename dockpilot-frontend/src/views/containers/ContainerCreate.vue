@@ -141,7 +141,6 @@
                     v-model:value="value.containerPath"
                     placeholder="容器路径"
                     style="flex: 1;"
-                    readonly
                   />
                   <n-checkbox v-model:checked="value.readOnly">只读</n-checkbox>
                 </div>
@@ -152,7 +151,7 @@
             </n-dynamic-input>
             <template #feedback>
               <span style="color: var(--n-text-color-3); font-size: 12px;">
-                容器路径已自动回填，您只需选择主机路径。格式：主机路径:容器路径
+                容器路径支持自动回填和手动编辑，您可以选择主机路径并调整容器路径。格式：主机路径:容器路径
               </span>
             </template>
           </n-form-item>
