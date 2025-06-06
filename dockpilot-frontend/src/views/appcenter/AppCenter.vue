@@ -362,7 +362,7 @@ style="border-radius: 12px;"
 :model="importData"
 label-placement="left"
 label-width="80px"
-style="background: #fafafa; padding: 16px; border-radius: 8px;">
+style="background: var(--n-color-modal); padding: 16px; border-radius: 8px; border: 1px solid var(--n-border-color);">
               <n-form-item label="应用名称" required>
                 <n-input v-model:value="importData.name" placeholder="请输入应用名称" clearable />
               </n-form-item>
