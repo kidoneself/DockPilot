@@ -140,21 +140,23 @@
                 placeholder="请输入数据卷配置"
               >
                 <template #default="{ value }">
-                   <div style="display: flex; align-items: center; width: 100%;">
-                      <n-input
-                       v-model:value="value.hostPath"
-                       placeholder="主机路径"
-                       style="margin-right: 8px;"
-                     />
-                     <span>:</span>
-                      <n-input
-                       v-model:value="value.containerPath"
-                       placeholder="容器路径"
-                       style="margin-left: 8px; margin-right: 8px;"
-                     />
-                      <n-checkbox v-model:checked="value.readOnly">只读</n-checkbox>
-                   </div>
-                 </template>
+                  <div style="display: flex; align-items: center; width: 100%; gap: 8px;">
+                    <div style="flex: 2;">
+                      <PathSelector
+                        v-model="value.hostPath"
+                        placeholder="选择主机文件夹"
+                        @update:model-value="handleVolumeValidation"
+                      />
+                    </div>
+                    <span>:</span>
+                    <n-input
+                      v-model:value="value.containerPath"
+                      placeholder="容器路径"
+                      style="flex: 1;"
+                    />
+                    <n-checkbox v-model:checked="value.readOnly">只读</n-checkbox>
+                  </div>
+                </template>
                 <template #create-button-default>
                   添加数据卷
                 </template>
@@ -297,6 +299,7 @@ import { generateDockerRunCommand, generateDockerComposeConfig } from '@/utils/d
 import { mapFormDataToUpdateRequest } from '@/utils/container'
 import { useWebSocketTask } from '@/hooks/useWebSocketTask'
 import { MessageType, type DockerWebSocketMessage } from '@/api/websocket/types'
+import PathSelector from '@/components/common/PathSelector.vue'
 import type {
   ContainerForm,
   ContainerDetail,
@@ -569,6 +572,45 @@ const rules = {
     required: true,
     message: '请输入镜像名称',
     trigger: 'blur'
+  },
+  volumeMappings: {
+    type: 'array',
+    validator: (rule: any, value: any[]) => {
+      if (!value || value.length === 0) return true // 挂载目录可选
+      
+      const containerPaths = new Set()
+      for (let i = 0; i < value.length; i++) {
+        const volume = value[i]
+        
+        // 检查主机路径
+        if (!volume.hostPath) {
+          return Promise.reject(`第${i + 1}个挂载目录：主机路径不能为空`)
+        }
+        
+        // 检查主机路径格式（必须是绝对路径）
+        if (!volume.hostPath.startsWith('/')) {
+          return Promise.reject(`第${i + 1}个挂载目录：主机路径必须是绝对路径（以/开头）`)
+        }
+        
+        // 检查容器路径
+        if (!volume.containerPath) {
+          return Promise.reject(`第${i + 1}个挂载目录：容器路径不能为空`)
+        }
+        
+        // 检查容器路径格式（必须是绝对路径）
+        if (!volume.containerPath.startsWith('/')) {
+          return Promise.reject(`第${i + 1}个挂载目录：容器路径必须是绝对路径（以/开头）`)
+        }
+        
+        // 检查容器路径重复
+        if (containerPaths.has(volume.containerPath)) {
+          return Promise.reject(`第${i + 1}个挂载目录：容器路径${volume.containerPath}重复`)
+        }
+        containerPaths.add(volume.containerPath)
+      }
+      return true
+    },
+    trigger: 'blur'
   }
 }
 
@@ -605,6 +647,11 @@ const onCreateVolume = (): VolumeMapping => ({
 })
 
 const onCreateCommand = () => ''
+
+// 校验处理函数
+const handleVolumeValidation = () => {
+  formRef.value?.validate(['volumeMappings'])
+}
 
 // 事件处理函数
 async function handleTabChange(tabName: string) {

@@ -660,8 +660,8 @@ const handleSubmit = async () => {
         containerPort: p.container,
         protocol: p.protocol
       })),
-      // 转换挂载目录格式
-      volumeMappings: formData.volumes.map(v => ({
+      // 🔧 修复字段名：volumeMappings → volumeMounts（与后端模型保持一致）
+      volumeMounts: formData.volumes.map(v => ({
         hostPath: v.hostPath,
         containerPath: v.containerPath,
         readOnly: v.readOnly

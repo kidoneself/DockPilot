@@ -48,9 +48,12 @@ public class ApplicationWebSocketService implements BaseService {
     @Autowired
     private WebSocketMessageSender messageSender;
     
-    @Autowired
+        @Autowired
     private com.dockpilot.common.config.AppConfig appConfig;
-    
+
+    @Autowired
+    private com.dockpilot.utils.HostDetector hostDetector;
+
     @org.springframework.beans.factory.annotation.Value("${file.upload.path:uploads/}")
     private String uploadBasePath;
 
@@ -812,19 +815,36 @@ public class ApplicationWebSocketService implements BaseService {
             if (env.getName().toUpperCase().contains("PORT") && envVars.containsKey(env.getName())) {
                 String portValue = envVars.get(env.getName());
                 if (portValue != null && !portValue.trim().isEmpty() && isValidPort(portValue)) {
-                    ApplicationDeployResult.AccessUrl accessUrl = new ApplicationDeployResult.AccessUrl();
                     
-                    // 服务名称：直接使用环境变量名
-                    String serviceName = env.getName().replace("_PORT", "").replace("PORT", "");
-                    accessUrl.setName(serviceName);
+                    // 🔍 关键改进：检测真正可访问的IP+端口组合
+                    String workingUrl = findWorkingAccessUrl(hostIp, portValue, callback);
                     
-                    // 访问地址：宿主机IP + 端口
-                    accessUrl.setUrl("http://" + hostIp + ":" + portValue);
-                    
-                    // 描述
-                    accessUrl.setDescription("端口 " + portValue);
-                    
-                    accessUrls.add(accessUrl);
+                    if (workingUrl != null) {
+                        ApplicationDeployResult.AccessUrl accessUrl = new ApplicationDeployResult.AccessUrl();
+                        
+                        // 服务名称：直接使用环境变量名
+                        String serviceName = env.getName().replace("_PORT", "").replace("PORT", "");
+                        accessUrl.setName(serviceName);
+                        
+                        // 访问地址：验证可用的URL
+                        accessUrl.setUrl(workingUrl);
+                        
+                        // 描述
+                        accessUrl.setDescription("端口 " + portValue + " (已验证可访问)");
+                        
+                        accessUrls.add(accessUrl);
+                        callback.onLog("✅ 验证访问地址可用: " + workingUrl);
+                    } else {
+                        callback.onLog("⚠️ 端口 " + portValue + " 暂时无法访问，可能需要等待应用完全启动");
+                        
+                        // 如果HTTP验证失败，仍提供默认访问地址但标注状态
+                        ApplicationDeployResult.AccessUrl accessUrl = new ApplicationDeployResult.AccessUrl();
+                        String serviceName = env.getName().replace("_PORT", "").replace("PORT", "");
+                        accessUrl.setName(serviceName);
+                        accessUrl.setUrl("http://" + hostIp + ":" + portValue);
+                        accessUrl.setDescription("端口 " + portValue + " (等待应用启动)");
+                        accessUrls.add(accessUrl);
+                    }
                 }
             }
         }
@@ -843,29 +863,20 @@ public class ApplicationWebSocketService implements BaseService {
      */
     private String getHostIp() {
         try {
-            // 尝试获取实际的宿主机IP
-            // 这里可以根据实际情况调整获取IP的逻辑
-            java.net.InetAddress localHost = java.net.InetAddress.getLocalHost();
-            String hostAddress = localHost.getHostAddress();
+            // 使用专门的HostDetector来获取正确的宿主机IP
+            // HostDetector会自动检测Docker环境中的最佳宿主机地址
+            String hostIP = hostDetector.getHostIP();
             
-            // 如果是回环地址，尝试获取其他网卡地址
-            if ("127.0.0.1".equals(hostAddress) || "localhost".equals(hostAddress)) {
-                java.util.Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
-                while (interfaces.hasMoreElements()) {
-                    java.net.NetworkInterface ni = interfaces.nextElement();
-                    if (!ni.isLoopback() && ni.isUp()) {
-                        java.util.Enumeration<java.net.InetAddress> addresses = ni.getInetAddresses();
-                        while (addresses.hasMoreElements()) {
-                            java.net.InetAddress addr = addresses.nextElement();
-                            if (!addr.isLoopbackAddress() && addr instanceof java.net.Inet4Address) {
-                                return addr.getHostAddress();
-                            }
-                        }
-                    }
-                }
+            if (hostIP != null && !hostIP.trim().isEmpty()) {
+                log.debug("获取到宿主机IP: {}", hostIP);
+                return hostIP;
             }
             
-            return hostAddress;
+            // 如果HostDetector返回空值，使用备用方法
+            log.warn("HostDetector返回空值，使用备用方法获取IP");
+            java.net.InetAddress localHost = java.net.InetAddress.getLocalHost();
+            return localHost.getHostAddress();
+            
         } catch (Exception e) {
             log.warn("获取宿主机IP失败，使用localhost: {}", e.getMessage());
             return "localhost";
@@ -880,6 +891,125 @@ public class ApplicationWebSocketService implements BaseService {
             int portNum = Integer.parseInt(port.trim());
             return portNum > 0 && portNum <= 65535;
         } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+    
+    /**
+     * 🔍 查找真正可访问的IP+端口组合
+     * 测试多个候选IP地址，找到第一个能够HTTP访问的URL
+     */
+    private String findWorkingAccessUrl(String primaryHostIp, String port, InstallCallback callback) {
+        List<String> candidateIPs = new ArrayList<>();
+        
+        // 1. 使用主要检测到的宿主机IP
+        candidateIPs.add(primaryHostIp);
+        
+        // 2. 添加HostDetector检测到的其他候选IP
+        try {
+            List<String> otherIPs = hostDetector.getCandidateIPs();
+            for (String ip : otherIPs) {
+                if (!candidateIPs.contains(ip) && isRealHostIP(ip)) {
+                    candidateIPs.add(ip);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("获取候选IP列表失败: {}", e.getMessage());
+        }
+        
+        // 3. 添加常用的本地访问地址
+        if (!candidateIPs.contains("localhost")) {
+            candidateIPs.add("localhost");
+        }
+        if (!candidateIPs.contains("127.0.0.1")) {
+            candidateIPs.add("127.0.0.1");
+        }
+        
+        callback.onLog("🔍 测试 " + candidateIPs.size() + " 个候选访问地址...");
+        
+        // 4. 逐个测试每个IP+端口的HTTP可访问性
+        for (String ip : candidateIPs) {
+            String testUrl = "http://" + ip + ":" + port;
+            
+            if (testHttpAccess(testUrl, callback)) {
+                callback.onLog("✅ 找到可访问的地址: " + testUrl);
+                return testUrl;
+            } else {
+                callback.onLog("❌ 地址不可访问: " + testUrl);
+            }
+        }
+        
+        callback.onLog("⚠️ 所有候选地址均无法HTTP访问，应用可能还在启动中");
+        return null;
+    }
+    
+    /**
+     * 测试HTTP访问是否可用
+     * @param url 要测试的URL  
+     * @param callback 日志回调
+     * @return true-可访问, false-不可访问
+     */
+    private boolean testHttpAccess(String url, InstallCallback callback) {
+        try {
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                .connectTimeout(java.time.Duration.ofSeconds(3))
+                .build();
+            
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create(url))
+                .timeout(java.time.Duration.ofSeconds(5))
+                .method("HEAD", java.net.http.HttpRequest.BodyPublishers.noBody()) // 使用HEAD请求，更轻量
+                .build();
+            
+            java.net.http.HttpResponse<Void> response = client.send(request, 
+                java.net.http.HttpResponse.BodyHandlers.discarding());
+            
+            // HTTP状态码200-399都认为是可访问的
+            int statusCode = response.statusCode();
+            boolean accessible = statusCode >= 200 && statusCode < 400;
+            
+            log.debug("HTTP测试 {}: 状态码 {} ({})", url, statusCode, accessible ? "可访问" : "不可访问");
+            return accessible;
+            
+        } catch (java.net.ConnectException e) {
+            // 连接被拒绝，端口可能未开放或服务未启动
+            log.debug("HTTP测试 {}: 连接被拒绝", url);
+            return false;
+        } catch (java.net.http.HttpTimeoutException e) {
+            // 超时，可能网络问题或服务响应慢
+            log.debug("HTTP测试 {}: 连接超时", url);
+            return false;
+        } catch (Exception e) {
+            // 其他异常（域名解析失败、网络不可达等）
+            log.debug("HTTP测试 {}: 异常 {}", url, e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * 判断是否为真实的宿主机IP（复用HostDetector的逻辑）
+     */
+    private boolean isRealHostIP(String ip) {
+        if (ip == null || ip.trim().isEmpty()) return false;
+        
+        try {
+            String[] parts = ip.trim().split("\\.");
+            if (parts.length != 4) return false;
+            
+            int first = Integer.parseInt(parts[0]);
+            int second = Integer.parseInt(parts[1]);
+            
+            // 私有IP地址段
+            if (first == 192 && second == 168) return true; // 192.168.0.0/16
+            if (first == 10) return true; // 10.0.0.0/8  
+            if (first == 172 && second >= 16 && second <= 31) return true; // 172.16.0.0/12
+            
+            // 排除Docker内部网络
+            if (first == 172 && second == 17) return false; // Docker默认网桥
+            if (first == 172 && second >= 18 && second <= 23) return false; // Docker常见网络
+            
+            return false;
+        } catch (Exception e) {
             return false;
         }
     }
