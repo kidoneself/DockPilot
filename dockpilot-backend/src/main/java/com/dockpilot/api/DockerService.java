@@ -557,6 +557,11 @@ public class DockerService {
     }
     */
 
+        // 🔧 修复：设置容器暴露的端口（与端口映射配合使用）
+        if (request.getExposedPorts() != null && !request.getExposedPorts().isEmpty()) {
+            createContainerCmd.withExposedPorts(request.getExposedPorts());
+        }
+
         // 设置是否启用特权模式（容器可以访问宿主机所有设备）
         createContainerCmd.withPrivileged(Boolean.TRUE.equals(request.getPrivileged()));
 
