@@ -27,7 +27,7 @@ public class WebSocketUtils {
             String clientIp = extractClientIpFromSession(session);
             
             if (clientIp != null && !clientIp.trim().isEmpty()) {
-                log.debug("获取到客户端IP: {}", clientIp);
+                log.info("🎯 获取到客户端IP: {}", clientIp);
                 return clientIp;
             }
             
@@ -43,33 +43,42 @@ public class WebSocketUtils {
 
     /**
      * 🔍 从WebSocket会话中提取客户端IP
-     * 按优先级尝试多种方式
+     * 🎯 修复：调整优先级，Host头最可靠
      */
     private static String extractClientIpFromSession(WebSocketSession session) {
-        // 方法1: 尝试从RemoteAddress获取
-        String remoteIp = getRemoteAddressIp(session);
-        if (isValidClientIp(remoteIp)) {
-            return remoteIp;
+        // 🎯 方法1: 优先从Host头获取（最可靠，用户浏览器地址栏的地址）
+        String hostIp = getHostIp(session);
+        log.debug("🔍 Host头IP: {}", hostIp);
+        if (isValidClientIp(hostIp)) {
+            log.info("✅ 使用Host头IP: {}", hostIp);
+            return hostIp;
         }
         
-        // 方法2: 尝试从HandshakeHeaders获取代理转发的真实IP
+        // 方法2: 尝试从X-Forwarded-For头获取代理转发的真实IP
         String forwardedIp = getForwardedIp(session);
+        log.debug("🔍 X-Forwarded-For IP: {}", forwardedIp);
         if (isValidClientIp(forwardedIp)) {
+            log.info("✅ 使用X-Forwarded-For IP: {}", forwardedIp);
             return forwardedIp;
         }
         
         // 方法3: 尝试从X-Real-IP头获取
         String realIp = getRealIp(session);
+        log.debug("🔍 X-Real-IP: {}", realIp);
         if (isValidClientIp(realIp)) {
+            log.info("✅ 使用X-Real-IP: {}", realIp);
             return realIp;
         }
         
-        // 方法4: 尝试从Host头获取访问地址
-        String hostIp = getHostIp(session);
-        if (isValidClientIp(hostIp)) {
-            return hostIp;
+        // 方法4: 最后尝试从RemoteAddress获取（可能是容器内部IP）
+        String remoteIp = getRemoteAddressIp(session);
+        log.debug("🔍 RemoteAddress IP: {}", remoteIp);
+        if (isValidClientIp(remoteIp)) {
+            log.info("✅ 使用RemoteAddress IP: {}", remoteIp);
+            return remoteIp;
         }
         
+        log.warn("❌ 所有方法都无法获取有效的客户端IP");
         return null;
     }
 
