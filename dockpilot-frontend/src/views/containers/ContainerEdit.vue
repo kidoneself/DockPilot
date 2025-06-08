@@ -220,7 +220,7 @@
             <n-code :code="dockerRunCommand" language="bash" />
             <n-button
               type="primary"
-              @click="copyToClipboard(dockerRunCommand)"
+              @click="handleCopyToClipboard(dockerRunCommand)"
             >
               <template #icon>
                 <n-icon><CopyOutline /></n-icon>
@@ -238,7 +238,7 @@
             />
             <n-button
               type="primary"
-              @click="copyToClipboard(dockerComposeConfig)"
+              @click="handleCopyToClipboard(dockerComposeConfig)"
             >
               <template #icon>
                 <n-icon><CopyOutline /></n-icon>
@@ -299,6 +299,7 @@ import { generateDockerRunCommand, generateDockerComposeConfig } from '@/utils/d
 import { mapFormDataToUpdateRequest } from '@/utils/container'
 import { useWebSocketTask } from '@/hooks/useWebSocketTask'
 import { MessageType, type DockerWebSocketMessage } from '@/api/websocket/types'
+import { copyToClipboard } from '@/utils/clipboard'
 import PathSelector from '@/components/common/PathSelector.vue'
 import type {
   ContainerForm,
@@ -728,14 +729,12 @@ const dockerComposeConfig = computed(() => {
   return generateDockerComposeConfig(formData.value)
 })
 
-// 复制到剪贴板
-const copyToClipboard = async (text: string) => {
-  try {
-    await navigator.clipboard.writeText(text)
-    message.success('复制成功')
-  } catch {
-    message.error('复制失败')
-  }
+// 复制到剪贴板 - 使用健壮版本
+const handleCopyToClipboard = async (text: string) => {
+  await copyToClipboard(text, { 
+    showMessage: true, 
+    messageApi: message 
+  })
 }
 
 // 页面加载时获取容器详情

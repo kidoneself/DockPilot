@@ -219,6 +219,7 @@ import {
 } from '@vicons/ionicons5'
 import { useRouter } from 'vue-router'
 import { generateContainerYaml, previewContainerYaml, type ContainerYamlResponse } from '@/api/containerYaml'
+import { copyToClipboard } from '@/utils/clipboard'
 
 // Props & Emits
 interface Props {
@@ -367,14 +368,13 @@ async function generateYamlContent() {
   }
 }
 
-// 复制YAML内容
-function copyYamlContent() {
+// 复制YAML内容 - 使用健壮版本
+async function copyYamlContent() {
   if (!yamlResult.value) return
   
-  navigator.clipboard.writeText(yamlResult.value.yamlContent).then(() => {
-    message.success('YAML内容已复制到剪贴板')
-  }).catch(() => {
-    message.error('复制失败，请手动复制')
+  await copyToClipboard(yamlResult.value.yamlContent, { 
+    showMessage: true, 
+    messageApi: message 
   })
 }
 

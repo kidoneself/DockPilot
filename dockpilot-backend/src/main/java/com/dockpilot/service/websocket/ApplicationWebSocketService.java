@@ -11,6 +11,7 @@ import com.dockpilot.service.http.ContainerService;
 import com.dockpilot.api.DockerService;
 import com.dockpilot.utils.YamlApplicationParser;
 import com.dockpilot.utils.ErrorMessageExtractor;
+import com.dockpilot.utils.WebSocketUtils;
 import com.dockpilot.websocket.model.DockerWebSocketMessage;
 import com.dockpilot.websocket.sender.WebSocketMessageSender;
 import io.swagger.v3.oas.annotations.Operation;
@@ -132,12 +133,12 @@ public class ApplicationWebSocketService implements BaseService {
     }
 
     /**
-     * 执行具体的安装流程
+     * 执行具体的安装流程 - 🔄 修改为逐个服务处理模式
      */
     private void performInstallation(Long appId, String appName, Map<String, String> envVars, 
                                    InstallCallback callback) throws Exception {
         
-        // 步骤1: 获取应用信息 (0-10%)
+        // 步骤1: 获取应用信息 (0-5%)
         callback.onProgress(5);
         callback.onLog("📋 获取应用配置信息...");
         ApplicationVO applicationVO = applicationService.getApplicationById(appId);
@@ -145,13 +146,9 @@ public class ApplicationWebSocketService implements BaseService {
             throw new RuntimeException("应用不存在: " + appId);
         }
         
-        // 步骤2: 解析YAML配置 (10-20%)
-        callback.onProgress(15);
-        callback.onLog("🔍 解析应用配置...");
-        
-        // 解析应用配置
-        callback.onProgress(5);
-        callback.onLog("解析应用配置...");
+        // 步骤2: 预处理YAML配置 (5-10%)
+        callback.onProgress(10);
+        callback.onLog("🔍 预处理应用配置...");
         
         // 替换YAML中的环境变量占位符
         String processedYaml = applicationVO.getYamlContent();
@@ -162,28 +159,134 @@ public class ApplicationWebSocketService implements BaseService {
         }
         
         ApplicationParseResult parseResult = YamlApplicationParser.parseYaml(processedYaml);
-        callback.onProgress(15);
-        callback.onLog("✅ 应用配置解析完成");
-        callback.onLog("解析到 " + parseResult.getServices().size() + " 个服务");
+        callback.onLog("✅ 应用配置预处理完成");
+        callback.onLog("检测到 " + parseResult.getServices().size() + " 个服务待安装");
         
-        // 步骤3: 检查和拉取镜像 (20-60%)
-        callback.onProgress(25);
-        callback.onLog("🐳 检查所需镜像...");
-        ensureImagesAvailable(parseResult.getImages(), callback);
+        // 🔄 关键修改：逐个服务处理模式 (10-95%)
+        List<String> allContainerIds = new ArrayList<>();
+        int totalServices = parseResult.getServices().size();
+        int baseProgress = 10; // 从10%开始
+        int progressPerService = 85 / totalServices; // 每个服务分配的进度空间 (85% = 95% - 10%)
         
-        // 步骤4: 创建和启动容器 (60-95%)
-        callback.onProgress(65);
-        callback.onLog("🚀 创建应用容器...");
-        List<String> containerIds = createAndStartContainers(parseResult, appName, envVars, callback);
+        for (int i = 0; i < totalServices; i++) {
+            ApplicationParseResult.ServiceInfo service = parseResult.getServices().get(i);
+            int serviceStartProgress = baseProgress + (i * progressPerService);
+            int serviceEndProgress = baseProgress + ((i + 1) * progressPerService);
+            
+            callback.onLog("🚀 开始处理服务 " + (i + 1) + "/" + totalServices + ": " + service.getName());
+            
+            try {
+                // 为当前服务处理镜像、配置和容器创建
+                String containerId = processIndividualService(service, appName, envVars, 
+                    serviceStartProgress, serviceEndProgress, callback);
+                
+                if (containerId != null) {
+                    allContainerIds.add(containerId);
+                    callback.onLog("✅ 服务 " + service.getName() + " 安装成功 (容器ID: " + containerId + ")");
+                } else {
+                    callback.onLog("⚠️ 服务 " + service.getName() + " 安装失败，但继续处理其他服务");
+                }
+                
+            } catch (Exception e) {
+                callback.onLog("❌ 服务 " + service.getName() + " 安装失败: " + e.getMessage());
+                callback.onLog("🔄 继续处理其他服务...");
+                // 单个服务失败不影响其他服务的安装
+            }
+        }
         
-        // 步骤5: 验证部署 (95-100%)
+        // 步骤3: 最终验证 (95-100%)
         callback.onProgress(95);
-        callback.onLog("✅ 验证应用状态...");
-        ApplicationDeployResult result = verifyDeployment(containerIds, parseResult, envVars, callback);
+        callback.onLog("✅ 验证整体应用状态...");
+        
+        if (allContainerIds.isEmpty()) {
+            throw new RuntimeException("所有服务都安装失败，请检查配置");
+        }
+        
+        // 验证部署结果
+        ApplicationDeployResult result = verifyDeployment(allContainerIds, parseResult, envVars, callback);
         
         callback.onProgress(100);
-        callback.onLog("🎉 安装完成!");
+        callback.onLog("🎉 应用安装完成! 成功启动 " + allContainerIds.size() + "/" + totalServices + " 个服务");
         callback.onComplete(result);
+    }
+
+    /**
+     * 🆕 处理单个服务的完整流程：镜像→配置→容器
+     * 
+     * @param service 服务配置
+     * @param appName 应用名称
+     * @param envVars 环境变量
+     * @param startProgress 起始进度
+     * @param endProgress 结束进度
+     * @param callback 回调对象
+     * @return 容器ID，失败时返回null
+     */
+    private String processIndividualService(ApplicationParseResult.ServiceInfo service,
+                                          String appName, Map<String, String> envVars,
+                                          int startProgress, int endProgress,
+                                          InstallCallback callback) throws Exception {
+        
+        String serviceName = service.getName();
+        String imageName = service.getImage();
+        
+        // 子步骤1: 检查和拉取镜像 (当前服务进度的 0-40%)
+        int imageProgress = startProgress + (int)((endProgress - startProgress) * 0.4);
+        callback.onProgress(imageProgress);
+        callback.onLog("🐳 [" + serviceName + "] 检查镜像: " + imageName);
+        
+        boolean imageExists = dockerService.isImageExists(imageName);
+        if (!imageExists) {
+            callback.onLog("📥 [" + serviceName + "] 镜像不存在，开始拉取...");
+            pullImageIfNeeded(imageName, callback);
+            callback.onLog("✅ [" + serviceName + "] 镜像拉取完成");
+        } else {
+            callback.onLog("✅ [" + serviceName + "] 镜像已存在");
+        }
+        
+        // 子步骤2: 处理配置包 (当前服务进度的 40-60%)
+        int configProgress = startProgress + (int)((endProgress - startProgress) * 0.6);
+        callback.onProgress(configProgress);
+        callback.onLog("📦 [" + serviceName + "] 处理配置包...");
+        
+        // 处理配置包下载和解压
+        String configUrl = service.getConfigUrl();
+        handleConfigDownload(configUrl, serviceName, service.getVolumes(), callback);
+        
+        // 子步骤3: 创建和启动容器 (当前服务进度的 60-100%)
+        int containerProgress = startProgress + (int)((endProgress - startProgress) * 0.8);
+        callback.onProgress(containerProgress);
+        callback.onLog("🚀 [" + serviceName + "] 创建容器...");
+        
+        // 生成容器名称
+        String containerName;
+        if (service.getContainerName() != null && !service.getContainerName().trim().isEmpty()) {
+            containerName = service.getContainerName();
+            callback.onLog("[" + serviceName + "] 使用配置的容器名: " + containerName);
+        } else {
+            containerName = appName + "_" + serviceName + "_" + System.currentTimeMillis();
+            callback.onLog("[" + serviceName + "] 生成容器名: " + containerName);
+        }
+        
+        // 构建容器创建请求
+        ContainerCreateRequest request = convertServiceToContainerRequest(service, containerName, envVars, callback);
+        
+        // 创建容器
+        callback.onLog("[" + serviceName + "] 正在创建Docker容器...");
+        String containerId = containerService.createContainer(request);
+        
+        // 子步骤4: 验证容器状态 (当前服务进度的 80-100%)
+        callback.onProgress(endProgress);
+        callback.onLog("🔍 [" + serviceName + "] 验证容器状态...");
+        Thread.sleep(1000); // 等待容器启动
+        
+        boolean isRunning = isContainerRunning(containerId);
+        if (isRunning) {
+            callback.onLog("✅ [" + serviceName + "] 容器启动成功: " + containerName);
+            return containerId;
+        } else {
+            callback.onLog("⚠️ [" + serviceName + "] 容器可能未正常启动: " + containerName);
+            return containerId; // 即使状态检查失败，也返回容器ID，让后续验证处理
+        }
     }
 
     /**
@@ -236,542 +339,6 @@ public class ApplicationWebSocketService implements BaseService {
     }
 
     /**
-     * 创建和启动容器
-     */
-    private List<String> createAndStartContainers(ApplicationParseResult parseResult, String appName,
-                                                Map<String, String> envVars,
-                                                InstallCallback callback) throws Exception {
-        List<String> containerIds = new ArrayList<>();
-        List<String> createdContainerIds = new ArrayList<>(); // 用于错误回滚
-        
-        try {
-            int totalServices = parseResult.getServices().size();
-            int currentIndex = 0;
-            
-            for (ApplicationParseResult.ServiceInfo service : parseResult.getServices()) {
-                currentIndex++;
-                int baseProgress = 65 + (currentIndex * 30 / totalServices); // 65%-95%
-                
-                callback.onProgress(baseProgress);
-                callback.onLog("创建容器: " + service.getName());
-                callback.onLog("正在创建服务: " + service.getName() + " (镜像: " + service.getImage() + ")");
-                
-                // 使用YAML中配置的容器名，如果没有配置则生成一个
-                String containerName;
-                if (service.getContainerName() != null && !service.getContainerName().trim().isEmpty()) {
-                    containerName = service.getContainerName();
-                    callback.onLog("使用配置的容器名: " + containerName);
-                } else {
-                    // 只有在没有配置container_name时才生成
-                    containerName = appName + "_" + service.getName() + "_" + System.currentTimeMillis();
-                    callback.onLog("生成容器名: " + containerName);
-                }
-                
-                // 构建容器创建请求
-                ContainerCreateRequest request = convertServiceToContainerRequest(service, containerName, envVars, callback);
-                
-                // 调用真实的容器创建API
-                callback.onLog("正在创建Docker容器...");
-                String containerId = containerService.createContainer(request);
-                
-                containerIds.add(containerId);
-                createdContainerIds.add(containerId);
-                callback.onLog("✅ 容器创建成功: " + containerName + " (ID: " + containerId + ")");
-                
-                // 容器创建后会自动启动，验证状态
-                callback.onLog("验证容器状态: " + containerName);
-                Thread.sleep(1000); // 等待容器启动
-                
-                // 检查容器是否正常运行
-                boolean isRunning = isContainerRunning(containerId);
-                if (isRunning) {
-                    callback.onLog("✅ 容器启动成功: " + containerName);
-                } else {
-                    callback.onLog("⚠️ 容器可能未正常启动: " + containerName);
-                }
-            }
-            
-            return containerIds;
-            
-        } catch (Exception e) {
-            // 错误回滚：清理已创建的容器
-            callback.onLog("❌ 容器创建过程中发生错误: " + e.getMessage());
-            callback.onLog("正在清理已创建的容器...");
-            
-            for (String containerId : createdContainerIds) {
-                try {
-                    containerService.removeContainer(containerId);
-                    callback.onLog("已清理容器: " + containerId);
-                } catch (Exception cleanupError) {
-                    callback.onLog("清理容器失败: " + containerId + ", 错误: " + cleanupError.getMessage());
-                }
-            }
-            
-            throw new RuntimeException("容器创建失败: " + e.getMessage(), e);
-        }
-    }
-    
-    /**
-     * 将服务配置转换为容器创建请求
-     */
-    private ContainerCreateRequest convertServiceToContainerRequest(ApplicationParseResult.ServiceInfo service, 
-                                                                   String containerName,
-                                                                   Map<String, String> envVars, 
-                                                                   InstallCallback callback) throws Exception {
-        ContainerCreateRequest request = new ContainerCreateRequest();
-        
-        // 基础配置
-        request.setImage(service.getImage());
-        request.setName(containerName);
-        
-        callback.onLog("设置镜像: " + service.getImage());
-        callback.onLog("设置容器名: " + containerName);
-        
-        // 命令和入口点配置
-        if (service.getCommand() != null && !service.getCommand().isEmpty()) {
-            request.setCmd(service.getCommand());
-            callback.onLog("设置启动命令: " + service.getCommand());
-        }
-        
-        if (service.getEntrypoint() != null && !service.getEntrypoint().isEmpty()) {
-            request.setEntrypoint(service.getEntrypoint());
-            callback.onLog("设置入口点: " + service.getEntrypoint());
-        }
-        
-        // 工作目录配置
-        if (service.getWorkingDir() != null && !service.getWorkingDir().trim().isEmpty()) {
-            request.setWorkingDir(service.getWorkingDir());
-            callback.onLog("设置工作目录: " + service.getWorkingDir());
-        }
-        
-        // 环境变量配置 - 🔧 关键修复：正确处理环境变量的分离
-        // ✅ xmeta变量（DOCKER_BASE、MP_PORT等）：仅用于替换YAML占位符
-        // ✅ service.environment变量：实际传递给Docker容器的环境变量
-        List<String> envList = buildEnvironmentVariables(service.getEnvironment(), envVars, callback);
-        request.setEnv(envList);
-        
-        // 端口映射配置
-        if (service.getPorts() != null && !service.getPorts().isEmpty()) {
-            parsePortMappings(service.getPorts(), request, envVars, callback);
-        }
-        
-        // 数据卷挂载配置 - 🔥 新增：传递configUrl参数
-        String configUrl = service.getConfigUrl();
-        parseVolumeMounts(service.getVolumes(), request, service.getName(), configUrl, callback);
-        
-        // 网络配置 - 从服务配置中读取
-        String networkMode = service.getNetworkMode();
-        if (networkMode != null && !networkMode.trim().isEmpty()) {
-            request.setNetworkMode(networkMode);
-            callback.onLog("设置网络模式: " + networkMode);
-        } else {
-            // 如果没有指定网络模式，使用默认的bridge
-            request.setNetworkMode("bridge");
-            callback.onLog("使用默认网络模式: bridge");
-        }
-        
-        // 重启策略 - 从服务配置中读取
-        String restartPolicy = service.getRestart();
-        if (restartPolicy != null && !restartPolicy.trim().isEmpty()) {
-            try {
-                request.setRestartPolicy(com.github.dockerjava.api.model.RestartPolicy.parse(restartPolicy));
-                callback.onLog("设置重启策略: " + restartPolicy);
-            } catch (Exception e) {
-                callback.onLog("⚠️ 无效的重启策略配置: " + restartPolicy + ", 使用默认策略: unless-stopped");
-                request.setRestartPolicy(com.github.dockerjava.api.model.RestartPolicy.parse("unless-stopped"));
-            }
-        } else {
-            // 如果没有指定重启策略，使用默认的unless-stopped
-            request.setRestartPolicy(com.github.dockerjava.api.model.RestartPolicy.parse("unless-stopped"));
-            callback.onLog("使用默认重启策略: unless-stopped");
-        }
-        
-        // 特权模式配置
-        if (service.getPrivileged() != null && service.getPrivileged()) {
-            request.setPrivileged(true);
-            callback.onLog("启用特权模式");
-        }
-        
-        // Capability 配置
-        if (service.getCapAdd() != null && !service.getCapAdd().isEmpty()) {
-            request.setCapAdd(service.getCapAdd());
-            callback.onLog("添加Capabilities: " + service.getCapAdd());
-        }
-        
-        // 设备映射配置
-        if (service.getDevices() != null && !service.getDevices().isEmpty()) {
-            parseDeviceMappings(service.getDevices(), request, callback);
-        }
-        
-        // 标签配置
-        if (service.getLabels() != null && !service.getLabels().isEmpty()) {
-            request.setLabels(service.getLabels());
-            callback.onLog("设置标签: " + service.getLabels().size() + " 个");
-        }
-        
-        return request;
-    }
-    
-    /**
-     * 构建环境变量列表 - 🔧 修复：正确处理环境变量
-     * 
-     * @param serviceEnvVars 服务定义的环境变量（YAML中service.environment配置）
-     * @param userEnvVars xmeta配置变量（仅用于占位符替换，不传给容器）
-     * @param callback 日志回调
-     * @return 容器环境变量列表
-     */
-    private List<String> buildEnvironmentVariables(List<String> serviceEnvVars, Map<String, String> userEnvVars, InstallCallback callback) {
-        List<String> envList = new ArrayList<>();
-        
-        // 只添加服务定义的环境变量（YAML中service.environment配置的变量）
-        if (serviceEnvVars != null) {
-            for (String envVar : serviceEnvVars) {
-                // 🔧 关键：使用xmeta变量替换占位符，但不将xmeta变量本身添加到容器环境
-                // 例如：SOME_VAR=${MP_PORT} 会被替换为 SOME_VAR=3001
-                // 但 MP_PORT=3001 本身不会作为环境变量传给容器
-                String processedEnv = replaceEnvPlaceholders(envVar, userEnvVars);
-                envList.add(processedEnv);
-            }
-        }
-        
-        // 🎯 核心修复：xmeta变量（DOCKER_BASE、BASE_*、端口配置等）的正确用途：
-        // ✅ 用于替换YAML中的占位符（如 ${DOCKER_BASE}/app/config）
-        // ❌ 不作为环境变量传递给Docker容器
-        // ✅ 容器的环境变量应该在YAML的service.environment中明确定义
-        
-        if (!envList.isEmpty()) {
-            callback.onLog("设置服务环境变量: " + envList.size() + " 个");
-        }
-        
-        return envList;
-    }
-    
-    /**
-     * 向后兼容的构建环境变量方法
-     */
-    private List<String> buildEnvironmentVariables(Map<String, String> envVars, InstallCallback callback) {
-        return buildEnvironmentVariables(null, envVars, callback);
-    }
-    
-    /**
-     * 解析端口映射
-     */
-    private void parsePortMappings(List<String> ports, ContainerCreateRequest request, 
-                                 Map<String, String> envVars, InstallCallback callback) {
-        List<com.github.dockerjava.api.model.ExposedPort> exposedPorts = new ArrayList<>();
-        com.github.dockerjava.api.model.Ports portBindings = new com.github.dockerjava.api.model.Ports();
-        
-        for (String portMapping : ports) {
-            try {
-                // 替换环境变量占位符
-                String processedPort = replaceEnvPlaceholders(portMapping, envVars);
-                
-                // 解析端口映射格式：hostPort:containerPort 或 port
-                String[] parts = processedPort.split(":");
-                if (parts.length == 2) {
-                    int hostPort = Integer.parseInt(parts[0].trim());
-                    int containerPort = Integer.parseInt(parts[1].trim());
-                    
-                    com.github.dockerjava.api.model.ExposedPort exposedPort = 
-                        com.github.dockerjava.api.model.ExposedPort.tcp(containerPort);
-                    exposedPorts.add(exposedPort);
-                    
-                    portBindings.bind(exposedPort, 
-                        com.github.dockerjava.api.model.Ports.Binding.bindPort(hostPort));
-                    
-                    callback.onLog("设置端口映射: " + hostPort + " -> " + containerPort);
-                } else if (parts.length == 1) {
-                    int port = Integer.parseInt(parts[0].trim());
-                    com.github.dockerjava.api.model.ExposedPort exposedPort = 
-                        com.github.dockerjava.api.model.ExposedPort.tcp(port);
-                    exposedPorts.add(exposedPort);
-                    
-                    callback.onLog("暴露端口: " + port);
-                }
-            } catch (Exception e) {
-                callback.onLog("⚠️ 端口配置解析失败: " + portMapping + ", 错误: " + e.getMessage());
-            }
-        }
-        
-        if (!exposedPorts.isEmpty()) {
-            request.setExposedPorts(exposedPorts);
-            request.setPortBindings(portBindings);
-        }
-    }
-    
-    /**
-     * 解析数据卷挂载
-     */
-    private void parseVolumeMounts(List<String> serviceVolumes, ContainerCreateRequest request, String serviceName, String configUrl, InstallCallback callback) {
-        List<com.github.dockerjava.api.model.Bind> binds = new ArrayList<>();
-        
-        // 🔥 新增：处理配置包下载
-        handleConfigDownload(configUrl, serviceName, serviceVolumes, callback);
-        
-        // 处理服务定义的卷挂载
-        if (serviceVolumes != null) {
-            for (String volumeMapping : serviceVolumes) {
-                try {
-                    // 解析卷挂载格式：hostPath:containerPath[:ro/rw]
-                    String[] parts = volumeMapping.split(":");
-                    if (parts.length >= 2) {
-                        String hostPath = parts[0].trim();
-                        String containerPath = parts[1].trim();
-                        String accessMode = parts.length > 2 ? parts[2].trim() : "rw";
-                        
-                        // hostPath可能包含环境变量引用，在YAML处理阶段已经替换完成
-                        
-                        // 🔥 新增：自动创建宿主机目录
-                        if (!ensureHostDirectoryExists(hostPath, callback)) {
-                            callback.onLog("⚠️ 无法创建宿主机目录: " + hostPath + "，跳过此挂载");
-                            continue;
-                        }
-                        
-                        com.github.dockerjava.api.model.Volume volume = new com.github.dockerjava.api.model.Volume(containerPath);
-                        com.github.dockerjava.api.model.Bind bind;
-                        
-                        if ("ro".equals(accessMode)) {
-                            bind = new com.github.dockerjava.api.model.Bind(hostPath, volume, com.github.dockerjava.api.model.AccessMode.ro);
-                        } else {
-                            bind = new com.github.dockerjava.api.model.Bind(hostPath, volume, com.github.dockerjava.api.model.AccessMode.rw);
-                        }
-                        
-                        binds.add(bind);
-                        callback.onLog("设置卷挂载: " + hostPath + " -> " + containerPath + " (" + accessMode + ")");
-                    } else if (parts.length == 1) {
-                        // 命名卷或匿名卷
-                        String volumePath = parts[0].trim();
-                        com.github.dockerjava.api.model.Volume volume = new com.github.dockerjava.api.model.Volume(volumePath);
-                        
-                        // 初始化volumes列表如果为空
-                        if (request.getVolumes() == null) {
-                            request.setVolumes(new ArrayList<>());
-                        }
-                        request.getVolumes().add(volume);
-                        callback.onLog("设置数据卷: " + volumePath);
-                    }
-                } catch (Exception e) {
-                    callback.onLog("⚠️ 卷挂载配置解析失败: " + volumeMapping + ", 错误: " + e.getMessage());
-                }
-            }
-        }
-        
-        if (!binds.isEmpty()) {
-            request.setBinds(binds);
-        }
-    }
-    
-    /**
-     * 🔥 新增：确保宿主机目录存在，如果不存在则自动创建
-     * 
-     * @param hostPath 宿主机路径
-     * @param callback 回调对象用于日志输出
-     * @return true如果目录存在或创建成功，false如果创建失败
-     */
-    private boolean ensureHostDirectoryExists(String hostPath, InstallCallback callback) {
-        try {
-            // 验证路径格式
-            if (hostPath == null || hostPath.trim().isEmpty()) {
-                callback.onLog("⚠️ 宿主机路径为空，跳过创建");
-                return false;
-            }
-            
-            // 规范化路径
-            String normalizedPath = hostPath.trim();
-            
-            // 检查是否为绝对路径
-            if (!normalizedPath.startsWith("/")) {
-                callback.onLog("⚠️ 宿主机路径必须是绝对路径: " + normalizedPath);
-                return false;
-            }
-            
-            // 检查是否为系统敏感路径，避免误操作
-            if (isSystemSensitivePath(normalizedPath)) {
-                callback.onLog("⚠️ 跳过系统敏感路径: " + normalizedPath);
-                return true; // 返回true，让Docker处理这些路径
-            }
-            
-            // 🔥 新增：只创建基于 docker_base_dir 的目录
-            if (!shouldCreateDirectory(normalizedPath, callback)) {
-                callback.onLog("⚠️ 跳过非Docker配置目录: " + normalizedPath + " (只自动创建Docker配置目录)");
-                return true; // 返回true，让Docker处理这些路径
-            }
-            
-            // 🔥 新增：获取实际的文件系统路径（容器化部署）
-            String actualPath = getActualFilePath(normalizedPath, callback);
-            java.nio.file.Path targetPath = java.nio.file.Paths.get(actualPath);
-            
-            // 检查路径是否已存在
-            if (java.nio.file.Files.exists(targetPath)) {
-                if (java.nio.file.Files.isDirectory(targetPath)) {
-                    callback.onLog("✅ 宿主机目录已存在: " + normalizedPath);
-                    return true;
-                } else {
-                    callback.onLog("❌ 宿主机路径已存在但不是目录: " + normalizedPath);
-                    return false;
-                }
-            }
-            
-            // 目录不存在，尝试创建
-            callback.onLog("📁 正在创建Docker配置目录: " + normalizedPath);
-            java.nio.file.Files.createDirectories(targetPath);
-            
-            // 验证创建结果
-            if (java.nio.file.Files.exists(targetPath) && java.nio.file.Files.isDirectory(targetPath)) {
-                callback.onLog("✅ Docker配置目录创建成功: " + normalizedPath);
-                
-                // 尝试设置目录权限（非关键操作，失败不影响整体流程）
-                try {
-                    // 设置目录权限为777（rwxrwxrwx）
-                    java.nio.file.Files.setPosixFilePermissions(targetPath, 
-                        java.util.EnumSet.of(
-                            java.nio.file.attribute.PosixFilePermission.OWNER_READ,
-                            java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
-                            java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE,
-                            java.nio.file.attribute.PosixFilePermission.GROUP_READ,
-                            java.nio.file.attribute.PosixFilePermission.GROUP_WRITE,
-                            java.nio.file.attribute.PosixFilePermission.GROUP_EXECUTE,
-                            java.nio.file.attribute.PosixFilePermission.OTHERS_READ,
-                            java.nio.file.attribute.PosixFilePermission.OTHERS_WRITE,
-                            java.nio.file.attribute.PosixFilePermission.OTHERS_EXECUTE
-                        ));
-                    callback.onLog("✅ 目录权限设置成功: 777");
-                } catch (Exception permissionError) {
-                    callback.onLog("⚠️ 目录权限设置失败（不影响挂载）: " + permissionError.getMessage());
-                }
-                
-                return true;
-            } else {
-                callback.onLog("❌ 目录创建失败，验证不通过: " + normalizedPath);
-                return false;
-            }
-            
-        } catch (java.nio.file.FileAlreadyExistsException e) {
-            // 并发创建导致的异常，再次检查是否为目录
-            try {
-                String actualPath = getActualFilePath(hostPath, callback);
-                java.nio.file.Path targetPath = java.nio.file.Paths.get(actualPath);
-                if (java.nio.file.Files.isDirectory(targetPath)) {
-                    callback.onLog("✅ 目录已被并发创建: " + hostPath);
-                    return true;
-                } else {
-                    callback.onLog("❌ 路径被创建但不是目录: " + hostPath);
-                    return false;
-                }
-            } catch (Exception verifyError) {
-                callback.onLog("❌ 验证并发创建结果失败: " + verifyError.getMessage());
-                return false;
-            }
-        } catch (java.nio.file.AccessDeniedException e) {
-            callback.onLog("❌ 权限不足，无法创建目录: " + hostPath);
-            return false;
-        } catch (SecurityException e) {
-            callback.onLog("❌ 安全策略阻止创建目录: " + hostPath);
-            return false;
-        } catch (Exception e) {
-            callback.onLog("❌ 创建宿主机目录失败: " + hostPath + ", 错误: " + e.getMessage());
-            log.error("创建宿主机目录失败: {}", hostPath, e);
-            return false;
-        }
-    }
-    
-    /**
-     * 🔥 新增：获取实际的文件系统路径（容器化部署）
-     * 
-     * @param hostPath 宿主机路径（如 /volume1/docker/app/config）
-     * @param callback 回调对象用于日志输出
-     * @return 实际的文件系统路径
-     */
-    private String getActualFilePath(String hostPath, InstallCallback callback) {
-        // 容器化部署，通过 /mnt/host 访问宿主机文件系统
-        String actualPath = "/mnt/host" + hostPath;
-        callback.onLog("🐳 容器化部署，实际操作路径: " + actualPath);
-        return actualPath;
-    }
-    
-    /**
-     * 🔥 新增：判断是否应该创建目录（只创建Docker配置目录）
-     * 
-     * @param path 要检查的路径
-     * @param callback 回调对象用于日志输出
-     * @return true如果应该创建，false如果不应该创建
-     */
-    private boolean shouldCreateDirectory(String path, InstallCallback callback) {
-        try {
-            // 检查Docker运行目录是否已配置
-            if (!appConfig.isDockerBaseDirConfigured()) {
-                callback.onLog("⚠️ Docker运行目录未配置，跳过自动创建");
-                return false;
-            }
-            
-            // 获取Docker运行目录
-            String dockerBaseDir = appConfig.getDockerBaseDirOrThrow();
-            
-            // 规范化Docker基础目录路径（确保以/结尾）
-            if (!dockerBaseDir.endsWith("/")) {
-                dockerBaseDir = dockerBaseDir + "/";
-            }
-            
-            // 检查路径是否以Docker基础目录开头
-            boolean shouldCreate = path.startsWith(dockerBaseDir) || path.equals(dockerBaseDir.substring(0, dockerBaseDir.length() - 1));
-            
-            if (shouldCreate) {
-                callback.onLog("✅ 检测到Docker配置目录，将自动创建: " + path);
-            } else {
-                callback.onLog("ℹ️ 非Docker配置目录，跳过创建: " + path + " (Docker目录: " + dockerBaseDir + ")");
-            }
-            
-            return shouldCreate;
-            
-        } catch (Exception e) {
-            callback.onLog("⚠️ 检查Docker目录配置失败: " + e.getMessage());
-            log.warn("检查Docker目录配置失败: {}", e.getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * 🔥 新增：检查是否为系统敏感路径
-     * 
-     * @param path 要检查的路径
-     * @return true如果是敏感路径，false如果是安全路径
-     */
-    private boolean isSystemSensitivePath(String path) {
-        // 系统敏感路径列表
-        String[] sensitivePaths = {
-            "/", "/bin", "/sbin", "/usr/bin", "/usr/sbin",
-            "/etc", "/boot", "/dev", "/proc", "/sys", "/run",
-            "/lib", "/lib64", "/usr/lib", "/usr/lib64",
-            "/var/run", "/var/log/system", "/tmp"
-        };
-        
-        for (String sensitivePath : sensitivePaths) {
-            if (path.equals(sensitivePath) || path.startsWith(sensitivePath + "/")) {
-                return true;
-            }
-        }
-        
-        return false;
-    }
-    
-    /**
-     * 替换环境变量占位符
-     */
-    private String replaceEnvPlaceholders(String text, Map<String, String> envVars) {
-        if (text == null || envVars == null) {
-            return text;
-        }
-        
-        String result = text;
-        for (Map.Entry<String, String> entry : envVars.entrySet()) {
-            String placeholder = "${" + entry.getKey() + "}";
-            result = result.replace(placeholder, entry.getValue());
-        }
-        
-        return result;
-    }
-    
-    /**
      * 检查容器是否正在运行
      */
     private boolean isContainerRunning(String containerId) {
@@ -804,11 +371,12 @@ public class ApplicationWebSocketService implements BaseService {
             }
         }
         
-        // 构建访问地址 - 直接列出所有端口
+        // 🔥 简化：直接构建访问地址，不进行HTTP验证
         List<ApplicationDeployResult.AccessUrl> accessUrls = new ArrayList<>();
         
-        // 获取宿主机IP
-        String hostIp = getHostIp();
+        // 🎯 关键修复：使用客户端真实IP，而不是容器内部IP
+        String clientIp = getClientIpFromCallback(callback);
+        callback.onLog("使用客户端IP构建访问地址: " + clientIp);
         
         // 遍历所有环境变量，找出端口配置
         for (ApplicationParseResult.EnvVarInfo env : parseResult.getEnvVars()) {
@@ -816,35 +384,20 @@ public class ApplicationWebSocketService implements BaseService {
                 String portValue = envVars.get(env.getName());
                 if (portValue != null && !portValue.trim().isEmpty() && isValidPort(portValue)) {
                     
-                    // 🔍 关键改进：检测真正可访问的IP+端口组合
-                    String workingUrl = findWorkingAccessUrl(hostIp, portValue, callback);
+                    ApplicationDeployResult.AccessUrl accessUrl = new ApplicationDeployResult.AccessUrl();
                     
-                    if (workingUrl != null) {
-                        ApplicationDeployResult.AccessUrl accessUrl = new ApplicationDeployResult.AccessUrl();
-                        
-                        // 服务名称：直接使用环境变量名
-                        String serviceName = env.getName().replace("_PORT", "").replace("PORT", "");
-                        accessUrl.setName(serviceName);
-                        
-                        // 访问地址：验证可用的URL
-                        accessUrl.setUrl(workingUrl);
-                        
-                        // 描述
-                        accessUrl.setDescription("端口 " + portValue + " (已验证可访问)");
-                        
-                        accessUrls.add(accessUrl);
-                        callback.onLog("✅ 验证访问地址可用: " + workingUrl);
-                    } else {
-                        callback.onLog("⚠️ 端口 " + portValue + " 暂时无法访问，可能需要等待应用完全启动");
-                        
-                        // 如果HTTP验证失败，仍提供默认访问地址但标注状态
-                        ApplicationDeployResult.AccessUrl accessUrl = new ApplicationDeployResult.AccessUrl();
-                        String serviceName = env.getName().replace("_PORT", "").replace("PORT", "");
-                        accessUrl.setName(serviceName);
-                        accessUrl.setUrl("http://" + hostIp + ":" + portValue);
-                        accessUrl.setDescription("端口 " + portValue + " (等待应用启动)");
-                        accessUrls.add(accessUrl);
-                    }
+                    // 服务名称：直接使用环境变量名
+                    String serviceName = env.getName().replace("_PORT", "").replace("PORT", "");
+                    accessUrl.setName(serviceName);
+                    
+                    // 🎯 使用客户端真实IP构建访问地址
+                    accessUrl.setUrl("http://" + clientIp + ":" + portValue);
+                    
+                    // 描述
+                    accessUrl.setDescription("端口 " + portValue);
+                    
+                    accessUrls.add(accessUrl);
+                    callback.onLog("📋 构建访问地址: http://" + clientIp + ":" + portValue);
                 }
             }
         }
@@ -857,32 +410,29 @@ public class ApplicationWebSocketService implements BaseService {
         
         return result;
     }
-    
+
     /**
-     * 获取宿主机IP
+     * 🎯 从WebSocket会话获取客户端真实IP
      */
-    private String getHostIp() {
+    private String getClientIpFromCallback(InstallCallback callback) {
         try {
-            // 使用专门的HostDetector来获取正确的宿主机IP
-            // HostDetector会自动检测Docker环境中的最佳宿主机地址
-            String hostIP = hostDetector.getHostIP();
+            // 从callback中获取WebSocket会话
+            WebSocketSession session = callback.getSession();
             
-            if (hostIP != null && !hostIP.trim().isEmpty()) {
-                log.debug("获取到宿主机IP: {}", hostIP);
-                return hostIP;
+            if (session != null) {
+                // 🎯 使用工具类获取客户端IP
+                return WebSocketUtils.getClientIp(session);
             }
             
-            // 如果HostDetector返回空值，使用备用方法
-            log.warn("HostDetector返回空值，使用备用方法获取IP");
-            java.net.InetAddress localHost = java.net.InetAddress.getLocalHost();
-            return localHost.getHostAddress();
+            // 如果无法获取，使用备用方案
+            return "localhost";
             
         } catch (Exception e) {
-            log.warn("获取宿主机IP失败，使用localhost: {}", e.getMessage());
+            log.warn("获取客户端IP失败: {}", e.getMessage());
             return "localhost";
         }
     }
-    
+
     /**
      * 验证端口号是否有效
      */
@@ -895,125 +445,6 @@ public class ApplicationWebSocketService implements BaseService {
         }
     }
     
-    /**
-     * 🔍 查找真正可访问的IP+端口组合
-     * 测试多个候选IP地址，找到第一个能够HTTP访问的URL
-     */
-    private String findWorkingAccessUrl(String primaryHostIp, String port, InstallCallback callback) {
-        List<String> candidateIPs = new ArrayList<>();
-        
-        // 1. 使用主要检测到的宿主机IP
-        candidateIPs.add(primaryHostIp);
-        
-        // 2. 添加HostDetector检测到的其他候选IP
-        try {
-            List<String> otherIPs = hostDetector.getCandidateIPs();
-            for (String ip : otherIPs) {
-                if (!candidateIPs.contains(ip) && isRealHostIP(ip)) {
-                    candidateIPs.add(ip);
-                }
-            }
-        } catch (Exception e) {
-            log.debug("获取候选IP列表失败: {}", e.getMessage());
-        }
-        
-        // 3. 添加常用的本地访问地址
-        if (!candidateIPs.contains("localhost")) {
-            candidateIPs.add("localhost");
-        }
-        if (!candidateIPs.contains("127.0.0.1")) {
-            candidateIPs.add("127.0.0.1");
-        }
-        
-        callback.onLog("🔍 测试 " + candidateIPs.size() + " 个候选访问地址...");
-        
-        // 4. 逐个测试每个IP+端口的HTTP可访问性
-        for (String ip : candidateIPs) {
-            String testUrl = "http://" + ip + ":" + port;
-            
-            if (testHttpAccess(testUrl, callback)) {
-                callback.onLog("✅ 找到可访问的地址: " + testUrl);
-                return testUrl;
-            } else {
-                callback.onLog("❌ 地址不可访问: " + testUrl);
-            }
-        }
-        
-        callback.onLog("⚠️ 所有候选地址均无法HTTP访问，应用可能还在启动中");
-        return null;
-    }
-    
-    /**
-     * 测试HTTP访问是否可用
-     * @param url 要测试的URL  
-     * @param callback 日志回调
-     * @return true-可访问, false-不可访问
-     */
-    private boolean testHttpAccess(String url, InstallCallback callback) {
-        try {
-            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
-                .connectTimeout(java.time.Duration.ofSeconds(3))
-                .build();
-            
-            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                .uri(java.net.URI.create(url))
-                .timeout(java.time.Duration.ofSeconds(5))
-                .method("HEAD", java.net.http.HttpRequest.BodyPublishers.noBody()) // 使用HEAD请求，更轻量
-                .build();
-            
-            java.net.http.HttpResponse<Void> response = client.send(request, 
-                java.net.http.HttpResponse.BodyHandlers.discarding());
-            
-            // HTTP状态码200-399都认为是可访问的
-            int statusCode = response.statusCode();
-            boolean accessible = statusCode >= 200 && statusCode < 400;
-            
-            log.debug("HTTP测试 {}: 状态码 {} ({})", url, statusCode, accessible ? "可访问" : "不可访问");
-            return accessible;
-            
-        } catch (java.net.ConnectException e) {
-            // 连接被拒绝，端口可能未开放或服务未启动
-            log.debug("HTTP测试 {}: 连接被拒绝", url);
-            return false;
-        } catch (java.net.http.HttpTimeoutException e) {
-            // 超时，可能网络问题或服务响应慢
-            log.debug("HTTP测试 {}: 连接超时", url);
-            return false;
-        } catch (Exception e) {
-            // 其他异常（域名解析失败、网络不可达等）
-            log.debug("HTTP测试 {}: 异常 {}", url, e.getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * 判断是否为真实的宿主机IP（复用HostDetector的逻辑）
-     */
-    private boolean isRealHostIP(String ip) {
-        if (ip == null || ip.trim().isEmpty()) return false;
-        
-        try {
-            String[] parts = ip.trim().split("\\.");
-            if (parts.length != 4) return false;
-            
-            int first = Integer.parseInt(parts[0]);
-            int second = Integer.parseInt(parts[1]);
-            
-            // 私有IP地址段
-            if (first == 192 && second == 168) return true; // 192.168.0.0/16
-            if (first == 10) return true; // 10.0.0.0/8  
-            if (first == 172 && second >= 16 && second <= 31) return true; // 172.16.0.0/12
-            
-            // 排除Docker内部网络
-            if (first == 172 && second == 17) return false; // Docker默认网桥
-            if (first == 172 && second >= 18 && second <= 23) return false; // Docker常见网络
-            
-            return false;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
     /**
      * 解析设备映射
      */
@@ -1388,6 +819,370 @@ public class ApplicationWebSocketService implements BaseService {
     }
 
     /**
+     * 替换环境变量占位符
+     */
+    private String replaceEnvPlaceholders(String text, Map<String, String> envVars) {
+        if (text == null || envVars == null) {
+            return text;
+        }
+        
+        String result = text;
+        for (Map.Entry<String, String> entry : envVars.entrySet()) {
+            String placeholder = "${" + entry.getKey() + "}";
+            result = result.replace(placeholder, entry.getValue());
+        }
+        
+        return result;
+    }
+
+    /**
+     * 🔥 新增：获取实际的文件系统路径（容器化部署）
+     * 
+     * @param hostPath 宿主机路径（如 /volume1/docker/app/config）
+     * @param callback 回调对象用于日志输出
+     * @return 实际的文件系统路径
+     */
+    private String getActualFilePath(String hostPath, InstallCallback callback) {
+        // 容器化部署，通过 /mnt/host 访问宿主机文件系统
+        String actualPath = "/mnt/host" + hostPath;
+        callback.onLog("🐳 容器化部署，实际操作路径: " + actualPath);
+        return actualPath;
+    }
+
+    /**
+     * 将服务配置转换为容器创建请求
+     */
+    private ContainerCreateRequest convertServiceToContainerRequest(ApplicationParseResult.ServiceInfo service, 
+                                                                   String containerName,
+                                                                   Map<String, String> envVars, 
+                                                                   InstallCallback callback) throws Exception {
+        ContainerCreateRequest request = new ContainerCreateRequest();
+        
+        // 基础配置
+        request.setImage(service.getImage());
+        request.setName(containerName);
+        
+        callback.onLog("设置镜像: " + service.getImage());
+        callback.onLog("设置容器名: " + containerName);
+        
+        // 命令和入口点配置
+        if (service.getCommand() != null && !service.getCommand().isEmpty()) {
+            request.setCmd(service.getCommand());
+            callback.onLog("设置启动命令: " + service.getCommand());
+        }
+        
+        if (service.getEntrypoint() != null && !service.getEntrypoint().isEmpty()) {
+            request.setEntrypoint(service.getEntrypoint());
+            callback.onLog("设置入口点: " + service.getEntrypoint());
+        }
+        
+        // 工作目录配置
+        if (service.getWorkingDir() != null && !service.getWorkingDir().trim().isEmpty()) {
+            request.setWorkingDir(service.getWorkingDir());
+            callback.onLog("设置工作目录: " + service.getWorkingDir());
+        }
+        
+        // 环境变量配置 - 🔧 关键修复：正确处理环境变量的分离
+        List<String> envList = buildEnvironmentVariables(service.getEnvironment(), envVars, callback);
+        request.setEnv(envList);
+        
+        // 端口映射配置
+        if (service.getPorts() != null && !service.getPorts().isEmpty()) {
+            parsePortMappings(service.getPorts(), request, envVars, callback);
+        }
+        
+        // 数据卷挂载配置
+        parseVolumeMounts(service.getVolumes(), request, service.getName(), service.getConfigUrl(), callback);
+        
+        // 网络配置 - 从服务配置中读取
+        String networkMode = service.getNetworkMode();
+        if (networkMode != null && !networkMode.trim().isEmpty()) {
+            request.setNetworkMode(networkMode);
+            callback.onLog("设置网络模式: " + networkMode);
+        } else {
+            request.setNetworkMode("bridge");
+            callback.onLog("使用默认网络模式: bridge");
+        }
+        
+        // 重启策略 - 从服务配置中读取
+        String restartPolicy = service.getRestart();
+        if (restartPolicy != null && !restartPolicy.trim().isEmpty()) {
+            try {
+                request.setRestartPolicy(com.github.dockerjava.api.model.RestartPolicy.parse(restartPolicy));
+                callback.onLog("设置重启策略: " + restartPolicy);
+            } catch (Exception e) {
+                callback.onLog("⚠️ 无效的重启策略配置: " + restartPolicy + ", 使用默认策略: unless-stopped");
+                request.setRestartPolicy(com.github.dockerjava.api.model.RestartPolicy.parse("unless-stopped"));
+            }
+        } else {
+            request.setRestartPolicy(com.github.dockerjava.api.model.RestartPolicy.parse("unless-stopped"));
+            callback.onLog("使用默认重启策略: unless-stopped");
+        }
+        
+        // 特权模式配置
+        if (service.getPrivileged() != null && service.getPrivileged()) {
+            request.setPrivileged(true);
+            callback.onLog("启用特权模式");
+        }
+        
+        // Capability 配置
+        if (service.getCapAdd() != null && !service.getCapAdd().isEmpty()) {
+            request.setCapAdd(service.getCapAdd());
+            callback.onLog("添加Capabilities: " + service.getCapAdd());
+        }
+        
+        // 设备映射配置
+        if (service.getDevices() != null && !service.getDevices().isEmpty()) {
+            parseDeviceMappings(service.getDevices(), request, callback);
+        }
+        
+        // 标签配置
+        if (service.getLabels() != null && !service.getLabels().isEmpty()) {
+            request.setLabels(service.getLabels());
+            callback.onLog("设置标签: " + service.getLabels().size() + " 个");
+        }
+        
+        return request;
+    }
+
+    /**
+     * 构建环境变量列表 - 🔧 修复：正确处理环境变量
+     */
+    private List<String> buildEnvironmentVariables(List<String> serviceEnvVars, Map<String, String> userEnvVars, InstallCallback callback) {
+        List<String> envList = new ArrayList<>();
+        
+        // 只添加服务定义的环境变量（YAML中service.environment配置的变量）
+        if (serviceEnvVars != null) {
+            for (String envVar : serviceEnvVars) {
+                String processedEnv = replaceEnvPlaceholders(envVar, userEnvVars);
+                envList.add(processedEnv);
+            }
+        }
+        
+        if (!envList.isEmpty()) {
+            callback.onLog("设置服务环境变量: " + envList.size() + " 个");
+        }
+        
+        return envList;
+    }
+
+    /**
+     * 解析端口映射
+     */
+    private void parsePortMappings(List<String> ports, ContainerCreateRequest request, 
+                                 Map<String, String> envVars, InstallCallback callback) {
+        List<com.github.dockerjava.api.model.ExposedPort> exposedPorts = new ArrayList<>();
+        com.github.dockerjava.api.model.Ports portBindings = new com.github.dockerjava.api.model.Ports();
+        
+        for (String portMapping : ports) {
+            try {
+                // 替换环境变量占位符
+                String processedPort = replaceEnvPlaceholders(portMapping, envVars);
+                
+                // 解析端口映射格式：hostPort:containerPort 或 port
+                String[] parts = processedPort.split(":");
+                if (parts.length == 2) {
+                    int hostPort = Integer.parseInt(parts[0].trim());
+                    int containerPort = Integer.parseInt(parts[1].trim());
+                    
+                    com.github.dockerjava.api.model.ExposedPort exposedPort = 
+                        com.github.dockerjava.api.model.ExposedPort.tcp(containerPort);
+                    exposedPorts.add(exposedPort);
+                    
+                    portBindings.bind(exposedPort, 
+                        com.github.dockerjava.api.model.Ports.Binding.bindPort(hostPort));
+                    
+                    callback.onLog("设置端口映射: " + hostPort + " -> " + containerPort);
+                } else if (parts.length == 1) {
+                    int port = Integer.parseInt(parts[0].trim());
+                    com.github.dockerjava.api.model.ExposedPort exposedPort = 
+                        com.github.dockerjava.api.model.ExposedPort.tcp(port);
+                    exposedPorts.add(exposedPort);
+                    
+                    callback.onLog("暴露端口: " + port);
+                }
+            } catch (Exception e) {
+                callback.onLog("⚠️ 端口配置解析失败: " + portMapping + ", 错误: " + e.getMessage());
+            }
+        }
+        
+        if (!exposedPorts.isEmpty()) {
+            request.setExposedPorts(exposedPorts);
+            request.setPortBindings(portBindings);
+        }
+    }
+
+    /**
+     * 解析数据卷挂载
+     */
+    private void parseVolumeMounts(List<String> serviceVolumes, ContainerCreateRequest request, String serviceName, String configUrl, InstallCallback callback) {
+        List<com.github.dockerjava.api.model.Bind> binds = new ArrayList<>();
+        
+        // 处理配置包下载
+        handleConfigDownload(configUrl, serviceName, serviceVolumes, callback);
+        
+        // 处理服务定义的卷挂载
+        if (serviceVolumes != null) {
+            for (String volumeMapping : serviceVolumes) {
+                try {
+                    // 解析卷挂载格式：hostPath:containerPath[:ro/rw]
+                    String[] parts = volumeMapping.split(":");
+                    if (parts.length >= 2) {
+                        String hostPath = parts[0].trim();
+                        String containerPath = parts[1].trim();
+                        String accessMode = parts.length > 2 ? parts[2].trim() : "rw";
+                        
+                        // 自动创建宿主机目录
+                        if (!ensureHostDirectoryExists(hostPath, callback)) {
+                            callback.onLog("⚠️ 无法创建宿主机目录: " + hostPath + "，跳过此挂载");
+                            continue;
+                        }
+                        
+                        com.github.dockerjava.api.model.Volume volume = new com.github.dockerjava.api.model.Volume(containerPath);
+                        com.github.dockerjava.api.model.Bind bind;
+                        
+                        if ("ro".equals(accessMode)) {
+                            bind = new com.github.dockerjava.api.model.Bind(hostPath, volume, com.github.dockerjava.api.model.AccessMode.ro);
+                        } else {
+                            bind = new com.github.dockerjava.api.model.Bind(hostPath, volume, com.github.dockerjava.api.model.AccessMode.rw);
+                        }
+                        
+                        binds.add(bind);
+                        callback.onLog("设置卷挂载: " + hostPath + " -> " + containerPath + " (" + accessMode + ")");
+                    } else if (parts.length == 1) {
+                        // 命名卷或匿名卷
+                        String volumePath = parts[0].trim();
+                        com.github.dockerjava.api.model.Volume volume = new com.github.dockerjava.api.model.Volume(volumePath);
+                        
+                        if (request.getVolumes() == null) {
+                            request.setVolumes(new ArrayList<>());
+                        }
+                        request.getVolumes().add(volume);
+                        callback.onLog("设置数据卷: " + volumePath);
+                    }
+                } catch (Exception e) {
+                    callback.onLog("⚠️ 卷挂载配置解析失败: " + volumeMapping + ", 错误: " + e.getMessage());
+                }
+            }
+        }
+        
+        if (!binds.isEmpty()) {
+            request.setBinds(binds);
+        }
+    }
+
+    /**
+     * 确保宿主机目录存在，如果不存在则自动创建
+     */
+    private boolean ensureHostDirectoryExists(String hostPath, InstallCallback callback) {
+        try {
+            if (hostPath == null || hostPath.trim().isEmpty()) {
+                callback.onLog("⚠️ 宿主机路径为空，跳过创建");
+                return false;
+            }
+            
+            String normalizedPath = hostPath.trim();
+            
+            if (!normalizedPath.startsWith("/")) {
+                callback.onLog("⚠️ 宿主机路径必须是绝对路径: " + normalizedPath);
+                return false;
+            }
+            
+            if (isSystemSensitivePath(normalizedPath)) {
+                callback.onLog("⚠️ 跳过系统敏感路径: " + normalizedPath);
+                return true;
+            }
+            
+            if (!shouldCreateDirectory(normalizedPath, callback)) {
+                callback.onLog("⚠️ 跳过非Docker配置目录: " + normalizedPath + " (只自动创建Docker配置目录)");
+                return true;
+            }
+            
+            String actualPath = getActualFilePath(normalizedPath, callback);
+            java.nio.file.Path targetPath = java.nio.file.Paths.get(actualPath);
+            
+            if (java.nio.file.Files.exists(targetPath)) {
+                if (java.nio.file.Files.isDirectory(targetPath)) {
+                    callback.onLog("✅ 宿主机目录已存在: " + normalizedPath);
+                    return true;
+                } else {
+                    callback.onLog("❌ 宿主机路径已存在但不是目录: " + normalizedPath);
+                    return false;
+                }
+            }
+            
+            callback.onLog("📁 正在创建Docker配置目录: " + normalizedPath);
+            java.nio.file.Files.createDirectories(targetPath);
+            
+            if (java.nio.file.Files.exists(targetPath) && java.nio.file.Files.isDirectory(targetPath)) {
+                callback.onLog("✅ Docker配置目录创建成功: " + normalizedPath);
+                return true;
+            } else {
+                callback.onLog("❌ 目录创建失败，验证不通过: " + normalizedPath);
+                return false;
+            }
+            
+        } catch (Exception e) {
+            callback.onLog("❌ 创建宿主机目录失败: " + hostPath + ", 错误: " + e.getMessage());
+            log.error("创建宿主机目录失败: {}", hostPath, e);
+            return false;
+        }
+    }
+
+    /**
+     * 判断是否应该创建目录（只创建Docker配置目录）
+     */
+    private boolean shouldCreateDirectory(String path, InstallCallback callback) {
+        try {
+            if (!appConfig.isDockerBaseDirConfigured()) {
+                callback.onLog("⚠️ Docker运行目录未配置，跳过自动创建");
+                return false;
+            }
+            
+            String dockerBaseDir = appConfig.getDockerBaseDirOrThrow();
+            
+            if (!dockerBaseDir.endsWith("/")) {
+                dockerBaseDir = dockerBaseDir + "/";
+            }
+            
+            boolean shouldCreate = path.startsWith(dockerBaseDir) || path.equals(dockerBaseDir.substring(0, dockerBaseDir.length() - 1));
+            
+            if (shouldCreate) {
+                callback.onLog("✅ 检测到Docker配置目录，将自动创建: " + path);
+            } else {
+                callback.onLog("ℹ️ 非Docker配置目录，跳过创建: " + path + " (Docker目录: " + dockerBaseDir + ")");
+            }
+            
+            return shouldCreate;
+            
+        } catch (Exception e) {
+            callback.onLog("⚠️ 检查Docker目录配置失败: " + e.getMessage());
+            log.warn("检查Docker目录配置失败: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 检查是否为系统敏感路径
+     */
+    private boolean isSystemSensitivePath(String path) {
+        String[] sensitivePaths = {
+            "/", "/bin", "/sbin", "/usr/bin", "/usr/sbin",
+            "/etc", "/boot", "/dev", "/proc", "/sys", "/run",
+            "/lib", "/lib64", "/usr/lib", "/usr/lib64",
+            "/var/run", "/var/log/system", "/tmp"
+        };
+        
+        for (String sensitivePath : sensitivePaths) {
+            if (path.equals(sensitivePath) || path.startsWith(sensitivePath + "/")) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
      * 安装回调接口
      */
     private static class InstallCallback {
@@ -1415,6 +1210,10 @@ public class ApplicationWebSocketService implements BaseService {
 
         public void onError(String error) {
             messageSender.sendError(session, taskId, error);
+        }
+
+        public WebSocketSession getSession() {
+            return session;
         }
     }
 } 

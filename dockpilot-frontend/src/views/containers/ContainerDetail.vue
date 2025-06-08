@@ -101,17 +101,17 @@ class="status-tag">
               </n-descriptions-item>
               <n-descriptions-item label="镜像名称">
                 <span>{{ container?.imageName || '-' }}</span>
-                <NIcon
-                  style="
-                    cursor: pointer; 
-                    margin-left: 8px; 
-                    font-size: 14px; 
-                    vertical-align: middle;
-                  "
-                  @click="copyToClipboard(container?.imageName || '-')"
-                >
-                  <CopyOutline />
-                </NIcon>
+                                  <NIcon
+                    style="
+                      cursor: pointer; 
+                      margin-left: 8px; 
+                      font-size: 14px; 
+                      vertical-align: middle;
+                    "
+                    @click="handleCopyToClipboard(container?.imageName || '-')"
+                  >
+                    <CopyOutline />
+                  </NIcon>
               </n-descriptions-item>
               <n-descriptions-item label="镜像ID">
                 {{ container?.imageId || '-' }}
@@ -183,7 +183,7 @@ class="status-tag">
                       <span>主机端口: {{ port.split(':')[1] }}</span>
                       <NIcon 
                         style="cursor: pointer; margin-left: 4px; font-size: 14px;" 
-                        @click="copyToClipboard(port.split(':')[1])"
+                        @click="handleCopyToClipboard(port.split(':')[1])"
                       >
                         <CopyOutline />
                       </NIcon>
@@ -310,7 +310,7 @@ class="status-tag">
                       font-size: 14px; 
                       vertical-align: middle;
                     "
-                    @click="copyToClipboard(env.split('=').slice(1).join('='))"
+                    @click="handleCopyToClipboard(env.split('=').slice(1).join('='))"
                   >
                     <CopyOutline />
                   </NIcon>
@@ -355,6 +355,7 @@ import {
 import { useWebSocketTask } from '@/hooks/useWebSocketTask'
 import { MessageType } from '@/api/websocket/types'
 import { getContainerStats } from '@/api/container'
+import { copyToClipboard } from '@/utils/clipboard'
 
 const router = useRouter()
 const route = useRoute()
@@ -507,11 +508,11 @@ function handleEdit() {
   }
 }
 
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).then(() => {
-    message.success('复制成功')
-  }).catch(err => {
-    message.error('复制失败: ' + err)
+// 复制到剪贴板 - 使用健壮版本
+async function handleCopyToClipboard(text: string) {
+  await copyToClipboard(text, { 
+    showMessage: true, 
+    messageApi: message 
   })
 }
 
@@ -526,7 +527,7 @@ const volumeColumns = [
           NIcon,
           {
             style: 'cursor:pointer; margin-left:4px; font-size:14px; verticalAlign:middle;',
-            onClick: () => copyToClipboard(row.hostPath)
+            onClick: () => handleCopyToClipboard(row.hostPath)
           },
           { default: () => h(CopyOutline) }
         )
