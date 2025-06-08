@@ -4,6 +4,7 @@ name: 🚀 Build and Release Hot Update
 on:
   push:
     tags: ['v*']
+    branches: ['test']  # 添加test分支触发
   workflow_dispatch:
     inputs:
       version:
@@ -134,6 +135,8 @@ jobs:
     name: 🎉 创建发布
     needs: [build-frontend, build-backend]
     runs-on: ubuntu-latest
+    # 只有正式版本才创建release，test分支不创建
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     steps:
       - name: 🛎️ Checkout代码
         uses: actions/checkout@v4
@@ -297,7 +300,7 @@ jobs:
 
   build-docker-image:
     name: 🐳 构建Docker镜像
-    needs: [create-release]
+    needs: [build-frontend, build-backend]
     runs-on: ubuntu-latest
     # 🔥 热更新策略：镜像只需构建一次，代码通过热更新！
     # 
@@ -311,7 +314,8 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' || 
       contains(github.event.head_commit.message, '[docker]') ||
-      needs.create-release.result == 'success'
+      github.ref == 'refs/heads/test' ||
+      github.ref_type == 'tag'
     
     # 💡 这样的好处：
     # - ⚡ 发布速度快（2-3分钟 vs 8-10分钟）
@@ -357,15 +361,21 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: 📋 获取版本号
+      - name: 📋 获取版本号和标签
         id: version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
+            DOCKER_TAG="latest"
+          elif [ "${{ github.ref }}" = "refs/heads/test" ]; then
+            VERSION="v1.0.38-test"
+            DOCKER_TAG="test"
           else
             VERSION="${GITHUB_REF#refs/tags/}"
+            DOCKER_TAG="latest"
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_OUTPUT
 
       - name: 🐳 构建并推送热更新镜像
         uses: docker/build-push-action@v5
@@ -375,7 +385,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            kidself/dockpilot:latest
+            kidself/dockpilot:${{ steps.version.outputs.DOCKER_TAG }}
           build-args: |
             VERSION=${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
