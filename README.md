@@ -25,6 +25,8 @@ docker run -d --privileged \
 ```
 
 部署完成后访问：http://localhost:8888
+账号密码 admin/123456
+测试商店：https://pan.naspt.vip/d/123pan/dockpilot/app.json
 
 ## 热更新
 

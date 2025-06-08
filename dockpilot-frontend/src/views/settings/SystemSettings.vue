@@ -784,7 +784,7 @@ const openConfig = async (item: any) => {
         currentFormDescription.value = 
           '配置第三方应用市场数据源。每行输入一个JSON格式的市场源URL。' +
           '系统将从这些源获取应用信息并在应用市场中展示。' +
-          '支持HTTP/HTTPS协议，数据格式需符合标准规范。'
+          '支持HTTP/HTTPS协议，数据格式需符合标准规范。测试：https://pan.naspt.vip/d/123pan/dockpilot/app.json '
 
         // 从后端加载当前配置
         try {
