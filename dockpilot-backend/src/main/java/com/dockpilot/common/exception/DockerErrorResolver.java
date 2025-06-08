@@ -87,6 +87,24 @@ public class DockerErrorResolver {
                 if (bindMatcher.find()) {
                     detail = "挂载路径解析失败: " + bindMatcher.group(1);
                 }
+            } else if (message.contains("no such file or directory") || message.contains("does not exist")) {
+                errorCode = DockerErrorCode.MOUNT_PATH_NOT_SHARED;
+                Pattern pathPattern = Pattern.compile("\"?([^\"\\s]+)\"?.*(?:no such file or directory|does not exist)");
+                Matcher pathMatcher = pathPattern.matcher(message);
+                if (pathMatcher.find()) {
+                    detail = "挂载路径不存在: " + pathMatcher.group(1);
+                } else {
+                    detail = "挂载路径不存在或无权限访问";
+                }
+            } else if (message.contains("permission denied") || message.contains("access denied")) {
+                errorCode = DockerErrorCode.MOUNT_PATH_NOT_SHARED;
+                detail = "挂载路径权限不足，请检查目录权限";
+            } else if (message.contains("invalid mount") || message.contains("invalid bind")) {
+                errorCode = DockerErrorCode.BIND_PARSE_ERROR;
+                detail = "挂载配置格式错误，请检查路径格式";
+            } else if (message.contains("mkdir") && message.contains("permission denied")) {
+                errorCode = DockerErrorCode.MOUNT_PATH_NOT_SHARED;
+                detail = "无权限创建目录，请检查父目录权限";
             }
         }
 

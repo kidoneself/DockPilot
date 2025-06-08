@@ -17,6 +17,7 @@ import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.Image;
+import com.github.dockerjava.api.model.Bind;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,9 @@ public class ContainerServiceImpl implements ContainerService {
 
     @Autowired
     private ContainerInfoService containerInfoService;
+
+    @Autowired
+    private com.dockpilot.common.config.AppConfig appConfig;
 
     /**
      * 获取容器列表
@@ -531,6 +535,10 @@ public class ContainerServiceImpl implements ContainerService {
         boolean dockerContainerCreated = false;
 
         try {
+            // 🚀 新增：在创建容器前自动创建挂载目录
+            log.info("📁 开始检查和创建挂载目录...");
+            ensureVolumeMountDirectoriesExist(request);
+
             // 1. 创建容器（非事务操作）
             CreateContainerResponse createContainerResponse = dockerService.configureContainerCmd(request);
             containerId = createContainerResponse.getId();
@@ -562,7 +570,7 @@ public class ContainerServiceImpl implements ContainerService {
                 // 启动失败，但容器已创建，保留容器并记录启动失败原因
                 log.warn("容器创建成功但启动失败: {}, 错误: {}", containerId, startEx.getMessage());
 
-                // 使用DockerErrorResolver解析启动失败的原因
+                // 🔧 改进：使用DockerErrorResolver解析启动失败的原因
                 DockerOperationException dockerEx;
                 if (startEx instanceof DockerOperationException) {
                     dockerEx = (DockerOperationException) startEx;
@@ -573,14 +581,17 @@ public class ContainerServiceImpl implements ContainerService {
                 // 获取容器详细信息
                 InspectContainerResponse inspect = dockerService.inspectContainerCmd(containerId);
 
+                // 🎯 改进：获取用户友好的错误信息
+                String userFriendlyError = dockerEx.getDetail() != null ? dockerEx.getDetail() : dockerEx.getMessage();
+                
                 // 在独立事务中保存启动失败的错误记录，不会被回滚
-                saveContainerInfoInNewTransaction(containerId, inspect, "created", "failed", dockerEx.getDetail());
+                saveContainerInfoInNewTransaction(containerId, inspect, "created", "failed", userFriendlyError);
 
                 // 记录系统日志
-                LogUtil.logSysError("容器启动失败: " + containerId + ", 错误: " + dockerEx.getDetail());
+                LogUtil.logSysError("容器启动失败: " + containerId + ", 错误: " + userFriendlyError);
 
                 // 抛出业务异常，包含用户友好的错误信息
-                throw new BusinessException("容器创建成功但启动失败: " + dockerEx.getDetail());
+                throw new BusinessException("容器创建成功但启动失败: " + userFriendlyError);
             }
 
         } catch (Exception e) {
@@ -589,7 +600,7 @@ public class ContainerServiceImpl implements ContainerService {
                 // 容器都没创建成功，直接抛出异常
                 log.error("容器创建失败: {}", e.getMessage(), e);
 
-                // 使用DockerErrorResolver解析创建失败的原因
+                // 🔧 改进：使用DockerErrorResolver解析创建失败的原因
                 DockerOperationException dockerEx;
                 if (e instanceof DockerOperationException) {
                     dockerEx = (DockerOperationException) e;
@@ -597,10 +608,30 @@ public class ContainerServiceImpl implements ContainerService {
                     dockerEx = DockerErrorResolver.resolve("创建容器", "unknown", e);
                 }
 
-                throw new BusinessException("创建容器失败: " + dockerEx.getDetail());
+                // 🎯 改进：获取用户友好的错误信息，确保不返回null
+                String userFriendlyError = dockerEx.getDetail() != null ? dockerEx.getDetail() : dockerEx.getMessage();
+                if (userFriendlyError == null || userFriendlyError.trim().isEmpty()) {
+                    userFriendlyError = "容器创建失败，请检查配置是否正确";
+                }
+
+                throw new BusinessException("创建容器失败: " + userFriendlyError);
             } else {
-                // 容器创建成功但后续处理失败，重新抛出异常
-                throw e;
+                // 容器创建成功但后续处理失败，使用DockerErrorResolver解析异常
+                log.error("容器创建成功但后续处理失败: {}", e.getMessage(), e);
+                
+                DockerOperationException dockerEx;
+                if (e instanceof DockerOperationException) {
+                    dockerEx = (DockerOperationException) e;
+                } else {
+                    dockerEx = DockerErrorResolver.resolve("容器后续处理", containerId, e);
+                }
+                
+                String userFriendlyError = dockerEx.getDetail() != null ? dockerEx.getDetail() : dockerEx.getMessage();
+                if (userFriendlyError == null || userFriendlyError.trim().isEmpty()) {
+                    userFriendlyError = "容器创建成功但初始化失败";
+                }
+                
+                throw new BusinessException("容器处理失败: " + userFriendlyError);
             }
         }
     }
@@ -690,6 +721,206 @@ public class ContainerServiceImpl implements ContainerService {
             log.error("保存容器信息到数据库失败: " + containerId, e);
             // 不重新抛出异常，避免影响主流程
         }
+    }
+
+    // =============== 🚀 新增：目录自动创建功能 ===============
+
+    /**
+     * 确保卷挂载目录存在，自动创建不存在的目录
+     * 
+     * @param request 容器创建请求
+     * @throws BusinessException 如果关键目录创建失败
+     */
+    private void ensureVolumeMountDirectoriesExist(ContainerCreateRequest request) {
+        if (request.getBinds() == null || request.getBinds().isEmpty()) {
+            log.info("📁 无卷挂载配置，跳过目录创建");
+            return;
+        }
+
+        log.info("📁 检测到 {} 个卷挂载配置，开始检查目录", request.getBinds().size());
+
+        StringBuilder criticalErrors = new StringBuilder();
+        int failedCount = 0;
+
+        for (Bind bind : request.getBinds()) {
+            try {
+                String hostPath = bind.getPath();
+                String containerPath = bind.getVolume().getPath();
+                String accessMode = bind.getAccessMode() != null ? bind.getAccessMode().toString() : "rw";
+
+                log.info("📂 处理卷挂载: {} -> {} ({})", hostPath, containerPath, accessMode);
+
+                // 自动创建宿主机目录
+                if (ensureHostDirectoryExists(hostPath)) {
+                    log.info("✅ 宿主机目录处理成功: {}", hostPath);
+                } else {
+                    failedCount++;
+                    String errorMsg = "无法创建宿主机目录: " + hostPath;
+                    log.warn("⚠️ {}", errorMsg);
+                    
+                    // 🎯 检查是否为关键目录（Docker配置目录内的）
+                    if (shouldCreateDirectory(hostPath)) {
+                        if (criticalErrors.length() > 0) {
+                            criticalErrors.append("; ");
+                        }
+                        criticalErrors.append(errorMsg);
+                    }
+                }
+
+            } catch (Exception e) {
+                failedCount++;
+                String errorMsg = String.format("处理卷挂载失败: %s -> %s, 错误: %s", 
+                    bind.getPath(), bind.getVolume().getPath(), e.getMessage());
+                log.error("❌ {}", errorMsg, e);
+                
+                // 🎯 对于Docker配置目录，记录为关键错误
+                if (shouldCreateDirectory(bind.getPath())) {
+                    if (criticalErrors.length() > 0) {
+                        criticalErrors.append("; ");
+                    }
+                    criticalErrors.append(errorMsg);
+                }
+            }
+        }
+
+        log.info("📁 卷挂载目录检查完成，成功: {}, 失败: {}", 
+            request.getBinds().size() - failedCount, failedCount);
+
+        // 🚨 如果有关键目录创建失败，抛出异常
+        if (criticalErrors.length() > 0) {
+            throw new BusinessException("Docker配置目录创建失败: " + criticalErrors.toString());
+        }
+    }
+
+    /**
+     * 确保宿主机目录存在，如果不存在则自动创建
+     * 
+     * @param hostPath 宿主机路径
+     * @return 是否成功创建或已存在
+     */
+    private boolean ensureHostDirectoryExists(String hostPath) {
+        try {
+            if (hostPath == null || hostPath.trim().isEmpty()) {
+                log.warn("⚠️ 宿主机路径为空，跳过创建");
+                return false;
+            }
+
+            String normalizedPath = hostPath.trim();
+
+            if (!normalizedPath.startsWith("/")) {
+                log.warn("⚠️ 宿主机路径必须是绝对路径: {}", normalizedPath);
+                return false;
+            }
+
+            if (isSystemSensitivePath(normalizedPath)) {
+                log.info("⚠️ 跳过系统敏感路径: {}", normalizedPath);
+                return true;
+            }
+
+            if (!shouldCreateDirectory(normalizedPath)) {
+                log.info("ℹ️ 跳过非Docker配置目录: {} (只自动创建Docker配置目录)", normalizedPath);
+                return true;
+            }
+
+            String actualPath = getActualFilePath(normalizedPath);
+            java.nio.file.Path targetPath = java.nio.file.Paths.get(actualPath);
+
+            if (java.nio.file.Files.exists(targetPath)) {
+                if (java.nio.file.Files.isDirectory(targetPath)) {
+                    log.info("✅ 宿主机目录已存在: {}", normalizedPath);
+                    return true;
+                } else {
+                    log.error("❌ 宿主机路径已存在但不是目录: {}", normalizedPath);
+                    return false;
+                }
+            }
+
+            log.info("📁 正在创建Docker配置目录: {}", normalizedPath);
+            java.nio.file.Files.createDirectories(targetPath);
+
+            if (java.nio.file.Files.exists(targetPath) && java.nio.file.Files.isDirectory(targetPath)) {
+                log.info("✅ Docker配置目录创建成功: {}", normalizedPath);
+                return true;
+            } else {
+                log.error("❌ 目录创建失败，验证不通过: {}", normalizedPath);
+                return false;
+            }
+
+        } catch (Exception e) {
+            log.error("❌ 创建宿主机目录失败: {}, 错误: {}", hostPath, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * 判断是否应该创建目录（只创建Docker配置目录）
+     * 
+     * @param path 目录路径
+     * @return 是否应该创建
+     */
+    private boolean shouldCreateDirectory(String path) {
+        try {
+            if (!appConfig.isDockerBaseDirConfigured()) {
+                log.info("⚠️ Docker运行目录未配置，跳过自动创建");
+                return false;
+            }
+
+            String dockerBaseDir = appConfig.getDockerBaseDirOrThrow();
+
+            if (!dockerBaseDir.endsWith("/")) {
+                dockerBaseDir = dockerBaseDir + "/";
+            }
+
+            boolean shouldCreate = path.startsWith(dockerBaseDir) || path.equals(dockerBaseDir.substring(0, dockerBaseDir.length() - 1));
+
+            if (shouldCreate) {
+                log.info("✅ 检测到Docker配置目录，将自动创建: {}", path);
+            } else {
+                log.info("ℹ️ 非Docker配置目录，跳过创建: {} (Docker目录: {})", path, dockerBaseDir);
+            }
+
+            return shouldCreate;
+
+        } catch (Exception e) {
+            log.warn("⚠️ 检查Docker目录配置失败: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 检查是否为系统敏感路径
+     * 
+     * @param path 路径
+     * @return 是否为敏感路径
+     */
+    private boolean isSystemSensitivePath(String path) {
+        String[] sensitivePaths = {
+            "/", "/bin", "/sbin", "/usr/bin", "/usr/sbin",
+            "/etc", "/boot", "/dev", "/proc", "/sys", "/run",
+            "/lib", "/lib64", "/usr/lib", "/usr/lib64",
+            "/var/run", "/var/log/system", "/tmp"
+        };
+
+        for (String sensitivePath : sensitivePaths) {
+            if (path.equals(sensitivePath) || path.startsWith(sensitivePath + "/")) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 获取实际的文件系统路径（适配容器化部署）
+     * 
+     * @param hostPath 宿主机路径
+     * @return 实际的文件系统路径
+     */
+    private String getActualFilePath(String hostPath) {
+        // 容器化部署，通过 /mnt/host 访问宿主机文件系统
+        String actualPath = "/mnt/host" + hostPath;
+        log.debug("🐳 容器化部署，实际操作路径: {} -> {}", hostPath, actualPath);
+        return actualPath;
     }
 
 }
