@@ -719,10 +719,7 @@ public class ComposeGenerator {
             }
         }
 
-        // cap_add
-        if (shouldIncludeField("cap_add", excludeFields) && hostConfig != null && hostConfig.getCapAdd() != null) {
-            service.put("cap_add", hostConfig.getCapAdd());
-        }
+        // cap_add - 已移除，不再生成此字段
 
         // devices
         if (shouldIncludeField("devices", excludeFields) && hostConfig != null && hostConfig.getDevices() != null) {

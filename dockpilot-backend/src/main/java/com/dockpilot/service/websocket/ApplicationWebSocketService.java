@@ -162,6 +162,21 @@ public class ApplicationWebSocketService implements BaseService {
         callback.onLog("✅ 应用配置预处理完成");
         callback.onLog("检测到 " + parseResult.getServices().size() + " 个服务待安装");
         
+        // 🔧 修复：合并YAML默认环境变量与用户输入
+        Map<String, String> mergedEnvVars = new HashMap<>();
+        
+        // 1. 先添加YAML中的默认值
+        for (ApplicationParseResult.EnvVarInfo envVar : parseResult.getEnvVars()) {
+            mergedEnvVars.put(envVar.getName(), envVar.getDefaultValue());
+        }
+        
+        // 2. 再添加用户输入的值（覆盖默认值）
+        if (envVars != null) {
+            mergedEnvVars.putAll(envVars);
+        }
+        
+        callback.onLog("环境变量合并完成: YAML默认值 " + parseResult.getEnvVars().size() + " 个 + 用户输入 " + (envVars != null ? envVars.size() : 0) + " 个 = 合并后 " + mergedEnvVars.size() + " 个");
+        
         // 🔄 关键修改：逐个服务处理模式 (10-95%)
         List<String> allContainerIds = new ArrayList<>();
         int totalServices = parseResult.getServices().size();
@@ -177,7 +192,7 @@ public class ApplicationWebSocketService implements BaseService {
             
             try {
                 // 为当前服务处理镜像、配置和容器创建
-                String containerId = processIndividualService(service, appName, envVars, 
+                String containerId = processIndividualService(service, appName, mergedEnvVars, 
                     serviceStartProgress, serviceEndProgress, callback);
                 
                 if (containerId != null) {
@@ -203,7 +218,7 @@ public class ApplicationWebSocketService implements BaseService {
         }
         
         // 验证部署结果
-        ApplicationDeployResult result = verifyDeployment(allContainerIds, parseResult, envVars, callback);
+        ApplicationDeployResult result = verifyDeployment(allContainerIds, parseResult, mergedEnvVars, callback);
         
         callback.onProgress(100);
         callback.onLog("🎉 应用安装完成! 成功启动 " + allContainerIds.size() + "/" + totalServices + " 个服务");

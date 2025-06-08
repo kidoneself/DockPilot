@@ -1,0 +1,219 @@
+services:
+  dp-moviepilot-v2:
+    container_name: dp-moviepilot-v2
+    image: ccr.ccs.tencentyun.com/naspt/moviepilot-v2:latest
+    environment:
+      - TZ=Asia/Shanghai
+      - API_TOKEN=nasptnasptnasptnasptnaspt
+      - MOVIEPILOT_AUTO_UPDATE=true
+      - SUPERUSER=admin
+      - AUTO_UPDATE_RESOURCE=true
+      - PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - LANG=C.UTF-8
+      - GPG_KEY=7169605F62C751356D054A26A821E680E5FA6305
+      - PYTHON_VERSION=3.12.8
+      - PYTHON_SHA256=c909157bb25ec114e5869124cc2a9c4a4d4c1e957ca4ff553f1edc692101154e
+      - HOME=/moviepilot
+      - CONFIG_DIR=/config
+      - TERM=xterm
+      - DISPLAY=:987
+      - PUID=0
+      - PGID=0
+      - UMASK=022
+      - AUTH_SITE=iyuu
+      - PROXY_HOST=http://172.17.0.1:7890
+      - IYUU_SIGN=IYUU49366Td4f1825199719b9b144fb2e6be87d78abe309f8d
+    ports:
+      - ${MOVIEPILOT_V2_PORT_3000}:3000
+      - ${MOVIEPILOT_V2_PORT_3001}:3001
+    volumes:
+      - ${DOCKER_BASE}/dp-moviepilot-v2/core:/moviepilot/.cache/ms-playwright
+      - ${DOCKER_BASE}/dp-qbittorrent/config/qBittorrent/BT_backup:/qbtr
+      - ${DOCKER_BASE}/dp-moviepilot-v2/config:/config
+      - ${MEDIA_BASE}:/media
+    restart: always
+    x-meta:
+      name: dp-moviepilot-v2
+      description: 容器服务
+      configUrl: ''
+
+  dp-transmission:
+    container_name: dp-transmission
+    image: ccr.ccs.tencentyun.com/naspt/transmission:4.0.5
+    environment:
+      - PUID=0
+      - PGID=0
+      - UMASK=022
+      - TZ=Asia/Shanghai
+      - USER=admin
+      - PASS=a123456!@
+      - TRANSMISSION_WEB_HOME=/config/2/src
+      - PATH=/lsiopy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - 'PS1=$(whoami)@$(hostname):$(pwd)\$ '
+      - HOME=/root
+      - TERM=xterm
+      - S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0
+      - S6_VERBOSITY=1
+      - S6_STAGE2_HOOK=/docker-mods
+      - VIRTUAL_ENV=/lsiopy
+      - LSIO_FIRST_PARTY=true
+    ports:
+      - ${TRANSMISSION_PORT_9091}:9091
+    volumes:
+      - ${DOCKER_BASE}/dp-transmission/config:/config
+      - ${MEDIA_BASE}:/media
+    restart: always
+    x-meta:
+      name: dp-transmission
+      description: 容器服务
+      configUrl: ''
+
+  dp-csf:
+    container_name: dp-csf
+    image: ccr.ccs.tencentyun.com/naspt/chinesesubfinder:latest
+    environment:
+      - PUID=0
+      - PGID=0
+      - UMASK=022
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - TZ=Asia/Shanghai
+      - PERMS=true
+      - 'PS1=\u@\h:\w $ '
+    ports:
+      - ${CHINESESUBFINDER_PORT_19035}:19035
+    volumes:
+      - ${DOCKER_BASE}/dp-csf/app/cache:/app/cache
+      - ${DOCKER_BASE}/dp-csf/config:/config
+      - ${MEDIA_BASE}:/media
+    restart: always
+    x-meta:
+      name: dp-csf
+      description: 容器服务
+      configUrl: ''
+
+  dp-qbittorrent:
+    container_name: dp-qbittorrent
+    image: ccr.ccs.tencentyun.com/naspt/qbittorrent:4.6.4
+    environment:
+      - TempPatch=/media/downloads
+      - WEBUI_PORT=9000
+      - PUID=0
+      - PGID=0
+      - UMASK=022
+      - TZ=Asia/Shanghai
+      - SavePatch=/media/downloads
+      - PATH=/lsiopy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - 'PS1=$(whoami)@$(hostname):$(pwd)\$ '
+      - HOME=/config
+      - TERM=xterm
+      - S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0
+      - S6_VERBOSITY=1
+      - S6_STAGE2_HOOK=/docker-mods
+      - VIRTUAL_ENV=/lsiopy
+      - LSIO_FIRST_PARTY=true
+      - XDG_CONFIG_HOME=/config
+      - XDG_DATA_HOME=/config
+    ports:
+      - ${QBITTORRENT_PORT_9000}:9000
+    volumes:
+      - ${DOCKER_BASE}/dp-qbittorrent/config:/config
+      - ${MEDIA_BASE}:/media
+    restart: always
+    x-meta:
+      name: dp-qbittorrent
+      description: 容器服务
+      configUrl: ''
+
+  dp-emby:
+    container_name: dp-emby
+    image: ccr.ccs.tencentyun.com/naspt/embyserver:latest
+    environment:
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - LANG=en_US.UTF-8
+      - HOME=/tmp
+      - AMDGPU_IDS=/share/libdrm/amdgpu.ids
+      - FONTCONFIG_PATH=/etc/fonts
+      - LD_LIBRARY_PATH=/lib:/system
+      - LIBVA_DRIVERS_PATH=/lib/dri
+      - OCL_ICD_VENDORS=/etc/OpenCL/vendors
+      - PCI_IDS_PATH=/share/hwdata/pci.ids
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+      - GIDLIST=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+      - IGNORE_VAAPI_ENABLED_FLAG=false
+      - XDG_CACHE_HOME=/config/cache
+      - PUID=0
+      - PGID=0
+      - UMASK=022
+      - UID=0
+      - GID=0
+    ports:
+      - ${EMBYSERVER_PORT_8096}:8096
+    volumes:
+      - ${MEDIA_BASE}:/media
+      - ${DOCKER_BASE}/dp-emby/config:/config
+    restart: always
+    devices:
+      - /dev/dri:/dev/dri
+    x-meta:
+      name: dp-emby
+      description: 容器服务
+      configUrl: ''
+
+  qb-clash:
+    container_name: qb-clash
+    image: ccr.ccs.tencentyun.com/naspt/clash-and-dashboard:latest
+    environment:
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - PUID=0
+      - PGID=0
+    ports:
+      - ${CLASH_AND_DASHBOARD_PORT_7890}:7890
+      - ${CLASH_AND_DASHBOARD_PORT_8080}:8080
+    volumes:
+      - ${DOCKER_BASE}/dp-clash:/root/.config/clash
+    restart: always
+    x-meta:
+      name: qb-clash
+      description: 容器服务
+      configUrl: ''
+
+x-meta:
+  name: 容器项目-1749356710410
+  description: Docker容器管理项目
+  version: 1.0.0
+  author: System
+  category: container
+
+  env:
+    DOCKER_BASE:
+      value: /volume1/docker
+      description: Docker容器基础目录
+    MEDIA_BASE:
+      value: /volume1/media
+      description: 媒体文件存储目录
+    TRANSMISSION_PORT_9091:
+      value: '9091'
+      description: 服务端口映射
+    CLASH_AND_DASHBOARD_PORT_7890:
+      value: '7890'
+      description: 服务端口映射
+    EMBYSERVER_PORT_8096:
+      value: '8096'
+      description: 服务端口映射
+    MOVIEPILOT_V2_PORT_3001:
+      value: '3001'
+      description: 服务端口映射
+    QBITTORRENT_PORT_9000:
+      value: '9000'
+      description: 服务端口映射
+    CLASH_AND_DASHBOARD_PORT_8080:
+      value: '8887'
+      description: 服务端口映射
+    MOVIEPILOT_V2_PORT_3000:
+      value: '3000'
+      description: 服务端口映射
+    CHINESESUBFINDER_PORT_19035:
+      value: '19035'
+      description: 服务端口映射
