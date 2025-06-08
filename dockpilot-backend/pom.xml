@@ -12,7 +12,7 @@
 
     <groupId>com.dockpilot</groupId>
     <artifactId>dockpilot-backend</artifactId>
-    <version>1.0.32</version>
+    <version>1.0.33</version>
     <name>dockpilot-backend</name>
     <description>DockPilot Docker管理平台后端服务</description>
 
