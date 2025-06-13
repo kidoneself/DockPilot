@@ -9,41 +9,55 @@ const getBaseUrl = () => {
 // 创建axios实例
 const service: AxiosInstance = axios.create({
   baseURL: getBaseUrl(),
-  timeout: 15000,
+  timeout: 30000, // 增加到30秒
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-// 请求拦截器
-service.interceptors.request.use(
-  (config) => {
-    const token = getToken()
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`
-    }
-    return config
+// 创建专门用于文件上传的axios实例
+const uploadService: AxiosInstance = axios.create({
+  baseURL: getBaseUrl(),
+  timeout: 300000, // 5分钟超时，适合大文件上传
+  headers: {
+    'Content-Type': 'multipart/form-data',
   },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
+})
 
-// 响应拦截器
-service.interceptors.response.use(
-  (response: AxiosResponse) => {
-    const res = response.data
-    // 如果code不是0，说明有错误
-    if (res.code !== 0) {
-      // 这里可以统一处理错误
-      return Promise.reject(new Error(res.message || 'Error'))
+// 请求拦截器
+const setupInterceptors = (instance: AxiosInstance) => {
+  instance.interceptors.request.use(
+    (config) => {
+      const token = getToken()
+      if (token) {
+        config.headers['Authorization'] = `Bearer ${token}`
+      }
+      return config
+    },
+    (error) => {
+      return Promise.reject(error)
     }
-    return res.data
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
+  )
+
+  instance.interceptors.response.use(
+    (response: AxiosResponse) => {
+      const res = response.data
+      // 如果code不是0，说明有错误
+      if (res.code !== 0) {
+        // 这里可以统一处理错误
+        return Promise.reject(new Error(res.message || 'Error'))
+      }
+      return res.data
+    },
+    (error) => {
+      return Promise.reject(error)
+    }
+  )
+}
+
+// 设置拦截器
+setupInterceptors(service)
+setupInterceptors(uploadService)
 
 // 封装请求方法
 const request = {
@@ -58,6 +72,17 @@ const request = {
   },
   delete: <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
     return service.delete(url, config)
+  },
+  // 文件上传专用方法
+  upload: <T = any>(url: string, data: FormData, config?: AxiosRequestConfig): Promise<T> => {
+    return uploadService.post(url, data, {
+      ...config,
+      onUploadProgress: (progressEvent) => {
+        if (config?.onUploadProgress) {
+          config.onUploadProgress(progressEvent)
+        }
+      }
+    })
   }
 }
 

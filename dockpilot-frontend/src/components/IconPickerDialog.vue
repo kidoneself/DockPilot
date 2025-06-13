@@ -85,17 +85,33 @@
                 上传多个
               </n-button>
               
-              <n-button 
-                size="small" 
-                @click="triggerZipFileUpload"
-                :loading="uploadingStates.zip"
-                :disabled="isAnyUploading"
-              >
-                <n-icon>
-                  <ArchiveOutline />
-                </n-icon>
-                上传ZIP
-              </n-button>
+              <div class="upload-zip-wrapper">
+                <n-button 
+                  size="small" 
+                  @click="triggerZipFileUpload"
+                  :loading="uploadingStates.zip"
+                  :disabled="isAnyUploading"
+                  class="zip-upload-btn"
+                >
+                  <n-icon>
+                    <ArchiveOutline />
+                  </n-icon>
+                  上传ZIP
+                </n-button>
+                <!-- 进度条 -->
+                <div 
+                  v-if="uploadingStates.zip && uploadProgress.zip > 0" 
+                  class="upload-progress"
+                >
+                  <div class="progress-bar">
+                    <div 
+                      class="progress-fill" 
+                      :style="{ width: uploadProgress.zip + '%' }"
+                    ></div>
+                  </div>
+                  <span class="progress-text">{{ uploadProgress.zip }}%</span>
+                </div>
+              </div>
             </div>
             
             <!-- HD-Icons下载链接 -->
@@ -254,6 +270,13 @@ const uploadingStates = ref({
   single: false,
   multiple: false,
   zip: false
+})
+
+// 上传进度
+const uploadProgress = ref({
+  single: 0,
+  multiple: 0,
+  zip: 0
 })
 
 // 懒加载相关
@@ -482,10 +505,24 @@ const handleZipFileUpload = async (event: Event) => {
   
   if (!file) return
   
+  // 检查文件大小，超过100MB给出警告
+  const fileSizeMB = file.size / (1024 * 1024)
+  if (fileSizeMB > 100) {
+    const confirmed = confirm(`文件大小为 ${fileSizeMB.toFixed(1)}MB，上传可能需要较长时间，是否继续？`)
+    if (!confirmed) {
+      target.value = ''
+      return
+    }
+  }
+  
   uploadingStates.value.zip = true
+  uploadProgress.value.zip = 0
   
   try {
-    const results = await IconApi.uploadIconsFromZip(file)
+    const results = await IconApi.uploadIconsFromZip(file, (progress) => {
+      uploadProgress.value.zip = progress
+    })
+    
     message.success(`成功从压缩包中导入 ${results.length} 个图标`)
     
     // 刷新图标列表
@@ -497,9 +534,14 @@ const handleZipFileUpload = async (event: Event) => {
     }
   } catch (error: any) {
     console.error('ZIP上传失败:', error)
-    message.error(`ZIP上传失败: ${error.message || '未知错误'}`)
+    if (error.message?.includes('timeout')) {
+      message.error('上传超时，请尝试压缩文件大小或检查网络连接')
+    } else {
+      message.error(`ZIP上传失败: ${error.message || '未知错误'}`)
+    }
   } finally {
     uploadingStates.value.zip = false
+    uploadProgress.value.zip = 0
     // 清空文件输入
     target.value = ''
   }
@@ -547,6 +589,53 @@ const handleZipFileUpload = async (event: Event) => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.upload-zip-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.zip-upload-btn {
+  min-width: 90px; /* 固定最小宽度，防止布局变化 */
+}
+
+.upload-progress {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.progress-bar {
+  width: 60px;
+  height: 4px;
+  background: rgba(var(--n-color-primary-rgb), 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--n-color-primary);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 10px;
+  color: var(--n-color-primary);
+  font-weight: 500;
+  min-width: 28px;
+  text-align: center;
 }
 
 .download-links {

@@ -31,12 +31,15 @@ export const IconApi = {
   /**
    * 上传单个图标文件
    */
-  uploadIcon(file: File) {
+  uploadIcon(file: File, onProgress?: (progress: number) => void) {
     const formData = new FormData()
     formData.append('file', file)
-    return request.post<IconInfo>('/icons/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
+    return request.upload<IconInfo>('/icons/upload', formData, {
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          onProgress(progress)
+        }
       }
     })
   },
@@ -44,27 +47,33 @@ export const IconApi = {
   /**
    * 上传多个图标文件
    */
-  uploadIcons(files: File[]) {
+  uploadIcons(files: File[], onProgress?: (progress: number) => void) {
     const formData = new FormData()
     files.forEach(file => {
       formData.append('files', file)
     })
-    return request.post<IconInfo[]>('/icons/upload-multiple', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
+    return request.upload<IconInfo[]>('/icons/upload-multiple', formData, {
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          onProgress(progress)
+        }
       }
     })
   },
 
   /**
-   * 上传ZIP压缩包图标
+   * 上传ZIP压缩包图标（大文件专用）
    */
-  uploadIconsFromZip(zipFile: File) {
+  uploadIconsFromZip(zipFile: File, onProgress?: (progress: number) => void) {
     const formData = new FormData()
     formData.append('file', zipFile)
-    return request.post<IconInfo[]>('/icons/upload-zip', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
+    return request.upload<IconInfo[]>('/icons/upload-zip', formData, {
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          onProgress(progress)
+        }
       }
     })
   }
