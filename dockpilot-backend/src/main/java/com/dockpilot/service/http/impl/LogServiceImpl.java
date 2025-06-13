@@ -23,7 +23,7 @@ public class LogServiceImpl implements LogService {
     @Override
     public void addLog(Log logEntry) {
         try {
-            logMapper.insert(logEntry);
+//            logMapper.insert(logEntry);
             log.info("{}--{}--{}", logEntry.getType(), logEntry.getLevel(), logEntry.getContent());
         } catch (Exception e) {
             log.error("保存日志失败: {}", e.getMessage());

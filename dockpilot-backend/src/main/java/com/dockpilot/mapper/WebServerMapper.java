@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Web服务数据访问层
@@ -16,6 +17,11 @@ public interface WebServerMapper {
      * 新增服务
      */
     int insert(WebServer webServer);
+
+    /**
+     * 批量新增服务
+     */
+    int batchInsert(@Param("servers") List<WebServer> servers);
 
     /**
      * 根据ID删除服务
@@ -76,4 +82,9 @@ public interface WebServerMapper {
      * 查询收藏列表
      */
     List<WebServerVO> selectFavorites();
+
+    /**
+     * 批量更新图标
+     */
+    int batchUpdateFavicons(@Param("faviconMap") Map<String, String> faviconMap);
 } 

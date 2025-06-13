@@ -4,6 +4,7 @@ import com.dockpilot.model.dto.CategoryDTO;
 import com.dockpilot.model.vo.CategoryVO;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 分类服务接口
@@ -68,4 +69,12 @@ public interface CategoryService {
      * @param categories 分类列表（包含ID和排序信息）
      */
     void batchUpdateSort(List<CategoryDTO> categories);
+
+    /**
+     * 批量创建分类
+     *
+     * @param categories 分类列表
+     * @return 分类名称到ID的映射
+     */
+    Map<String, Integer> batchCreate(List<CategoryDTO> categories);
 } 

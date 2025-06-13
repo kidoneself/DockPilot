@@ -18,6 +18,11 @@ public interface CategoryMapper {
     int insert(Category category);
 
     /**
+     * 批量新增分类
+     */
+    int batchInsert(@Param("categories") List<Category> categories);
+
+    /**
      * 根据ID删除分类
      */
     int deleteById(@Param("id") Integer id);

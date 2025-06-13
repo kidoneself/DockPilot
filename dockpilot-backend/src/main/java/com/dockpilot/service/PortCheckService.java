@@ -23,7 +23,7 @@ public class PortCheckService {
     
     /**
      * 检测指定端口是否可用 - 使用nc命令
-     * @param port 端口号
+     * @param port 端口号system/favicon
      * @return true=可用, false=被占用
      */
     public boolean isPortAvailable(int port) {

@@ -8,9 +8,13 @@ import com.dockpilot.service.http.CategoryService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * 分类服务实现类
@@ -19,6 +23,7 @@ import java.util.stream.Collectors;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryMapper categoryMapper;
+    private static final Logger log = LoggerFactory.getLogger(CategoryServiceImpl.class);
 
     public CategoryServiceImpl(CategoryMapper categoryMapper) {
         this.categoryMapper = categoryMapper;
@@ -115,5 +120,50 @@ public class CategoryServiceImpl implements CategoryService {
                 })
                 .collect(Collectors.toList());
         categoryMapper.batchUpdateSort(entities);
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Integer> batchCreate(List<CategoryDTO> categories) {
+        Map<String, Integer> result = new HashMap<>();
+        
+        if (categories == null || categories.isEmpty()) {
+            return result;
+        }
+        
+        // SQLite批量插入时useGeneratedKeys可能不工作，改为逐个插入
+        for (CategoryDTO categoryDTO : categories) {
+            try {
+                // 检查分类名称是否已存在
+                Category existing = categoryMapper.selectByName(categoryDTO.getName());
+                if (existing != null) {
+                    // 如果已存在，直接使用现有ID
+                    result.put(categoryDTO.getName(), existing.getId());
+                    log.info("分类已存在，跳过创建: {}, ID: {}", categoryDTO.getName(), existing.getId());
+                    continue;
+                }
+                
+                // 创建新分类
+                Category entity = new Category();
+                BeanUtils.copyProperties(categoryDTO, entity);
+                
+                // 执行插入操作
+                int insertCount = categoryMapper.insert(entity);
+                if (insertCount > 0 && entity.getId() != null) {
+                    result.put(entity.getName(), entity.getId());
+                    log.info("成功创建分类: {}, ID: {}", entity.getName(), entity.getId());
+                } else {
+                    log.error("插入分类失败或未获取到ID: {}", categoryDTO.getName());
+                    throw new RuntimeException("创建分类失败: " + categoryDTO.getName());
+                }
+                
+            } catch (Exception e) {
+                log.error("创建分类时出错: {}", categoryDTO.getName(), e);
+                throw new RuntimeException("创建分类失败: " + categoryDTO.getName() + ", 错误: " + e.getMessage());
+            }
+        }
+        
+        log.info("批量创建分类完成，成功创建: {}个", result.size());
+        return result;
     }
 } 

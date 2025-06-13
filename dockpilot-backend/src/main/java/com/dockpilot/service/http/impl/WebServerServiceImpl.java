@@ -15,6 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * Web服务服务实现类
@@ -132,5 +137,42 @@ public class WebServerServiceImpl implements WebServerService {
     @Override
     public List<WebServerVO> getFavorites() {
         return webServerMapper.selectFavorites();
+    }
+
+    @Override
+    public Set<String> getAllUrls() {
+        List<WebServerVO> allServers = webServerMapper.selectAllWithCategory();
+        return allServers.stream()
+            .flatMap(server -> Stream.of(server.getInternalUrl(), server.getExternalUrl()))
+            .filter(Objects::nonNull)
+            .filter(url -> !url.trim().isEmpty())
+            .collect(Collectors.toSet());
+    }
+
+    @Override
+    public int getMaxItemSort() {
+        List<WebServerVO> allServers = webServerMapper.selectAllWithCategory();
+        return allServers.stream()
+            .mapToInt(WebServerVO::getItemSort)
+            .max()
+            .orElse(0);
+    }
+
+    @Override
+    @Transactional
+    public void batchUpdateFavicons(Map<String, String> faviconMap) {
+        if (faviconMap == null || faviconMap.isEmpty()) {
+            return;
+        }
+        webServerMapper.batchUpdateFavicons(faviconMap);
+    }
+
+    @Override
+    @Transactional
+    public int batchInsert(List<WebServer> webServers) {
+        if (webServers == null || webServers.isEmpty()) {
+            return 0;
+        }
+        return webServerMapper.batchInsert(webServers);
     }
 } 

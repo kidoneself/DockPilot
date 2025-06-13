@@ -13,6 +13,15 @@
         VALUES (#{name}, #{sortOrder}, datetime('now'), datetime('now'))
     </insert>
 
+    <!-- 批量新增分类 -->
+    <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO categories (name, sort_order, created_at, updated_at)
+        VALUES
+        <foreach collection="categories" item="category" separator=",">
+            (#{category.name}, #{category.sortOrder}, datetime('now'), datetime('now'))
+        </foreach>
+    </insert>
+
     <!-- 根据ID删除分类 -->
     <delete id="deleteById">
         DELETE FROM categories WHERE id = #{id}

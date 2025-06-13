@@ -23,6 +23,18 @@
                 #{itemSort}, #{bgColor}, #{cardType}, #{iconType}, #{openType}, datetime('now'), datetime('now'))
     </insert>
 
+    <!-- 批量新增服务器 -->
+    <insert id="batchInsert">
+        INSERT INTO web_servers (id, name, icon, internal_url, external_url, description, category_id, item_sort,
+                                 bg_color, card_type, icon_type, open_type, created_at, updated_at)
+        VALUES
+        <foreach collection="servers" item="server" separator=",">
+            (#{server.id}, #{server.name}, #{server.icon}, #{server.internalUrl}, #{server.externalUrl}, 
+             #{server.description}, #{server.categoryId}, #{server.itemSort}, #{server.bgColor}, 
+             #{server.cardType}, #{server.iconType}, #{server.openType}, datetime('now'), datetime('now'))
+        </foreach>
+    </insert>
+
     <!-- 根据ID删除服务器 -->
     <delete id="deleteById">
         DELETE
@@ -156,4 +168,24 @@
         WHERE w.is_favorite = 1
         ORDER BY w.updated_at DESC
     </select>
+
+    <!-- 批量更新图标 -->
+    <update id="batchUpdateFavicons">
+        UPDATE web_servers
+        SET icon = CASE id
+        <foreach collection="faviconMap" item="faviconUrl" index="serverId">
+            WHEN #{serverId} THEN #{faviconUrl}
+        </foreach>
+        END,
+        icon_type = CASE id
+        <foreach collection="faviconMap" item="faviconUrl" index="serverId">
+            WHEN #{serverId} THEN 'online'
+        </foreach>
+        END,
+        updated_at = datetime('now')
+        WHERE id IN
+        <foreach collection="faviconMap" index="serverId" open="(" separator="," close=")">
+            #{serverId}
+        </foreach>
+    </update>
 </mapper> 

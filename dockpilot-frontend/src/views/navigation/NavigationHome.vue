@@ -458,8 +458,53 @@ const loadData = async () => {
   }
 }
 
+// 智能补齐协议
+const formatUrl = (url: string): string => {
+  if (!url || url.trim() === '') {
+    return ''
+  }
+  
+  const trimmedUrl = url.trim()
+  
+  // 如果已经有协议，直接返回
+  if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
+    return trimmedUrl
+  }
+  
+  // 如果是本地地址（IP或localhost），使用http
+  if (trimmedUrl.match(/^(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|::1)/)) {
+    return `http://${trimmedUrl}`
+  }
+  
+  // 其他情况默认使用https
+  return `https://${trimmedUrl}`
+}
+
 // 保存应用
 const saveApp = async (appData: any) => {
+  // 检查是否是分类创建事件
+  if (appData && appData.type === 'categoryCreated') {
+    console.log('🆕 检测到分类创建事件，刷新分类列表')
+    try {
+      // 重新加载分类数据
+      const allCategoriesRes = await getAllCategoriesForManage()
+      allCategories.value = allCategoriesRes
+      console.log('✅ 分类列表已刷新:', allCategories.value.length, '个分类')
+      console.log('🎯 新分类ID:', appData.data?.categoryId, '将由AddAppModal自动选中')
+    } catch (error) {
+      console.error('❌ 刷新分类列表失败:', error)
+    }
+    return
+  }
+
+  // 处理书签导入完成事件
+  if (appData === null) {
+    console.log('📚 书签导入完成，刷新数据')
+    await loadData()
+    return
+  }
+
+  // 正常的应用保存逻辑
   if (!appData.title || !appData.category) {
     message.error('请填写必填字段（标题和分组）')
     return
@@ -472,17 +517,29 @@ const saveApp = async (appData: any) => {
     // 根据图标类型确定图标数据
     if (appData.iconType === 'text') {
       iconData = appData.textContent || appData.title.charAt(0).toUpperCase()
-    } else if (appData.iconType === 'image' || appData.iconType === 'online') {
+    } else if (appData.iconType === 'image' || appData.iconType === 'online' || appData.iconType === 'local') {
       iconData = appData.iconUrl || ''
     }
     
+    // 智能处理地址，自动补齐协议
+    const formattedExternalUrl = formatUrl(appData.url)
+    const formattedInternalUrl = formatUrl(appData.internalUrl)
+    
+    // 输出日志便于调试
+    if (appData.url && appData.url !== formattedExternalUrl) {
+      console.log(`🔗 外网地址自动补齐: "${appData.url}" → "${formattedExternalUrl}"`)
+    }
+    if (appData.internalUrl && appData.internalUrl !== formattedInternalUrl) {
+      console.log(`🏠 内网地址自动补齐: "${appData.internalUrl}" → "${formattedInternalUrl}"`)
+    }
+
     const createData: CreateWebServerRequest = {
       name: appData.title,
       description: appData.description,
       categoryId: Number(appData.category), // category现在是ID
       icon: iconData,
-      externalUrl: appData.url && appData.url.startsWith('http') ? appData.url : '',
-      internalUrl: appData.internalUrl || '',
+      externalUrl: formattedExternalUrl,
+      internalUrl: formattedInternalUrl,
       bgColor: appData.bgColor,
       cardType: appData.cardType,
       iconType: appData.iconType,
@@ -528,18 +585,30 @@ const updateApp = async (appData: any) => {
     // 根据图标类型确定图标数据
     if (appData.iconType === 'text') {
       iconData = appData.textContent || appData.title.charAt(0).toUpperCase()
-    } else if (appData.iconType === 'image' || appData.iconType === 'online') {
+    } else if (appData.iconType === 'image' || appData.iconType === 'online' || appData.iconType === 'local') {
       iconData = appData.iconUrl || ''
     }
     
+    // 智能处理地址，自动补齐协议
+    const formattedExternalUrl = formatUrl(appData.url)
+    const formattedInternalUrl = formatUrl(appData.internalUrl)
+    
+    // 输出日志便于调试
+    if (appData.url && appData.url !== formattedExternalUrl) {
+      console.log(`🔗 外网地址自动补齐: "${appData.url}" → "${formattedExternalUrl}"`)
+    }
+    if (appData.internalUrl && appData.internalUrl !== formattedInternalUrl) {
+      console.log(`🏠 内网地址自动补齐: "${appData.internalUrl}" → "${formattedInternalUrl}"`)
+    }
+
     const updateData: UpdateWebServerRequest = {
       id: appData.id,
       name: appData.title,
       description: appData.description,
       categoryId: Number(appData.category),
       icon: iconData,
-      externalUrl: appData.url && appData.url.startsWith('http') ? appData.url : '',
-      internalUrl: appData.internalUrl || '',
+      externalUrl: formattedExternalUrl,
+      internalUrl: formattedInternalUrl,
       bgColor: appData.bgColor,
       cardType: appData.cardType,
       iconType: appData.iconType,
@@ -653,7 +722,7 @@ const handleMoveToCategory = async (app: any, fromCategoryId: number, toCategory
   
   moveTimeout = setTimeout(async () => {
     try {
-      // 准备更新应用数据
+      // 准备更新应用数据（移动分类时保持原地址不变）
       const updateData: UpdateWebServerRequest = {
         id: app.id,
         name: app.name,

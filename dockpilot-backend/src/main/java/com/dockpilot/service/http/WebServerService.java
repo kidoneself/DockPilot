@@ -1,10 +1,13 @@
 package com.dockpilot.service.http;
 
 import com.dockpilot.model.dto.WebServerDTO;
+import com.dockpilot.model.entity.WebServer;
 import com.dockpilot.model.vo.WebServerVO;
 import com.dockpilot.model.vo.CategoryVO;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Web服务服务接口
@@ -17,6 +20,14 @@ public interface WebServerService {
      * @return 新增的服务ID
      */
     String create(WebServerDTO dto);
+
+    /**
+     * 批量新增服务
+     *
+     * @param webServers 服务列表
+     * @return 插入的数量
+     */
+    int batchInsert(List<WebServer> webServers);
 
     /**
      * 删除服务
@@ -107,4 +118,25 @@ public interface WebServerService {
      * @return 收藏的服务列表
      */
     List<WebServerVO> getFavorites();
+
+    /**
+     * 获取所有URL（用于去重检查）
+     *
+     * @return 所有URL的集合
+     */
+    Set<String> getAllUrls();
+
+    /**
+     * 获取最大排序值
+     *
+     * @return 最大排序值
+     */
+    int getMaxItemSort();
+
+    /**
+     * 批量更新图标
+     *
+     * @param faviconMap 服务ID到图标URL的映射
+     */
+    void batchUpdateFavicons(Map<String, String> faviconMap);
 } 

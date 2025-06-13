@@ -57,9 +57,9 @@ public class SystemWebSocketService implements BaseService {
      * @return 系统状态信息
      */
     private Object handleSystemStatus(DockerWebSocketMessage message) {
-        LogUtil.logSysInfo("获取系统状态信息");
+//        LogUtil.logSysInfo("获取系统状态信息");
         SystemStatusDTO systemStatus = systemStatusService.getSystemStatus();
-        LogUtil.logSysInfo("系统状态信息获取完成");
+//        LogUtil.logSysInfo("系统状态信息获取完成");
         return systemStatus;
     }
 } 

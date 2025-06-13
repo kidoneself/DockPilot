@@ -44,6 +44,14 @@
               <span v-if="app.iconType === 'text'" class="text-icon">
                 {{ app.iconUrl || app.name.charAt(0).toUpperCase() }}
               </span>
+              <!-- 本地图标 -->
+              <img 
+                v-else-if="app.iconType === 'local' && app.iconUrl && !app.imageError" 
+                :src="`/api/icons/${app.iconUrl}`" 
+                :alt="app.name"
+                @error="handleImageError(app)"
+                @load="handleImageLoad(app)"
+              >
               <!-- 图片图标或在线图标 -->
               <img 
                 v-else-if="(app.iconType === 'image' || app.iconType === 'online') && app.iconUrl && !app.imageError" 
@@ -53,7 +61,7 @@
                 @load="handleImageLoad(app)"
               >
               <div 
-                v-else-if="(app.iconType === 'image' || app.iconType === 'online') && app.iconUrl && app.imageError" 
+                v-else-if="(app.iconType === 'image' || app.iconType === 'online' || app.iconType === 'local') && app.iconUrl && app.imageError" 
                 class="fallback-icon"
                 :title="`${app.name} - 图标加载失败，显示文字图标`"
               >
