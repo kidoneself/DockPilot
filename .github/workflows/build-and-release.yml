@@ -368,14 +368,17 @@ jobs:
             VERSION="${{ github.event.inputs.version }}"
             DOCKER_TAG="latest"
           elif [ "${{ github.ref }}" = "refs/heads/test" ]; then
-            VERSION="v1.0.38-test"
+            # 动态获取pom.xml中的版本号
+            VERSION=$(grep -o '<version>.*</version>' dockpilot-backend/pom.xml | head -1 | sed 's/<[^>]*>//g')
             DOCKER_TAG="test"
+            echo "从pom.xml获取的版本号: $VERSION"
           else
             VERSION="${GITHUB_REF#refs/tags/}"
             DOCKER_TAG="latest"
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_OUTPUT
+          echo "最终版本: $VERSION, Docker标签: $DOCKER_TAG"
 
       - name: 🐳 构建并推送热更新镜像
         uses: docker/build-push-action@v5
