@@ -59,41 +59,76 @@
             @change="handleZipFileUpload"
           />
           
-          <n-button 
-            size="small" 
-            @click="triggerSingleFileUpload"
-            :loading="uploadingStates.single"
-            :disabled="isAnyUploading"
-          >
-            <n-icon>
-              <CloudUploadOutline />
-            </n-icon>
-            上传单个
-          </n-button>
-          
-          <n-button 
-            size="small" 
-            @click="triggerMultipleFilesUpload"
-            :loading="uploadingStates.multiple"
-            :disabled="isAnyUploading"
-          >
-            <n-icon>
-              <CloudUploadOutline />
-            </n-icon>
-            上传多个
-          </n-button>
-          
-          <n-button 
-            size="small" 
-            @click="triggerZipFileUpload"
-            :loading="uploadingStates.zip"
-            :disabled="isAnyUploading"
-          >
-            <n-icon>
-              <ArchiveOutline />
-            </n-icon>
-            上传ZIP
-          </n-button>
+          <div class="upload-row">
+            <div class="upload-buttons">
+              <n-button 
+                size="small" 
+                @click="triggerSingleFileUpload"
+                :loading="uploadingStates.single"
+                :disabled="isAnyUploading"
+              >
+                <n-icon>
+                  <CloudUploadOutline />
+                </n-icon>
+                上传单个
+              </n-button>
+              
+              <n-button 
+                size="small" 
+                @click="triggerMultipleFilesUpload"
+                :loading="uploadingStates.multiple"
+                :disabled="isAnyUploading"
+              >
+                <n-icon>
+                  <CloudUploadOutline />
+                </n-icon>
+                上传多个
+              </n-button>
+              
+              <n-button 
+                size="small" 
+                @click="triggerZipFileUpload"
+                :loading="uploadingStates.zip"
+                :disabled="isAnyUploading"
+              >
+                <n-icon>
+                  <ArchiveOutline />
+                </n-icon>
+                上传ZIP
+              </n-button>
+            </div>
+            
+            <!-- HD-Icons下载链接 -->
+            <div class="download-links">
+              <span class="download-label">推荐下载：</span>
+              <n-button 
+                size="small" 
+                text 
+                tag="a"
+                href="https://gitee.com/kiditer/HD-Icons/repository/archive/main.zip"
+                target="_blank"
+                type="primary"
+              >
+                <n-icon>
+                  <CloudDownloadOutline />
+                </n-icon>
+                Gitee下载
+              </n-button>
+              <n-button 
+                size="small" 
+                text 
+                tag="a"
+                href="https://github.com/xushier/HD-Icons/archive/refs/heads/main.zip"
+                target="_blank"
+                type="primary"
+              >
+                <n-icon>
+                  <CloudDownloadOutline />
+                </n-icon>
+                GitHub下载
+              </n-button>
+            </div>
+          </div>
         </div>
         
         <div class="info-row">
@@ -179,7 +214,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { NModal, NInput, NButton, NIcon, NSpin, useMessage } from 'naive-ui'
-import { SearchOutline, RefreshOutline, ImageOutline, CloudUploadOutline, ArchiveOutline } from '@vicons/ionicons5'
+import { SearchOutline, RefreshOutline, ImageOutline, CloudUploadOutline, ArchiveOutline, CloudDownloadOutline } from '@vicons/ionicons5'
 import { IconApi } from '@/api/icon'
 import type { IconInfo } from '@/types/icon'
 
@@ -496,9 +531,41 @@ const handleZipFileUpload = async (event: Event) => {
 
 .upload-section {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 12px;
   margin-bottom: 12px;
+}
+
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   flex-wrap: wrap;
+}
+
+.upload-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.download-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(var(--n-color-primary-rgb), 0.06);
+  border: 1px solid rgba(var(--n-color-primary-rgb), 0.15);
+  border-radius: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.download-label {
+  font-size: 12px;
+  color: var(--n-text-color);
+  margin-right: 4px;
+  white-space: nowrap;
 }
 
 .info-row {
