@@ -214,6 +214,7 @@ const appCategories = computed(() => {
         cardType: app.cardType || 'normal',
         categoryId: app.categoryId,
         isFavorite: app.isFavorite || false,
+        itemSort: app.itemSort || 1,
         icon: markRaw(CubeOutline),
         imageError: imageErrors.value[app.id.toString()] || false
       }))
@@ -613,7 +614,7 @@ const updateApp = async (appData: any) => {
       cardType: appData.cardType,
       iconType: appData.iconType,
       openType: appData.openType,
-      itemSort: 0 // 更新时保持原有排序
+      itemSort: editingApp.value?.itemSort || webServers.value.find(ws => ws.id === appData.id)?.itemSort || 1
     }
 
     // 调用API更新应用
