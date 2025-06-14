@@ -8,6 +8,7 @@ import com.dockpilot.model.*;
 import com.dockpilot.service.http.ImageService;
 import com.dockpilot.service.http.SystemSettingService;
 import com.dockpilot.service.http.ContainerSyncService;
+import com.dockpilot.service.http.ProxyHttpClientService;
 import com.dockpilot.utils.LogUtil;
 import com.dockpilot.utils.MessageCallback;
 import com.github.dockerjava.api.DockerClient;
@@ -57,6 +58,8 @@ public class ImageServiceImpl implements ImageService {
     private SystemSettingService systemSettingService;
     @Autowired
     private ContainerSyncService containerSyncService;
+    @Autowired
+    private ProxyHttpClientService proxyHttpClientService;
 
     // 🎯 缓存相关字段
     private final Map<String, CachedImageInfo> remoteImageCache = new ConcurrentHashMap<>();
@@ -719,14 +722,10 @@ public class ImageServiceImpl implements ImageService {
             command.add("docker://" + imageName + ":" + tag);
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
-            // 设置代理（如果启用）
-            String proxyUrl = appConfig.getProxyUrl();
-            boolean useProxy = proxyUrl != null && !proxyUrl.isEmpty();
-            if (useProxy) {
-
-                Map<String, String> env = processBuilder.environment();
-                env.put("HTTP_PROXY", proxyUrl);
-                env.put("HTTPS_PROXY", proxyUrl);
+            // 使用公共代理服务设置代理环境变量
+            Map<String, String> proxyEnv = proxyHttpClientService.getProxyEnvironmentVariables();
+            if (!proxyEnv.isEmpty()) {
+                processBuilder.environment().putAll(proxyEnv);
             }
 
             // 打印完整命令行

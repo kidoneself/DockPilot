@@ -2,6 +2,7 @@ package com.dockpilot.api;
 
 import com.dockpilot.common.config.AppConfig;
 import com.dockpilot.model.ContainerCreateRequest;
+import com.dockpilot.service.http.ProxyHttpClientService;
 import com.dockpilot.model.ResourceUsageDTO;
 import com.dockpilot.utils.DockerInspectJsonGenerator;
 import com.dockpilot.utils.DockerStatsConverter;
@@ -33,11 +34,14 @@ import java.util.stream.Collectors;
  */
 @Service
 public class DockerService {
-    @Resource
+        @Resource
     private DockerClientWrapper dockerClientWrapper;
-
+    
     @Resource
     private AppConfig appConfig;
+    
+    @Resource
+    private ProxyHttpClientService proxyHttpClientService;
 //
 //    @Resource
 //    private DockerComposeWrapper dockerComposeWrapper;
@@ -325,11 +329,10 @@ public class DockerService {
             command.add("docker-daemon:" + fullImageName);
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
-            // 如果代理配置不为空就使用代理
-            String proxyUrl = appConfig.getProxyUrl();
-            if (proxyUrl != null && !proxyUrl.isBlank()) {
-                processBuilder.environment().put("HTTP_PROXY", proxyUrl);
-                processBuilder.environment().put("HTTPS_PROXY", proxyUrl);
+            // 使用公共代理服务设置代理环境变量
+            Map<String, String> proxyEnv = proxyHttpClientService.getProxyEnvironmentVariables();
+            if (!proxyEnv.isEmpty()) {
+                processBuilder.environment().putAll(proxyEnv);
             }
             processBuilder.redirectErrorStream(true);
 
@@ -389,12 +392,10 @@ public class DockerService {
             command.add("{{.Created}}");
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
-            // 如果代理配置不为空就使用代理
-            // 如果代理配置不为空就使用代理
-            String proxyUrl = appConfig.getProxyUrl();
-            if (proxyUrl != null && !proxyUrl.isBlank()) {
-                processBuilder.environment().put("HTTP_PROXY", proxyUrl);
-                processBuilder.environment().put("HTTPS_PROXY", proxyUrl);
+            // 使用公共代理服务设置代理环境变量
+            Map<String, String> proxyEnv = proxyHttpClientService.getProxyEnvironmentVariables();
+            if (!proxyEnv.isEmpty()) {
+                processBuilder.environment().putAll(proxyEnv);
             }
             processBuilder.redirectErrorStream(true);
 
@@ -778,13 +779,13 @@ public class DockerService {
 
             // 设置代理
             ProcessBuilder pb = new ProcessBuilder(command);
-            if (proxyUrl != null && !proxyUrl.isBlank()) {
-                pb.environment().put("HTTP_PROXY", proxyUrl);
-                pb.environment().put("HTTPS_PROXY", proxyUrl);
+            Map<String, String> proxyEnv = proxyHttpClientService.getProxyEnvironmentVariables();
+            if (!proxyEnv.isEmpty()) {
+                pb.environment().putAll(proxyEnv);
             }
 
             LogUtil.logSysInfo("执行命令: " + String.join(" ", command) + 
-                             (proxyUrl != null ? " (使用代理: " + proxyUrl + ")" : ""));
+                             (proxyHttpClientService.isProxyConfigured() ? " (使用代理)" : " (直连)"));
             final Process process = pb.start();
 
             // 用于收集标准输出和错误输出

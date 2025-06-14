@@ -163,7 +163,7 @@
         <div class="qr-content">
           <!-- 微信二维码图片 -->
           <div class="qr-placeholder">
-            <img src="/wechat-qr.png" alt="微信群二维码" class="qr-image" />
+            <img src="https://img.naspt.vip/i/2025/06/13/684c1bd3c6bfa.jpg" alt="微信群二维码" class="qr-image" />
           </div>
           <p>扫描二维码加入微信群</p>
           <p class="wechat-id">DockPilot 用户交流群</p>
@@ -870,7 +870,7 @@ onUnmounted(() => {
   background: var(--n-color);
   padding: 2rem;
   border-radius: 16px;
-  max-width: 600px;
+  max-width: 400px;
   width: 90%;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   position: relative;
@@ -916,13 +916,17 @@ onUnmounted(() => {
   margin-bottom: 1rem;
   display: flex;
   justify-content: center;
+  align-items: center;
+  min-height: 280px;
 }
 
 .qr-image {
-  width: 200px;
-  height: 200px;
+  width: 280px;
+  max-width: 100%;
+  height: auto;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  object-fit: contain;
 }
 
 .qr-placeholder svg {
@@ -946,5 +950,21 @@ onUnmounted(() => {
   font-weight: 500;
   color: #007bff;
   display: inline-block;
+}
+
+/* 移动端响应式 */
+@media (max-width: 480px) {
+  .qr-image {
+    width: 240px;
+  }
+  
+  .qr-placeholder {
+    min-height: 240px;
+  }
+  
+  .qr-modal {
+    max-width: 320px;
+    padding: 1.5rem;
+  }
 }
 </style> 

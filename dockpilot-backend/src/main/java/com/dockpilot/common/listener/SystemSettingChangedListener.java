@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.dockpilot.common.config.AppConfig;
 import com.dockpilot.common.event.SystemSettingChangedEvent;
 import com.dockpilot.service.http.impl.ImageServiceImpl;
+import com.dockpilot.service.http.ProxyHttpClientService;
 import com.dockpilot.utils.LogUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
@@ -17,6 +18,9 @@ public class SystemSettingChangedListener {
     
     @Autowired
     private ImageServiceImpl imageService;
+    
+    @Autowired
+    private ProxyHttpClientService proxyHttpClientService;
 
     @EventListener
     public void handleSystemSettingChanged(SystemSettingChangedEvent event) {
@@ -34,10 +38,17 @@ public class SystemSettingChangedListener {
                     appConfig.setProxyUrl(null);
                     LogUtil.logSysInfo("✅已清除系统 HTTP 代理");
                 }
+                
+                // 🔥 重要：清除ProxyHttpClientService缓存，强制重新创建HttpClient
+                proxyHttpClientService.clearCache();
+                LogUtil.logSysInfo("🔄 代理HttpClient缓存已清除，下次请求将使用新的代理配置");
+                
             } catch (Exception e) {
                 LogUtil.logSysError("处理代理配置变更失败: " + e.getMessage());
                 // 异常时清除代理配置
                 appConfig.setProxyUrl(null);
+                // 也要清除缓存，确保状态一致
+                proxyHttpClientService.clearCache();
             }
         }
         

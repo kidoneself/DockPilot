@@ -66,6 +66,12 @@ file:
   # 🆕 打包文件存储配置
   package:
     path: uploads/packages/
+  # 🆕 背景图片存储配置
+  background:
+    path: uploads/background/
+  # 🆕 配置文件存储配置
+  config:
+    path: uploads/config/
 
 ---
 spring:
@@ -93,6 +99,10 @@ file:
     path: uploads/templates/
   package:
     path: uploads/packages/
+  background:
+    path: uploads/background/
+  config:
+    path: uploads/config/
 
 ---
 spring:
@@ -120,6 +130,10 @@ file:
     path: /dockpilot/uploads/templates/
   package:
     path: /dockpilot/data/packages/
+  background:
+    path: /dockpilot/uploads/background/
+  config:
+    path: /dockpilot/uploads/config/
 
 ## 文件下载配置
 #file:

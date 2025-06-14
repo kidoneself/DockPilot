@@ -45,6 +45,9 @@ public class ApplicationController {
     
     @Value("${file.upload.path:uploads/}")
     private String uploadBasePath;
+    
+    @Value("${file.config.path}")
+    private String configPath;
 
     /**
      * 获取应用列表
@@ -536,7 +539,7 @@ public class ApplicationController {
      * 存储配置包到本地目录
      */
     private void storeConfigPackages(String tempDir, List<String> packages, String projectName) throws Exception {
-        String configDir = uploadBasePath + projectName;
+        String configDir = configPath + projectName;
         java.nio.file.Files.createDirectories(java.nio.file.Paths.get(configDir));
         
         // 复制docker-compose.yml

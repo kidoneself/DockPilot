@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -32,7 +33,7 @@ import javax.annotation.PostConstruct;
 /**
  * 容器内热更新服务
  * 核心功能：不重启容器的情况下更新前后端代码
- * 新增功能：缓存机制 + 完善容错处理
+ * 新增功能：缓存机制 + 完善容错处理 + 代理支持
  */
 @Slf4j
 @Service
@@ -50,13 +51,15 @@ public class UpdateService {
     @Autowired
     private ApplicationContext applicationContext;
 
+    @Autowired
+    private ProxyHttpClientService proxyHttpClientService;
+
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule())
             .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     
-    // HTTP客户端（会根据代理配置动态创建）
-    private volatile HttpClient httpClient;
-    private volatile String lastProxyUrl; // 缓存最后使用的代理URL
+    // HTTP客户端（使用公共代理服务）
+    // 不再需要缓存，直接使用 proxyHttpClientService
 
     // 更新状态管理
     private volatile Map<String, Object> updateProgress = new HashMap<>();
@@ -89,8 +92,6 @@ public class UpdateService {
         log.info("🔍 检查新版本...");
         log.info("🎯 [测试标记] 当前运行版本: v1.0.4 - 热更新功能测试版本！");
         
-        ensureHttpClientInitialized();
-        
         String currentVersion = getCurrentVersion();
         String latestVersion = currentVersion;
         boolean hasUpdate = false;
@@ -102,7 +103,7 @@ public class UpdateService {
                     .timeout(Duration.ofSeconds(10))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
             
             if (response.statusCode() == 200) {
                 JsonNode release = objectMapper.readTree(response.body());
@@ -302,14 +303,12 @@ public class UpdateService {
      * 下载单个文件
      */
     private void downloadFile(String url, String targetPath) throws Exception {
-        ensureHttpClientInitialized();
-        
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(Duration.ofMinutes(5))
                 .build();
 
-        HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        HttpResponse<InputStream> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
         
         if (response.statusCode() != 200) {
             throw new RuntimeException("下载失败，HTTP状态码: " + response.statusCode());
@@ -384,16 +383,10 @@ public class UpdateService {
     }
 
     /**
-     * 初始化HTTP客户端
+     * 获取HTTP客户端（使用公共代理服务）
      */
-    private synchronized void ensureHttpClientInitialized() {
-        if (httpClient == null) {
-            httpClient = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(15))
-                    .followRedirects(HttpClient.Redirect.NORMAL)
-                    .build();
-            log.debug("✅ HTTP客户端已初始化");
-        }
+    private HttpClient getHttpClient() {
+        return proxyHttpClientService.getHttpClient();
     }
 
     /**
@@ -731,7 +724,7 @@ public class UpdateService {
                         .timeout(Duration.ofSeconds(2))
                         .build();
                 
-                HttpResponse<String> response = httpClient.send(request, 
+                HttpResponse<String> response = getHttpClient().send(request, 
                     HttpResponse.BodyHandlers.ofString());
                 
                 if (response.statusCode() == 200) {
@@ -754,9 +747,6 @@ public class UpdateService {
     private boolean waitForApplicationStartupOnPort(int port, int maxSeconds) {
         log.info("等待端口{}上的应用启动...", port);
         
-        // 确保HTTP客户端已初始化
-        ensureHttpClientInitialized();
-        
         for (int i = 0; i < maxSeconds; i++) {
             try {
                 HttpRequest request = HttpRequest.newBuilder()
@@ -767,7 +757,7 @@ public class UpdateService {
                 log.debug("尝试第{}次检查新应用是否启动 (端口: {})", i+1, port);
                 
                 try {
-                    HttpResponse<String> response = httpClient.send(request, 
+                    HttpResponse<String> response = getHttpClient().send(request, 
                         HttpResponse.BodyHandlers.ofString());
                     
                     if (response.statusCode() == 200) {
@@ -936,9 +926,6 @@ public class UpdateService {
         // 🔥 启动时清理旧的下载状态，避免重启后状态错乱
         cleanupOldDownloadStatus();
         
-        // 初始化HTTP客户端，支持重定向
-        initHttpClient();
-        
         // 延迟30秒后执行首次检查，避免启动时网络未就绪
         CompletableFuture.runAsync(() -> {
             try {
@@ -982,19 +969,7 @@ public class UpdateService {
         }
     }
 
-    /**
-     * 初始化HTTP客户端
-     */
-    private synchronized void initHttpClient() {
-        if (httpClient == null) {
-            log.info("初始化HTTP客户端...");
-            httpClient = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(15))
-                    .followRedirects(HttpClient.Redirect.NORMAL) // 支持HTTP重定向
-                    .build();
-            log.info("✅ HTTP客户端已初始化（支持重定向）");
-        }
-    }
+
 
     /**
      * 创建fallback更新信息

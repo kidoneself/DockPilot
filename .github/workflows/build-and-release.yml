@@ -212,7 +212,6 @@ jobs:
           ✅ **frontend.tar.gz** - 前端构建包（用于热更新）  
           ✅ **backend.jar** - 后端应用包（用于热更新）
           
-          ❌ **不要下载**：Source code (zip) 和 Source code (tar.gz) - 这些是源代码，不是构建后的文件
           
           ---
           

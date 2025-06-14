@@ -52,8 +52,12 @@ mvn spring-boot:run
 
 ## 联系方式
 
-- Telegram: https://t.me/dockpilot
-- 问题反馈：提交 GitHub Issue
+- **微信交流群**：
+
+  <img src="https://img.naspt.vip/i/2025/06/13/684c1bd3c6bfa.jpg" width="200" alt="微信群二维码" />
+
+- **Telegram**: https://t.me/dockpilot
+- **问题反馈**：提交 GitHub Issue
 
 ## 许可证
 

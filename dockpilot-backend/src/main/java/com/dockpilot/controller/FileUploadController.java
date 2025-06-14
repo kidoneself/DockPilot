@@ -41,6 +41,9 @@ public class FileUploadController {
 
     @Value("${file.upload.path}")
     private String uploadPath;
+    
+    @Value("${file.background.path}")
+    private String backgroundPath;
 
     @Operation(summary = "上传图片", description = "上传图片文件，支持jpg、png、gif、webp、svg格式")
     @PostMapping("/image")
@@ -56,8 +59,8 @@ public class FileUploadController {
                 return ApiResponse.error("文件大小不能超过10MB");
             }
 
-            // 确保上传目录存在
-            Path uploadDir = Paths.get(uploadPath);
+            // 确保背景图片目录存在
+            Path uploadDir = Paths.get(backgroundPath);
             if (!Files.exists(uploadDir)) {
                 Files.createDirectories(uploadDir);
             }
@@ -92,7 +95,7 @@ public class FileUploadController {
     @GetMapping("/image/{filename}")
     public ResponseEntity<Resource> getImage(@PathVariable String filename) {
         try {
-            Path filePath = Paths.get(uploadPath).resolve(filename);
+            Path filePath = Paths.get(backgroundPath).resolve(filename);
             Resource resource = new UrlResource(filePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {
@@ -121,7 +124,7 @@ public class FileUploadController {
     @DeleteMapping("/file/{filename}")
     public ApiResponse<Void> deleteFile(@PathVariable String filename) {
         try {
-            Path filePath = Paths.get(uploadPath).resolve(filename);
+            Path filePath = Paths.get(backgroundPath).resolve(filename);
             
             if (Files.exists(filePath)) {
                 Files.delete(filePath);
@@ -140,7 +143,7 @@ public class FileUploadController {
     @GetMapping("/images")
     public ApiResponse<List<Map<String, String>>> getAllImages() {
         try {
-            Path uploadDir = Paths.get(uploadPath);
+            Path uploadDir = Paths.get(backgroundPath);
             if (!Files.exists(uploadDir)) {
                 return ApiResponse.success(new ArrayList<>());
             }
@@ -203,8 +206,8 @@ public class FileUploadController {
                 return ApiResponse.error("无效的URL格式");
             }
 
-            // 确保上传目录存在
-            Path uploadDir = Paths.get(uploadPath);
+            // 确保背景图片目录存在
+            Path uploadDir = Paths.get(backgroundPath);
             if (!Files.exists(uploadDir)) {
                 Files.createDirectories(uploadDir);
             }

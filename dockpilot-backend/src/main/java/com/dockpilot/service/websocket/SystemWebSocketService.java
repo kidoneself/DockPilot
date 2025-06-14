@@ -28,7 +28,7 @@ public class SystemWebSocketService implements BaseService {
         MessageType type = MessageType.valueOf(message.getType());
         String taskId = message.getTaskId();
 
-        LogUtil.logSysInfo("处理系统WebSocket消息: " + type);
+//        LogUtil.logSysInfo("处理系统WebSocket消息: " + type);
 
         try {
             Object result = null;
