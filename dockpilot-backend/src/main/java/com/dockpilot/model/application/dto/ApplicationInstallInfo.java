@@ -30,6 +30,11 @@ public class ApplicationInstallInfo {
     private List<ServiceInfo> services;
     
     /**
+     * 原始YAML配置内容（用于高级编辑模式）
+     */
+    private String yamlContent;
+    
+    /**
      * 应用基本信息
      */
     @Data

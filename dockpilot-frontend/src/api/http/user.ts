@@ -12,6 +12,11 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
+// 修改用户名
+export interface ChangeUsernameRequest {
+  newUsername: string;
+}
+
 // 用户信息
 export interface User {
   id: number;
@@ -29,6 +34,11 @@ export const login = (data: LoginRequest) => {
 // 修改密码
 export const changePassword = (data: ChangePasswordRequest) => {
   return request.post('/users/change-password', data)
+}
+
+// 修改用户名
+export const changeUsername = (data: ChangeUsernameRequest) => {
+  return request.post('/users/change-username', data)
 }
 
 // 获取用户信息

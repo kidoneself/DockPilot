@@ -452,6 +452,103 @@
           
         </div>
       </n-tab-pane>
+      
+      <!-- 文本导入选项卡 -->
+      <n-tab-pane name="text-import" tab="文本导入">
+        <div class="text-import">
+          <div class="import-header">
+            <h3>📝 文本格式导入</h3>
+            <p>支持固定格式的文本导入，简单高效</p>
+          </div>
+          
+          <div class="format-info">
+            <n-alert type="info" title="导入格式说明">
+              <div>
+                <p><strong>固定格式：</strong>名称, 内网, 外网, 图标, 描述</p>
+                <p><strong>说明：</strong>必须5个字段，用逗号分隔，可以空着但位置必须有</p>
+                <p><strong>图标规则：</strong>空着自动获取favicon，有值则作为图标URL地址</p>
+                <br>
+                <p><strong>示例：</strong></p>
+                <div style="font-family: monospace; background: rgba(255,255,255,0.1); padding: 8px; border-radius: 4px;">
+                  未日PT, https://pt1.com, https://pt1.com, https://pt1.com/favicon.ico, 影视资源下载<br>
+                  猫PT, https://pt2.com, , , 自动获取图标<br>
+                  GitHub, https://github.com, , , 代码托管平台<br>
+                  , https://google.com, , https://cdn.example.com/google.png, 搜索引擎
+                </div>
+              </div>
+            </n-alert>
+          </div>
+          
+          <div class="text-input-section">
+            <n-form-item label="选择分组" required>
+              <div class="category-input-container">
+                <n-select 
+                  v-model:value="textImportCategoryId" 
+                  :options="categoryOptions"
+                  placeholder="选择分组"
+                  style="flex: 1;"
+                />
+                <n-button 
+                  quaternary
+                  type="primary"
+                  @click="showAddCategoryModal = true"
+                  style="margin-left: 8px;"
+                >
+                  <template #icon>
+                    <n-icon><AddOutline /></n-icon>
+                  </template>
+                  添加分类
+                </n-button>
+              </div>
+            </n-form-item>
+            
+            <n-form-item label="导入内容" required>
+              <n-input
+                v-model:value="textImportContent"
+                type="textarea"
+                placeholder="请按照格式输入，每行一个网站：
+名称, 内网, 外网, 图标, 描述
+
+示例：
+未日PT, https://pt1.com, , https://pt1.com/favicon.ico, 影视下载
+猫PT, https://pt2.com, , , 自动获取图标  
+GitHub, https://github.com, , , 代码托管"
+                :rows="8"
+                show-count
+              />
+            </n-form-item>
+          </div>
+          
+          <div class="text-import-actions">
+            <n-button 
+              type="primary" 
+              @click="handleTextImport"
+              :disabled="!textImportContent.trim() || !textImportCategoryId"
+            >
+              开始导入
+            </n-button>
+            <n-button @click="clearTextImport">
+              清空
+            </n-button>
+          </div>
+          
+          <!-- 导入结果 -->
+          <div v-if="textImportResult" class="text-import-result">
+            <n-alert 
+              :type="textImportResult.success ? 'success' : 'error'" 
+              :title="textImportResult.success ? '导入成功' : '导入失败'"
+            >
+              <div>
+                <p>{{ textImportResult.message }}</p>
+                <div v-if="textImportResult.success" class="result-stats">
+                  <p>成功导入：{{ textImportResult.processedCount }} 个</p>
+                  <p>失败跳过：{{ textImportResult.skippedCount }} 个</p>
+                </div>
+              </div>
+            </n-alert>
+          </div>
+        </div>
+      </n-tab-pane>
     </n-tabs>
     
     <!-- 编辑模式下直接显示表单 -->
@@ -698,6 +795,14 @@
         >
           开始导入
         </n-button>
+        <n-button 
+          v-if="currentTab === 'text-import' && !editMode" 
+          type="primary" 
+          @click="handleTextImport"
+          :disabled="!textImportContent.trim() || !textImportCategoryId"
+        >
+          开始导入
+        </n-button>
       </div>
     </template>
   </n-modal>
@@ -729,7 +834,7 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import { useMessage } from 'naive-ui'
 import { getFavicon } from '@/api/http/system'
-import { importSelectedBookmarks } from '@/api/http/bookmark'
+import { importSelectedBookmarks, importFromText } from '@/api/http/bookmark'
 import { getCurrentBackground } from '@/api/http/background'
 import { createCategory, getAllCategoriesForManage, type CategoryDTO } from '@/api/http/category'
 import { parseBookmarkContent, readFileAsText, type BookmarkParseResult } from '@/utils/bookmarkParser'
@@ -780,6 +885,11 @@ const importResult = ref<any>(null)
 
 // 分组展开状态管理
 const expandedGroups = ref<Record<string, boolean>>({})
+
+// 文本导入相关状态
+const textImportCategoryId = ref<number | null>(null)
+const textImportContent = ref('')
+const textImportResult = ref<any>(null)
 
 // 预览区域图片错误状态
 const previewImageError = ref(false)
@@ -974,6 +1084,72 @@ const resetImport = () => {
   importStep.value = 1
   bookmarkParseResult.value = null
   importResult.value = null
+}
+
+// 处理文本导入
+const handleTextImport = async () => {
+  if (!textImportContent.value.trim()) {
+    message.error('请输入导入内容')
+    return
+  }
+  
+  if (!textImportCategoryId.value) {
+    message.error('请选择分组')
+    return
+  }
+  
+  const lines = textImportContent.value
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+  
+  if (lines.length === 0) {
+    message.error('没有有效的导入内容')
+    return
+  }
+  
+  const loadingMessage = message.loading(`正在导入 ${lines.length} 行数据...`, { duration: 0 })
+  
+  try {
+    const result = await importFromText(lines, textImportCategoryId.value)
+    loadingMessage.destroy()
+    
+    textImportResult.value = {
+      success: true,
+      message: result.message || '导入完成',
+      processedCount: result.processedCount || 0,
+      skippedCount: result.skippedCount || 0
+    }
+    
+    message.success('文本导入完成！')
+    
+    // 清空输入内容
+    textImportContent.value = ''
+    
+    // 通知父组件刷新数据
+    emit('save', null)
+    
+  } catch (error: any) {
+    loadingMessage.destroy()
+    console.error('文本导入失败:', error)
+    
+    textImportResult.value = {
+      success: false,
+      message: error.message || '导入失败，请检查格式是否正确',
+      processedCount: 0,
+      skippedCount: 0
+    }
+    
+    message.error(error.message || '导入失败，请检查格式是否正确')
+  }
+}
+
+// 清空文本导入
+const clearTextImport = () => {
+  textImportContent.value = ''
+  textImportResult.value = null
+  textImportCategoryId.value = null
+  message.info('已清空')
 }
 
 // 计算属性：全选状态

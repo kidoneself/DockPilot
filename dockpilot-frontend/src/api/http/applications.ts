@@ -192,6 +192,7 @@ export interface ApplicationInstallInfo {
   images: ImageStatusInfo[]
   envVars: EnvVarInfo[]
   services: ServiceInfo[]
+  yamlContent?: string  // 原始YAML内容
 }
 
 export interface ImageStatusInfo {
@@ -241,7 +242,9 @@ export interface AccessUrl {
 export interface AppInstallParams {
   appId: number
   appName: string
-  envVars: Record<string, string>
+  envVars?: Record<string, string>
+  yamlContent?: string  // YAML内容
+  installMode?: 'envVars' | 'yaml'  // 安装模式
 }
 
 export interface AppInstallCallbacks {

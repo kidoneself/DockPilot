@@ -1180,6 +1180,18 @@ public class ImageServiceImpl implements ImageService {
         imageStatusMapper.update(existing);
 
         LogUtil.logOpe("镜像拉取成功: " + imageName + ":" + tag + (imageId != null ? " (ID: " + imageId + ")" : ""));
+
+        // 🚀 镜像拉取完成后，立即检查使用该镜像的容器
+        try {
+            // 注入容器同步服务来检查容器状态
+            if (containerSyncService != null) {
+                containerSyncService.checkContainersUsingImage(imageName, tag);
+                LogUtil.logSysInfo("镜像拉取完成，已触发容器状态检查: " + imageName + ":" + tag);
+            }
+        } catch (Exception e) {
+            LogUtil.logSysError("触发容器状态检查失败: " + e.getMessage());
+            // 不影响主流程，只记录错误
+        }
     }
 
     @Override

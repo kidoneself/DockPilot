@@ -13,10 +13,13 @@
     "lint:fix": "eslint . --ext .js,.ts,.vue --fix"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@vicons/ionicons5": "^0.13.0",
     "@vueuse/core": "^10.3.0",
     "axios": "^1.4.0",
     "highlight.js": "^11.11.1",
+    "js-yaml": "^4.1.0",
+    "monaco-editor": "^0.52.2",
     "naive-ui": "^2.35.0",
     "node-bookmarks-parser": "^2.0.0",
     "pinia": "^2.1.6",

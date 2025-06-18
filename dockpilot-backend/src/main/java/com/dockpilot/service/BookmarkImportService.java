@@ -255,6 +255,163 @@ public class BookmarkImportService {
     }
     
     /**
+     * 文本格式导入
+     * 格式：名称, 内网, 外网, 图标, 描述
+     */
+    @Transactional
+    public BookmarkImportResult importFromText(List<String> textLines, Integer categoryId) {
+        
+        BookmarkImportResult result = new BookmarkImportResult();
+        
+        try {
+            log.info("开始文本格式导入，行数：{}", textLines.size());
+            
+            // 解析每一行文本
+            List<WebServer> webServers = new ArrayList<>();
+            int lineNumber = 0;
+            
+            for (String line : textLines) {
+                lineNumber++;
+                if (line.trim().isEmpty()) {
+                    continue;
+                }
+                
+                try {
+                    WebServer webServer = parseFixedFormatLine(line, categoryId);
+                    webServers.add(webServer);
+                } catch (Exception e) {
+                    log.error("解析第{}行失败: {}, 错误: {}", lineNumber, line, e.getMessage());
+                    result.incrementSkipped();
+                }
+            }
+            
+            // 批量插入
+            if (!webServers.isEmpty()) {
+                webServerService.batchInsert(webServers);
+                result.setProcessedCount(webServers.size());
+                
+                // 异步获取图标（只处理图标为空的情况）
+                List<WebServer> needFaviconServers = webServers.stream()
+                    .filter(server -> "未知".equals(server.getIcon()) && "text".equals(server.getIconType()))
+                    .collect(Collectors.toList());
+                
+                if (!needFaviconServers.isEmpty()) {
+                    asyncFetchFavicons(needFaviconServers);
+                    log.info("将异步获取{}个网站的favicon", needFaviconServers.size());
+                }
+            }
+            
+            result.setMessage(String.format("导入完成，成功：%d，失败：%d", 
+                result.getProcessedCount(), result.getSkippedCount()));
+            
+        } catch (Exception e) {
+            log.error("文本导入失败", e);
+            result.setMessage("导入失败: " + e.getMessage());
+            throw e;
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 解析固定格式行：名称, 内网, 外网, 图标, 描述
+     */
+    private WebServer parseFixedFormatLine(String line, Integer categoryId) {
+        // 严格按逗号分割，必须有4个逗号=5个字段
+        String[] parts = line.split(",", 5);
+        
+        if (parts.length != 5) {
+            throw new IllegalArgumentException("格式错误：必须包含5个字段(名称,内网,外网,图标,描述)");
+        }
+        
+        // 清理空格
+        for (int i = 0; i < parts.length; i++) {
+            parts[i] = parts[i].trim();
+        }
+        
+        WebServer server = new WebServer();
+        server.setId(UUID.randomUUID().toString());
+        
+        // 字段2：内网 (必填)
+        String internalUrl = parts[1];
+        if (internalUrl.isEmpty()) {
+            throw new IllegalArgumentException("内网地址不能为空");
+        }
+        server.setInternalUrl(internalUrl);
+        
+        // 字段1：名称 (如果为空则用域名)
+        String name = parts[0];
+        if (name.isEmpty()) {
+            name = extractDomainName(internalUrl);
+        }
+        server.setName(name);
+        
+        // 字段3：外网 (可空，默认使用内网)
+        String externalUrl = parts[2];
+        if (externalUrl.isEmpty()) {
+            externalUrl = internalUrl;
+        }
+        server.setExternalUrl(externalUrl);
+        
+        // 字段4：图标 (可空，为空时后续自动获取favicon)
+        String icon = parts[3];
+        if (icon.isEmpty()) {
+            // 图标为空，设置默认值，后续异步获取favicon
+            server.setIcon("未知");
+            server.setIconType("text");
+        } else {
+            // 图标不为空，作为在线图标URL地址处理
+            server.setIcon(icon);
+            server.setIconType("online");
+        }
+        
+        // 字段5：描述 (可空，默认用名称)
+        String description = parts[4];
+        if (description.isEmpty()) {
+            description = name;
+        }
+        server.setDescription(description);
+        
+        // 设置分类和默认值
+        server.setCategoryId(categoryId);
+        server.setBgColor("rgba(255, 255, 255, 0.15)");
+        server.setCardType("normal");
+        server.setOpenType("new");
+        server.setItemSort(webServerService.getMaxItemSort() + 1);
+        
+        return server;
+    }
+    
+    /**
+     * 从域名提取网站名称
+     */
+    private String extractDomainName(String url) {
+        try {
+            java.net.URL urlObj = new java.net.URL(url);
+            String domain = urlObj.getHost();
+            if (domain.startsWith("www.")) {
+                domain = domain.substring(4);
+            }
+            String[] parts = domain.split("\\.");
+            return parts.length > 0 ? capitalize(parts[0]) : "未知网站";
+        } catch (Exception e) {
+            return "未知网站";
+        }
+    }
+    
+    /**
+     * 首字母大写
+     */
+    private String capitalize(String str) {
+        if (str == null || str.isEmpty()) {
+            return str;
+        }
+        return str.substring(0, 1).toUpperCase() + str.substring(1).toLowerCase();
+    }
+    
+
+    
+    /**
      * 现有数据缓存
      */
     private static class ExistingDataCache {

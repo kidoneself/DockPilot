@@ -3,6 +3,7 @@ package com.dockpilot.controller;
 import com.dockpilot.common.annotation.Anonymous;
 import com.dockpilot.model.User;
 import com.dockpilot.model.dto.ChangePasswordRequest;
+import com.dockpilot.model.dto.ChangeUsernameRequest;
 import com.dockpilot.model.dto.LoginRequest;
 import com.dockpilot.service.http.UserService;
 import com.dockpilot.utils.ApiResponse;
@@ -64,6 +65,19 @@ public class UserController {
     @PostMapping("/change-password")
     public ApiResponse<Void> changePassword(@RequestBody ChangePasswordRequest request) {
         return userService.changePassword(request);
+    }
+
+    /**
+     * 修改用户名
+     * 更新当前用户的用户名，修改后需要重新登录
+     *
+     * @param request 修改用户名请求（包含新用户名）
+     * @return 修改结果
+     */
+    @Operation(summary = "修改用户名", description = "修改当前登录用户的用户名，修改后需要重新登录")
+    @PostMapping("/change-username")
+    public ApiResponse<Void> changeUsername(@RequestBody ChangeUsernameRequest request) {
+        return userService.changeUsername(request);
     }
 
     /**

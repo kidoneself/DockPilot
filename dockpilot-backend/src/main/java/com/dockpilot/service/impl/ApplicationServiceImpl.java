@@ -314,6 +314,9 @@ public class ApplicationServiceImpl implements ApplicationService {
             }
             installInfo.setServices(serviceInfos);
             
+            // 🆕 设置原始YAML内容（支持高级编辑模式）
+            installInfo.setYamlContent(application.getYamlContent());
+            
             // 检查镜像状态
             enrichInstallImageStatus(installInfo.getImages());
             

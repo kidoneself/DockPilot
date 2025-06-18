@@ -2,6 +2,7 @@ package com.dockpilot.service.http;
 
 import com.dockpilot.model.User;
 import com.dockpilot.model.dto.ChangePasswordRequest;
+import com.dockpilot.model.dto.ChangeUsernameRequest;
 import com.dockpilot.model.dto.LoginRequest;
 import com.dockpilot.utils.ApiResponse;
 
@@ -35,6 +36,15 @@ public interface UserService {
      * @return 修改结果
      */
     ApiResponse<Void> changePassword(ChangePasswordRequest request);
+
+    /**
+     * 修改用户名
+     * 更新当前用户的用户名
+     *
+     * @param request 修改用户名请求（包含新用户名）
+     * @return 修改结果
+     */
+    ApiResponse<Void> changeUsername(ChangeUsernameRequest request);
 
     /**
      * 根据用户名获取用户

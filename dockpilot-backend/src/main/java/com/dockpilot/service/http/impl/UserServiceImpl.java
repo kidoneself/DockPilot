@@ -3,6 +3,7 @@ package com.dockpilot.service.http.impl;
 import com.dockpilot.mapper.UserMapper;
 import com.dockpilot.model.User;
 import com.dockpilot.model.dto.ChangePasswordRequest;
+import com.dockpilot.model.dto.ChangeUsernameRequest;
 import com.dockpilot.model.dto.LoginRequest;
 import com.dockpilot.service.http.UserService;
 import com.dockpilot.utils.ApiResponse;
@@ -98,6 +99,36 @@ public class UserServiceImpl implements UserService {
         // 更新密码
         dbUser.setPassword(encodedNewPassword);
         userMapper.updatePassword(dbUser);
+
+        return ApiResponse.success();
+    }
+
+    /**
+     * 修改用户名
+     * 更新当前用户的用户名，修改后需要重新登录
+     *
+     * @param request 修改用户名请求（包含新用户名）
+     * @return 修改结果
+     */
+    @Override
+    public ApiResponse<Void> changeUsername(ChangeUsernameRequest request) {
+        // 获取当前登录用户
+        User currentUser = jwtUtil.getCurrentUser();
+        if (currentUser == null) {
+            return ApiResponse.error("未登录");
+        }
+
+        // 验证新用户名是否已存在
+        User existingUser = userMapper.findByUsername(request.getNewUsername());
+        if (existingUser != null) {
+            return ApiResponse.error("用户名已存在");
+        }
+
+        // 更新用户名
+        int result = userMapper.updateUsername(currentUser.getUsername(), request.getNewUsername());
+        if (result == 0) {
+            return ApiResponse.error("更新失败");
+        }
 
         return ApiResponse.success();
     }

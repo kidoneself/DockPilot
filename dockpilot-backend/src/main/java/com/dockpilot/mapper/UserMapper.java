@@ -28,4 +28,14 @@ public interface UserMapper {
      */
     @Update("UPDATE users SET password = #{password}, updated_at = CURRENT_TIMESTAMP WHERE username = #{username}")
     int updatePassword(User user);
+
+    /**
+     * 更新用户名
+     *
+     * @param oldUsername 旧用户名
+     * @param newUsername 新用户名
+     * @return 影响的行数
+     */
+    @Update("UPDATE users SET username = #{newUsername}, updated_at = CURRENT_TIMESTAMP WHERE username = #{oldUsername}")
+    int updateUsername(String oldUsername, String newUsername);
 } 

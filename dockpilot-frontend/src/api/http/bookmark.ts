@@ -21,4 +21,12 @@ export const importSelectedBookmarks = (bookmarks: any[]) => {
   return request.post('/api/bookmark/import', {
     bookmarks
   })
+}
+
+// 文本格式导入
+export const importFromText = (textLines: string[], categoryId: number) => {
+  return request.post('/api/bookmark/import-text', {
+    textLines,
+    categoryId
+  })
 } 

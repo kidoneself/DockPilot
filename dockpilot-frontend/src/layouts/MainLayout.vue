@@ -31,13 +31,7 @@
           trigger="click"
           @select="handleDropdownSelect"
         >
-          <div class="user-avatar">
-            <n-avatar
-              round
-              size="small"
-              :src="userAvatar"
-              fallback-src="https://07akioni.oss-cn-beijing.aliyuncs.com/07akioni.jpeg"
-            />
+          <div class="user-info">
             <span class="username">{{ username }}</span>
           </div>
         </n-dropdown>
@@ -134,7 +128,6 @@ const themeStore = useThemeStore()
 const collapsed = ref(false)
 const activeKey = computed(() => route.path)
 const username = computed(() => userStore.userInfo?.username || 'Admin')
-const userAvatar = ref('')
 const showChangePasswordModal = ref(false)
 
 // 渲染图标
@@ -242,7 +235,7 @@ const goToHome = () => {
   align-items: center;
 }
 
-.user-avatar {
+.user-info {
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -251,7 +244,7 @@ const goToHome = () => {
   transition: background-color 0.3s;
 }
 
-.user-avatar:hover {
+.user-info:hover {
   background-color: rgba(0, 0, 0, 0.05);
 }
 
