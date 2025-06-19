@@ -107,10 +107,19 @@ public class ApplicationServiceImpl implements ApplicationService {
             application.setCreatedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
             application.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
+            // 添加调试日志
+            log.info("准备保存应用，名称: {}, 描述: {}, 分类: {}", 
+                application.getName(), application.getDescription(), application.getCategory());
+            
             applicationMapper.insert(application);
             
+            // 查询保存后的数据，验证编码
+            Application savedApp = applicationMapper.findById(application.getId());
+            log.info("保存后查询应用，名称: {}, 描述: {}, 分类: {}", 
+                savedApp.getName(), savedApp.getDescription(), savedApp.getCategory());
+            
             log.info("保存应用成功: {}", application.getName());
-            return convertToVO(application);
+            return convertToVO(savedApp);
             
         } catch (Exception e) {
             log.error("保存应用失败: {}", e.getMessage());

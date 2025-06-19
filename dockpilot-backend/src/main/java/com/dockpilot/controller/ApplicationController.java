@@ -79,6 +79,14 @@ public class ApplicationController {
     @Operation(summary = "保存应用")
     public ApiResponse<ApplicationVO> saveApplication(@Valid @RequestBody ApplicationSaveRequest request) {
         try {
+            // 添加调试日志，检查中文编码
+            log.info("接收到保存应用请求，应用名称: {}", request.getName());
+            log.info("应用名称字符数: {}, 字符编码: {}", 
+                request.getName() != null ? request.getName().length() : 0,
+                request.getName() != null ? java.util.Arrays.toString(request.getName().getBytes(java.nio.charset.StandardCharsets.UTF_8)) : "null");
+            log.info("应用描述: {}", request.getDescription());
+            log.info("应用分类: {}", request.getCategory());
+            
             ApplicationVO savedApp = applicationService.saveApplication(request);
             return ApiResponse.success(savedApp);
         } catch (Exception e) {

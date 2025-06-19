@@ -24,7 +24,7 @@ public interface ApplicationMapper {
             "AND category = #{category} " +
             "</if>" +
             "<if test='keyword != null and keyword != \"\"'>" +
-            "AND (name LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%')) " +
+            "AND (name LIKE '%' || #{keyword} || '%' OR description LIKE '%' || #{keyword} || '%') " +
             "</if>" +
             "ORDER BY created_at DESC" +
             "</script>")

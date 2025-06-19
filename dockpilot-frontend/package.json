@@ -24,7 +24,6 @@
     "node-bookmarks-parser": "^2.0.0",
     "pinia": "^2.1.6",
     "socket.io-client": "^4.8.1",
-    "tdesign-vue-next": "^1.13.0",
     "vfonts": "^0.0.3",
     "vue": "^3.3.4",
     "vue-router": "^4.5.1",

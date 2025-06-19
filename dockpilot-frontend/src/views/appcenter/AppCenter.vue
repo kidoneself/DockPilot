@@ -649,6 +649,16 @@ const handleImportSubmit = async () => {
       return
     }
     
+    // 打印提交前的数据，调试中文编码问题
+    console.log('提交前的导入数据:', {
+      name: importData.value.name,
+      description: importData.value.description,
+      category: importData.value.category,
+      iconUrl: importData.value.iconUrl,
+      yamlContentLength: importData.value.yamlContent?.length,
+      nameCharCodes: Array.from(importData.value.name).map(c => c.charCodeAt(0))
+    })
+    
     await saveApplication(importData.value)
     message.success('导入成功')
     showImportModal.value = false
@@ -782,7 +792,16 @@ const handleFileChange = async (data: { file: any; fileList: any[] }) => {
       if (!parseSuccess.value && !importData.value.name) {
         const nameWithoutExt = file.name.replace(/\.(yml|yaml)$/i, '')
         importData.value.name = nameWithoutExt
+        console.log('从文件名推断应用名称:', nameWithoutExt)
       }
+      
+      // 打印调试信息
+      console.log('导入数据:', {
+        name: importData.value.name,
+        description: importData.value.description,
+        category: importData.value.category,
+        yamlContentLength: importData.value.yamlContent?.length
+      })
       
       message.success('文件读取成功')
     } catch (error: any) {
@@ -795,7 +814,7 @@ const handleFileChange = async (data: { file: any; fileList: any[] }) => {
     message.error('文件读取失败，请重试')
     uploadedFileName.value = ''
   }
-  reader.readAsText(file)
+  reader.readAsText(file, 'UTF-8')  // 明确指定UTF-8编码
 }
 
 // 移除文件处理
@@ -868,7 +887,7 @@ const processSelectedFile = async (file: File) => {
     message.error('文件读取失败，请重试')
     uploadedFileName.value = ''
   }
-  reader.readAsText(file)
+  reader.readAsText(file, 'UTF-8')  // 明确指定UTF-8编码
 }
 
 // YAML解析功能

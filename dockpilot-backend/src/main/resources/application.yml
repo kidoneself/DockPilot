@@ -1,5 +1,10 @@
 server:
   port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 spring:
   application:
@@ -34,6 +39,12 @@ spring:
   web:
     resources:
       static-locations: file:${file.upload.path:uploads/}
+  # HTTP编码配置
+  http:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
