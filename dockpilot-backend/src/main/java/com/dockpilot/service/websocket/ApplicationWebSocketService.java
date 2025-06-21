@@ -238,15 +238,6 @@ public class ApplicationWebSocketService implements BaseService {
             // 🔧 获取x-meta中的环境变量用于替换
             Map<String, String> globalEnvVars = extractGlobalEnvVarsFromYaml(yamlContent, callback);
             
-            // 🔧 处理配置包（在容器创建前）
-            String configUrl = service.getConfigUrl();
-            if (configUrl != null && !configUrl.trim().isEmpty()) {
-                callback.onLog("📦 检测到配置包: " + configUrl);
-                handleConfigDownload(configUrl, service.getName(), service.getVolumes(), callback);
-            } else {
-                callback.onLog("📁 服务 " + service.getName() + " 无配置包，将创建空目录");
-            }
-            
             // 创建容器请求对象
             ContainerCreateRequest request = new ContainerCreateRequest();
             
@@ -256,6 +247,28 @@ public class ApplicationWebSocketService implements BaseService {
             callback.onLog("设置镜像: " + service.getImage());
             callback.onLog("设置容器名: " + service.getName());
             
+            // 🔧 先解析卷挂载配置，获取处理后的卷挂载列表
+            List<String> processedVolumeMappings = new ArrayList<>();
+            if (serviceConfig.containsKey("volumes")) {
+                parseVolumesFromConfig(serviceConfig.get("volumes"), request, globalEnvVars, callback);
+                
+                // 提取处理后的卷挂载配置用于配置包处理
+                List<Object> volumes = (List<Object>) serviceConfig.get("volumes");
+                for (Object volumeObj : volumes) {
+                    String volumeMapping = replaceEnvPlaceholders(volumeObj.toString(), globalEnvVars);
+                    processedVolumeMappings.add(volumeMapping);
+                }
+            }
+            
+            // 🔧 处理配置包（使用处理后的卷挂载配置）
+            String configUrl = service.getConfigUrl();
+            if (configUrl != null && !configUrl.trim().isEmpty()) {
+                callback.onLog("📦 检测到配置包: " + configUrl);
+                handleConfigDownload(configUrl, service.getName(), processedVolumeMappings, callback);
+            } else {
+                callback.onLog("📁 服务 " + service.getName() + " 无配置包，将创建空目录");
+            }
+            
             // 🔧 解析端口映射
             if (serviceConfig.containsKey("ports")) {
                 parsePortsFromConfig(serviceConfig.get("ports"), request, globalEnvVars, callback);
@@ -264,11 +277,6 @@ public class ApplicationWebSocketService implements BaseService {
             // 🔧 解析环境变量
             if (serviceConfig.containsKey("environment")) {
                 parseEnvironmentFromConfig(serviceConfig.get("environment"), request, globalEnvVars, callback);
-            }
-            
-            // 🔧 解析卷挂载
-            if (serviceConfig.containsKey("volumes")) {
-                parseVolumesFromConfig(serviceConfig.get("volumes"), request, globalEnvVars, callback);
             }
             
             // 🔧 解析重启策略
@@ -741,11 +749,11 @@ public class ApplicationWebSocketService implements BaseService {
             if (!java.nio.file.Files.exists(dirPath)) {
                 java.nio.file.Files.createDirectories(dirPath);
                 callback.onLog("✅ 创建宿主机目录: " + actualPath);
-            } else {
+                } else {
                 callback.onLog("✅ 宿主机目录已存在: " + actualPath);
             }
             
-            return true;
+                return true;
             
         } catch (Exception e) {
             callback.onLog("❌ 创建宿主机目录失败: " + hostPath + " - " + e.getMessage());
@@ -1011,47 +1019,109 @@ public class ApplicationWebSocketService implements BaseService {
     private void deployExtractedConfig(String extractDir, String serviceName, 
                                      List<String> volumeMappings, InstallCallback callback) throws Exception {
         
+        callback.onLog("🔍 开始部署配置包到目标目录...");
+        callback.onLog("📂 解压目录: " + extractDir);
+        callback.onLog("🔧 服务名: " + serviceName);
+        callback.onLog("📋 卷挂载配置数量: " + (volumeMappings != null ? volumeMappings.size() : 0));
+        
         if (volumeMappings == null || volumeMappings.isEmpty()) {
             callback.onLog("⚠️ 无卷挂载配置，跳过配置部署");
             return;
         }
         
+        // 列出解压目录的内容
+        try {
+            java.nio.file.Path extractPath = java.nio.file.Paths.get(extractDir);
+            if (java.nio.file.Files.exists(extractPath)) {
+                callback.onLog("📁 解压目录内容:");
+                java.nio.file.Files.list(extractPath).forEach(path -> {
+                    try {
+                        callback.onLog("  - " + path.getFileName() + " (" + 
+                                     (java.nio.file.Files.isDirectory(path) ? "目录" : "文件") + ")");
+                    } catch (Exception e) {
+                        callback.onLog("  - " + path.getFileName() + " (检查失败)");
+                    }
+                });
+            } else {
+                callback.onLog("❌ 解压目录不存在: " + extractDir);
+                return;
+            }
+        } catch (Exception e) {
+            callback.onLog("⚠️ 无法列出解压目录内容: " + e.getMessage());
+        }
+        
         for (String volumeMapping : volumeMappings) {
+            callback.onLog("🔄 处理卷挂载: " + volumeMapping);
+            
             String[] parts = volumeMapping.split(":");
             if (parts.length >= 2) {
                 String hostPath = parts[0].trim();
                 String containerPath = parts[1].trim();
                 
+                callback.onLog("📍 宿主机路径: " + hostPath);
+                callback.onLog("📍 容器路径: " + containerPath);
+                
                 // 🔧 从宿主机路径推导配置包中的目录名（与打包逻辑保持一致）
                 String hostDirName = getLastPathSegment(hostPath);
+                callback.onLog("📂 推导的目录名: " + hostDirName);
                 
                 // 🔥 先尝试在服务名目录下查找（标准结构）
                 String sourceDir = extractDir + "/" + serviceName + "/" + hostDirName;
+                callback.onLog("🔍 尝试标准路径: " + sourceDir);
                 
                 // 🔄 如果服务名目录下找不到，再尝试直接查找（兼容性）
                 if (!java.nio.file.Files.exists(java.nio.file.Paths.get(sourceDir))) {
                     sourceDir = extractDir + "/" + hostDirName;
-                    callback.onLog("📂 标准路径未找到，尝试兼容路径: " + sourceDir);
+                    callback.onLog("🔍 标准路径未找到，尝试兼容路径: " + sourceDir);
                 }
                 
                 // 检查配置包中是否有对应的目录
                 if (java.nio.file.Files.exists(java.nio.file.Paths.get(sourceDir))) {
+                    callback.onLog("✅ 找到配置源目录: " + sourceDir);
+                    
                     // 获取宿主机实际路径
                     String actualHostPath = getActualHostPath(hostPath, callback);
+                    callback.onLog("🎯 目标宿主机路径: " + actualHostPath);
+                    
+                    // 确保目标目录存在
+                    java.nio.file.Path targetPath = java.nio.file.Paths.get(actualHostPath);
+                    if (!java.nio.file.Files.exists(targetPath)) {
+                        java.nio.file.Files.createDirectories(targetPath);
+                        callback.onLog("📁 创建目标目录: " + actualHostPath);
+                    } else {
+                        callback.onLog("📁 目标目录已存在: " + actualHostPath);
+                    }
                     
                     // 复制配置包内容到宿主机目录
                     copyDirectory(sourceDir, actualHostPath, callback);
                     
                     callback.onLog("✅ 配置包部署成功: " + containerPath + " -> " + actualHostPath);
                 } else {
-                    callback.onLog("⚠️ 配置包中未找到对应目录: " + hostDirName + "，将创建空目录");
+                    callback.onLog("⚠️ 配置包中未找到对应目录: " + hostDirName);
+                    callback.onLog("❌ 源目录不存在: " + sourceDir);
                     
-                    // 确保宿主机目录存在
+                    // 列出可能的目录结构帮助调试
+                    try {
+                        java.nio.file.Path extractPath = java.nio.file.Paths.get(extractDir);
+                        callback.onLog("🔍 可用的目录结构:");
+                        java.nio.file.Files.walk(extractPath, 2)
+                                .filter(java.nio.file.Files::isDirectory)
+                                .forEach(path -> callback.onLog("  📁 " + extractPath.relativize(path)));
+                    } catch (Exception e) {
+                        callback.onLog("⚠️ 无法列出目录结构: " + e.getMessage());
+                    }
+                    
+                    // 确保宿主机目录存在（创建空目录）
                     String actualHostPath = getActualHostPath(hostPath, callback);
                     java.nio.file.Files.createDirectories(java.nio.file.Paths.get(actualHostPath));
+                    callback.onLog("📁 创建空目录: " + actualHostPath);
                 }
+            } else {
+                callback.onLog("⚠️ 无效的卷挂载格式: " + volumeMapping);
             }
         }
+        
+        callback.onLog("✅ 配置包部署完成");
     }
     
     /**
@@ -1074,8 +1144,18 @@ public class ApplicationWebSocketService implements BaseService {
         java.nio.file.Path sourcePath = java.nio.file.Paths.get(sourceDir);
         java.nio.file.Path targetPath = java.nio.file.Paths.get(targetDir);
         
+        callback.onLog("📋 开始复制目录内容:");
+        callback.onLog("  源目录: " + sourceDir);
+        callback.onLog("  目标目录: " + targetDir);
+        
         // 确保目标目录存在
         java.nio.file.Files.createDirectories(targetPath);
+        callback.onLog("📁 确保目标目录存在: " + targetDir);
+        
+        // 统计复制文件数量
+        java.util.concurrent.atomic.AtomicInteger fileCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger dirCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger errorCount = new java.util.concurrent.atomic.AtomicInteger(0);
         
         // 递归复制
         java.nio.file.Files.walk(sourcePath)
@@ -1083,15 +1163,34 @@ public class ApplicationWebSocketService implements BaseService {
                 try {
                     java.nio.file.Path destination = targetPath.resolve(sourcePath.relativize(source));
                     if (java.nio.file.Files.isDirectory(source)) {
-                        java.nio.file.Files.createDirectories(destination);
+                        if (!source.equals(sourcePath)) { // 跳过根目录
+                            java.nio.file.Files.createDirectories(destination);
+                            callback.onLog("📁 创建目录: " + sourcePath.relativize(source));
+                            dirCount.incrementAndGet();
+                        }
                     } else {
                         java.nio.file.Files.copy(source, destination, 
                             java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        callback.onLog("📄 复制文件: " + sourcePath.relativize(source) + 
+                                     " (" + java.nio.file.Files.size(source) + " 字节)");
+                        fileCount.incrementAndGet();
                     }
                 } catch (Exception e) {
-                    callback.onLog("⚠️ 复制文件失败: " + source + " -> " + e.getMessage());
+                    callback.onLog("❌ 复制失败: " + source + " -> " + e.getMessage());
+                    errorCount.incrementAndGet();
                 }
             });
+        
+        callback.onLog("📊 复制统计:");
+        callback.onLog("  📄 文件数量: " + fileCount.get());
+        callback.onLog("  📁 目录数量: " + dirCount.get());
+        callback.onLog("  ❌ 错误数量: " + errorCount.get());
+        
+        if (errorCount.get() > 0) {
+            callback.onLog("⚠️ 有 " + errorCount.get() + " 个文件复制失败");
+        } else {
+            callback.onLog("✅ 所有文件复制成功");
+        }
         
         callback.onLog("📁 复制目录完成: " + sourceDir + " -> " + targetDir);
     }
